@@ -19,3 +19,13 @@ GEMINI_API_KEY=<secure value from your secret manager> node tests/gemini-integra
 ```
 
 The script verifies the secret is present server-side, sends a minimal structured extraction request, and does not print the secret.
+
+## Vercel deployment
+
+The production serverless endpoint is `POST /v1/extract`, routed by `vercel.json` to `api/extract.js`. The function calls the shared server-side Gemini proxy module and reads `GEMINI_API_KEY` only from the Vercel server environment.
+
+To verify a deployed proxy without exposing the secret, set only the public endpoint URL locally:
+
+```bash
+LIFE_ADMIN_PROXY_URL=https://<deployment-host>/v1/extract node tests/gemini-integration.js
+```

@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "functions": {
+    "api/extract.js": {
+      "maxDuration": 15
+    }
+  },
+  "routes": [
+    { "src": "/v1/extract", "dest": "/api/extract.js" }
+  ]
+}
