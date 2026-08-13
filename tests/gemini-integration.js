@@ -17,6 +17,12 @@ async function callDeployedProxy(endpoint) {
     process.exit(2);
   }
   const result = endpoint ? await callDeployedProxy(endpoint) : await callGemini('My car insurance costs €840 and renews every March 18.');
+(async () => {
+  if (!process.env.GEMINI_API_KEY) {
+    console.error('Gemini integration: missing secure environment variable GEMINI_API_KEY');
+    process.exit(2);
+  }
+  const result = await callGemini('My car insurance costs €840 and renews every March 18.');
   if (result.status !== 200) {
     console.error(`Gemini integration failed with status ${result.status}`);
     process.exit(1);
