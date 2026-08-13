@@ -62,7 +62,25 @@ async function callGemini(text) {
     if (response.status === 429) return { status: 429, body: { error: 'rate_limited' } };
     if (response.status === 401 || response.status === 403) return { status: 401, body: { error: 'authentication_failed' } };
     if (response.status >= 500) return { status: 503, body: { error: 'service_unavailable' } };
-    if (!response.ok) return { status: 502, body: { error: 'gemini_request_failed' } };
+    if (!response.ok) {
+  let upstreamError = null;
+  try {
+    const errorPayload = await response.json();
+    upstreamError = {
+      status: errorPayload?.error?.status || null,
+      code: errorPayload?.error?.code || null,
+      message: errorPayload?.error?.message || null
+    };
+  } catch {}
+  return {
+    status: 502,
+    body: {
+      error: 'gemini_request_failed',
+      upstream_status: response.status,
+      upstream_error: upstreamError
+    }
+  };
+}
     const payload = await response.json();
     const textPart = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!textPart) return { status: 502, body: { error: 'empty_ai_response' } };
