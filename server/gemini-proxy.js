@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const http = require('http');
 
-const model = 'gemini-2.5-flash-lite-latest';
+const model = 'gemini-2.5-flash-lite';
 const port = Number(process.env.PORT || 8787);
 const key = process.env.GEMINI_API_KEY;
 
