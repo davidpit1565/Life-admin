@@ -4,3 +4,5 @@ DerivedData/
 .DS_Store
 .env
 *.pem
+.env.*
+!.env.example
