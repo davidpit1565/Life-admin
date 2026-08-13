@@ -2,6 +2,7 @@
 const http = require('http');
 
 const model = 'gemini-2.5-flash-lite';
+const apiVersion = 'v1beta';
 const port = Number(process.env.PORT || 8787);
 const key = process.env.GEMINI_API_KEY;
 
@@ -10,6 +11,7 @@ function safeLog(message, meta = {}) {
   delete clean.authorization;
   delete clean.apiKey;
   delete clean.key;
+  delete clean['x-goog-api-key'];
   console.error(JSON.stringify({ message, ...clean }));
 }
 
@@ -44,16 +46,23 @@ function toExtraction(raw) {
   };
 }
 
+function buildGeminiUrl() {
+  return `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent`;
+}
+
 async function callGemini(text) {
   if (!key) return { status: 503, body: { error: 'missing_secure_environment_variable' } };
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+  const url = buildGeminiUrl();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
   try {
     const response = await fetch(url, {
       method: 'POST',
       signal: controller.signal,
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        'x-goog-api-key': key
+      },
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: buildPrompt(text.slice(0, 4000)) }] }],
         generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 512 }
@@ -62,25 +71,7 @@ async function callGemini(text) {
     if (response.status === 429) return { status: 429, body: { error: 'rate_limited' } };
     if (response.status === 401 || response.status === 403) return { status: 401, body: { error: 'authentication_failed' } };
     if (response.status >= 500) return { status: 503, body: { error: 'service_unavailable' } };
-    if (!response.ok) {
-  let upstreamError = null;
-  try {
-    const errorPayload = await response.json();
-    upstreamError = {
-      status: errorPayload?.error?.status || null,
-      code: errorPayload?.error?.code || null,
-      message: errorPayload?.error?.message || null
-    };
-  } catch {}
-  return {
-    status: 502,
-    body: {
-      error: 'gemini_request_failed',
-      upstream_status: response.status,
-      upstream_error: upstreamError
-    }
-  };
-}
+    if (!response.ok) return { status: 502, body: { error: 'gemini_request_failed' } };
     const payload = await response.json();
     const textPart = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!textPart) return { status: 502, body: { error: 'empty_ai_response' } };
@@ -113,7 +104,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 if (require.main === module) {
-  server.listen(port, () => safeLog('Life Admin Gemini proxy listening', { port, model, keyConfigured: Boolean(key) }));
+  server.listen(port, () => safeLog('Life Admin Gemini proxy listening', { port, model, apiVersion, keyConfigured: Boolean(key) }));
 }
 
-module.exports = { buildPrompt, toExtraction, callGemini, model };
+module.exports = { buildPrompt, toExtraction, callGemini, buildGeminiUrl, model, apiVersion };
