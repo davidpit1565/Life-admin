@@ -1,0 +1,2 @@
+# Life Admin App Store Readiness
+Bundle identifier: configure as `com.lifeadmin.app`. Version 1.0.0 build 1. Permissions are requested only when users start camera scanning, voice input, notifications, calendar, reminders, or contacts integrations. No analytics SDK, advertising SDK, tracking SDK, development endpoint, or API key is committed. Gemini 2.5 Flash-Lite must be reached through a server-side proxy configured with environment secrets.
