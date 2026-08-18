@@ -10,8 +10,9 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "*": false,
-      "main": true
+      "claude/*": false,
+      "dependabot/*": false,
+      "codex/*": false
     }
   }
 }
