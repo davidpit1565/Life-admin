@@ -7,5 +7,11 @@
   },
   "routes": [
     { "src": "/v1/extract", "dest": "/api/extract.js" }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "*": false,
+      "main": true
+    }
+  }
 }
