@@ -16,6 +16,9 @@ jobs:
       - name: Run LifeAdminCore package tests (swift test)
         run: swift test
 
+      - name: Install ripgrep
+        run: brew install ripgrep
+
       - name: Run repo QA checks (secret/placeholder scan)
         run: ./scripts/security_scan.sh
 
@@ -24,6 +27,13 @@ jobs:
 
       - name: Generate Xcode project
         run: xcodegen generate
+
+      - name: Select newest available Xcode
+        run: |
+          latest=$(ls /Applications | grep -E '^Xcode_[0-9]+(\.[0-9]+)*\.app$' | sort -V | tail -1)
+          echo "Selecting /Applications/$latest"
+          sudo xcode-select -s "/Applications/$latest"
+          xcodebuild -version
 
       - name: Build LifeAdminApp for the Simulator
         run: |
