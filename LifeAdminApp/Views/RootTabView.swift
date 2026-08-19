@@ -2,10 +2,58 @@ import SwiftUI
 import LifeAdminCore
 struct RootTabView: View { @State private var adding=false; var body: some View { TabView { HomeView().tabItem{Label(String(localized:"tab.home"), systemImage:"house")}; ItemsView().tabItem{Label(String(localized:"tab.items"), systemImage:"folder")}; CalendarView().tabItem{Label(String(localized:"tab.calendar"), systemImage:"calendar")}; InsightsView().tabItem{Label(String(localized:"tab.insights"), systemImage:"chart.line.uptrend.xyaxis")}; SettingsView().tabItem{Label(String(localized:"tab.settings"), systemImage:"gear")} }.overlay(alignment:.bottom){ Button{adding=true}label:{Image(systemName:"plus").font(.title2.bold()).frame(width:60,height:60).background(.tint).foregroundStyle(.white).clipShape(Circle()).shadow(radius:8)}.accessibilityLabel(String(localized:"add.anything")).padding(.bottom,58) }.sheet(isPresented:$adding){AddItemView()} } }
 struct HomeView: View { @EnvironmentObject var store: ItemStore; var body: some View { NavigationStack { List { Section(String(localized:"home.upcoming")) { if store.items.isEmpty { ContentUnavailableView(String(localized:"empty.allClear"), systemImage:"checkmark.seal", description: Text(String(localized:"empty.noAttention"))) }; ForEach(store.items.sorted{($0.dueDate ?? .distantFuture)<($1.dueDate ?? .distantFuture)}) { Text($0.title) } } }.navigationTitle(String(localized:"app.name")) } } }
-struct ItemsView: View { @EnvironmentObject var store: ItemStore; @State var q=""; var body: some View { NavigationStack{ List(store.items){ Text($0.title).accessibilityLabel($0.title) }.searchable(text:$q).navigationTitle(String(localized:"tab.items")) } } }
+struct ItemsView: View {
+    @EnvironmentObject var store: ItemStore
+    @State private var query = ""
+
+    private var filteredItems: [LifeAdminItem] {
+        var filter = SearchFilter()
+        filter.query = query
+        return SearchEngine().search(store.items, filter: filter)
+    }
+
+    var body: some View {
+        NavigationStack {
+            List(filteredItems) { item in
+                NavigationLink {
+                    EditContactView(item: item)
+                } label: {
+                    Text(item.title).accessibilityLabel(item.title)
+                }
+            }
+            .searchable(text: $query)
+            .navigationTitle(String(localized: "tab.items"))
+        }
+    }
+}
 struct CalendarView: View { var body: some View { NavigationStack { Text(String(localized:"calendar.monthly")).navigationTitle(String(localized:"tab.calendar")) } } }
 struct InsightsView: View { @EnvironmentObject var store: ItemStore; var body: some View { NavigationStack { List { Text(String(localized:"insights.renewals", defaultValue:"You have \(store.items.count) life-admin items.")) }.navigationTitle(String(localized:"tab.insights")) } } }
-struct SettingsView: View { @AppStorage("language") var language="system"; var body: some View { NavigationStack { Form { Section(String(localized:"settings.general")){ Picker(String(localized:"settings.language"), selection:$language){ ForEach(SupportedLanguage.allCases, id:\.rawValue){ Text($0.rawValue).tag($0.rawValue) } } }; Section(String(localized:"settings.ai")){ Text(String(localized:"privacy.aiProcessing")) }; Section(String(localized:"settings.privacy")){ Button(String(localized:"settings.deleteAIData"), role:.destructive){} } }.navigationTitle(String(localized:"tab.settings")) } } }
+struct SettingsView: View {
+    @AppStorage("language") var language = "system"
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(String(localized: "settings.general")) {
+                    Picker(String(localized: "settings.language"), selection: $language) {
+                        ForEach(SupportedLanguage.allCases, id: \.rawValue) {
+                            Text($0.rawValue).tag($0.rawValue)
+                        }
+                    }
+                    NavigationLink(String(localized: "settings.addressChange")) {
+                        AddressChangeView()
+                    }
+                }
+                Section(String(localized: "settings.ai")) {
+                    Text(String(localized: "privacy.aiProcessing"))
+                }
+                Section(String(localized: "settings.privacy")) {
+                    Button(String(localized: "settings.deleteAIData"), role: .destructive) {}
+                }
+            }.navigationTitle(String(localized: "tab.settings"))
+        }
+    }
+}
 struct AddItemView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var store: ItemStore

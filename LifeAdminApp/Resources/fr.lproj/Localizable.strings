@@ -20,3 +20,16 @@
 "settings.deleteAIData" = "Delete AI data";
 "common.save" = "Save";
 "item.untitled" = "Untitled item";
+"settings.addressChange" = "Change of Address";
+"addressChange.title" = "Change of Address";
+"addressChange.newAddressPrompt" = "New address";
+"addressChange.newAddressPlaceholder" = "Street, city, postal code";
+"addressChange.affectedItems" = "Notify these contacts";
+"addressChange.noAffectedItems" = "No items have a contact email yet. Add one from an item's page first.";
+"addressChange.reviewSend" = "Review & Send";
+"addressChange.mailUnavailable" = "Set up Mail on this device first to send address updates.";
+"common.ok" = "OK";
+"editContact.section" = "Contact";
+"editContact.name" = "Name";
+"editContact.company" = "Company";
+"editContact.email" = "Email";
