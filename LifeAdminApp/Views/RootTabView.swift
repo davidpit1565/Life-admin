@@ -6,4 +6,29 @@ struct ItemsView: View { @EnvironmentObject var store: ItemStore; @State var q="
 struct CalendarView: View { var body: some View { NavigationStack { Text(String(localized:"calendar.monthly")).navigationTitle(String(localized:"tab.calendar")) } } }
 struct InsightsView: View { @EnvironmentObject var store: ItemStore; var body: some View { NavigationStack { List { Text(String(localized:"insights.renewals", defaultValue:"You have \(store.items.count) life-admin items.")) }.navigationTitle(String(localized:"tab.insights")) } } }
 struct SettingsView: View { @AppStorage("language") var language="system"; var body: some View { NavigationStack { Form { Section(String(localized:"settings.general")){ Picker(String(localized:"settings.language"), selection:$language){ ForEach(SupportedLanguage.allCases, id:\.rawValue){ Text($0.rawValue).tag($0.rawValue) } } }; Section(String(localized:"settings.ai")){ Text(String(localized:"privacy.aiProcessing")) }; Section(String(localized:"settings.privacy")){ Button(String(localized:"settings.deleteAIData"), role:.destructive){} } }.navigationTitle(String(localized:"tab.settings")) } } }
-struct AddItemView: View { @Environment(\.dismiss) var dismiss; @EnvironmentObject var store: ItemStore; @State var text=""; var body: some View { NavigationStack { Form { Section(String(localized:"add.justTellMe")){ TextEditor(text:$text).frame(minHeight:140).accessibilityLabel(String(localized:"add.prompt")) }; Section { Button(String(localized:"common.save")){ store.add(text:text); dismiss() }.disabled(text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty) } }.navigationTitle(String(localized:"add.anything")) } } }
+struct AddItemView: View {
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var store: ItemStore
+    @State var text = ""
+    @State private var isSaving = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(String(localized: "add.justTellMe")) {
+                    TextEditor(text: $text).frame(minHeight: 140).accessibilityLabel(String(localized: "add.prompt"))
+                }
+                Section {
+                    Button(String(localized: "common.save")) {
+                        isSaving = true
+                        Task {
+                            await store.add(text: text)
+                            isSaving = false
+                            dismiss()
+                        }
+                    }.disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
+                }
+            }.navigationTitle(String(localized: "add.anything"))
+        }
+    }
+}
