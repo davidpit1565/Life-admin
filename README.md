@@ -14,7 +14,7 @@ optional AI assist.
 - `server/gemini-proxy.js` + `api/extract.js` — a server-side proxy so the
   Gemini API key never ships inside the iOS app. Deployed on Vercel
   (`vercel.json`).
-- `tests/` — Node scripts that exercise the Gemini proxy contract.
+- `js-tests/` — Node scripts that exercise the Gemini proxy contract.
 - `scripts/` — local QA and secret-scanning scripts.
 - `docs/` — build/testing setup, Gemini configuration, and App Store
   readiness notes.

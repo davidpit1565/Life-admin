@@ -58,9 +58,9 @@ restructuring what's already here.
 - `swift test` — not runnable in a plain Linux/CI shell without a Swift
   toolchain for Apple platforms; this only works on macOS or in the GitHub
   Actions workflow above.
-- `node tests/gemini-model-contract.js` — verifies the Gemini proxy's
+- `node js-tests/gemini-model-contract.js` — verifies the Gemini proxy's
   model/endpoint contract, works anywhere Node.js runs.
-- `node tests/gemini-integration.js` — exercises the real Gemini proxy; set
+- `node js-tests/gemini-integration.js` — exercises the real Gemini proxy; set
   `GEMINI_API_KEY` (calls `callGemini` directly) or `LIFE_ADMIN_PROXY_URL`
   (calls a deployed `/v1/extract` endpoint).
 - `./scripts/security_scan.sh` — secret/placeholder scan, works anywhere
