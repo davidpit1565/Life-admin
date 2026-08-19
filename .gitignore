@@ -6,3 +6,5 @@ DerivedData/
 *.pem
 .env.*
 !.env.example
+*.xcodeproj/
+*.xcworkspace/
