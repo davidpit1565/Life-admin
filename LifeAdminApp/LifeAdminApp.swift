@@ -55,4 +55,24 @@ final class ItemStore: ObservableObject {
         try? modelContext.save()
         items.insert(item, at: 0)
     }
+
+    func update(_ item: LifeAdminItem) {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+        items[index] = item
+        let targetID = item.id
+        let descriptor = FetchDescriptor<PersistedItem>(predicate: #Predicate { $0.id == targetID })
+        if let persisted = try? modelContext.fetch(descriptor).first {
+            persisted.apply(item)
+            try? modelContext.save()
+        }
+    }
+
+    func markAddressSynced(_ itemID: UUID) {
+        guard let index = items.firstIndex(where: { $0.id == itemID }) else { return }
+        var item = items[index]
+        if item.tags.contains(AddressChangeEngine.syncedTag) == false {
+            item.tags.append(AddressChangeEngine.syncedTag)
+        }
+        update(item)
+    }
 }
