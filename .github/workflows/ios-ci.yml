@@ -1,0 +1,44 @@
+name: iOS CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  build-and-test:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run LifeAdminCore package tests (swift test)
+        run: swift test
+
+      - name: Install ripgrep
+        run: brew install ripgrep
+
+      - name: Run repo QA checks (secret/placeholder scan)
+        run: ./scripts/security_scan.sh
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Select newest available Xcode
+        run: |
+          latest=$(ls /Applications | grep -E '^Xcode_[0-9]+(\.[0-9]+)*\.app$' | sort -V | tail -1)
+          echo "Selecting /Applications/$latest"
+          sudo xcode-select -s "/Applications/$latest"
+          xcodebuild -version
+
+      - name: Build LifeAdminApp for the Simulator
+        run: |
+          xcodebuild build \
+            -project LifeAdmin.xcodeproj \
+            -scheme LifeAdminApp \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO
