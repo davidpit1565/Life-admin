@@ -1,7 +1,38 @@
 import SwiftUI
 import LifeAdminCore
 struct RootTabView: View { @State private var adding=false; var body: some View { TabView { HomeView().tabItem{Label(String(localized:"tab.home"), systemImage:"house")}; ItemsView().tabItem{Label(String(localized:"tab.items"), systemImage:"folder")}; CalendarView().tabItem{Label(String(localized:"tab.calendar"), systemImage:"calendar")}; InsightsView().tabItem{Label(String(localized:"tab.insights"), systemImage:"chart.line.uptrend.xyaxis")}; SettingsView().tabItem{Label(String(localized:"tab.settings"), systemImage:"gear")} }.overlay(alignment:.bottom){ Button{adding=true}label:{Image(systemName:"plus").font(.title2.bold()).frame(width:60,height:60).background(.tint).foregroundStyle(.white).clipShape(Circle()).shadow(radius:8)}.accessibilityLabel(String(localized:"add.anything")).padding(.bottom,58) }.sheet(isPresented:$adding){AddItemView()} } }
-struct HomeView: View { @EnvironmentObject var store: ItemStore; var body: some View { NavigationStack { List { Section(String(localized:"home.upcoming")) { if store.items.isEmpty { ContentUnavailableView(String(localized:"empty.allClear"), systemImage:"checkmark.seal", description: Text(String(localized:"empty.noAttention"))) }; ForEach(store.items.sorted{($0.dueDate ?? .distantFuture)<($1.dueDate ?? .distantFuture)}) { Text($0.title) } } }.navigationTitle(String(localized:"app.name")) } } }
+struct HomeView: View {
+    @EnvironmentObject var store: ItemStore
+
+    private var upcomingItems: [LifeAdminItem] {
+        store.items.sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if store.items.isEmpty {
+                    ContentUnavailableView(
+                        String(localized: "empty.allClear"),
+                        systemImage: "checkmark.seal.fill",
+                        description: Text(String(localized: "empty.noAttention"))
+                    )
+                } else {
+                    Section(String(localized: "home.upcoming")) {
+                        ForEach(upcomingItems) { item in
+                            NavigationLink {
+                                EditContactView(item: item)
+                            } label: {
+                                ItemRow(item: item)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle(String(localized: "app.name"))
+        }
+    }
+}
 struct ItemsView: View {
     @EnvironmentObject var store: ItemStore
     @State private var query = ""
@@ -18,7 +49,20 @@ struct ItemsView: View {
                 NavigationLink {
                     EditContactView(item: item)
                 } label: {
-                    Text(item.title).accessibilityLabel(item.title)
+                    ItemRow(item: item)
+                }
+            }
+            .overlay {
+                if filteredItems.isEmpty {
+                    if query.isEmpty {
+                        ContentUnavailableView(
+                            String(localized: "empty.allClear"),
+                            systemImage: "folder",
+                            description: Text(String(localized: "empty.noAttention"))
+                        )
+                    } else {
+                        ContentUnavailableView.search(text: query)
+                    }
                 }
             }
             .searchable(text: $query)
@@ -27,7 +71,42 @@ struct ItemsView: View {
     }
 }
 struct CalendarView: View { var body: some View { NavigationStack { Text(String(localized:"calendar.monthly")).navigationTitle(String(localized:"tab.calendar")) } } }
-struct InsightsView: View { @EnvironmentObject var store: ItemStore; var body: some View { NavigationStack { List { Text(String(localized:"insights.renewals", defaultValue:"You have \(store.items.count) life-admin items.")) }.navigationTitle(String(localized:"tab.insights")) } } }
+struct InsightsView: View {
+    @EnvironmentObject var store: ItemStore
+
+    private var urgentCount: Int {
+        store.items.filter { $0.priority == .critical || $0.priority == .high }.count
+    }
+
+    private var upcomingWeekCount: Int {
+        let horizon = Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date()
+        return store.items.filter { ($0.dueDate ?? .distantFuture) <= horizon }.count
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                LabeledContent {
+                    Text(store.items.count.formatted())
+                } label: {
+                    Label(String(localized: "insights.total"), systemImage: "tray.full.fill")
+                }
+                LabeledContent {
+                    Text(urgentCount.formatted())
+                        .foregroundStyle(urgentCount > 0 ? .red : .secondary)
+                } label: {
+                    Label(String(localized: "insights.urgent"), systemImage: "exclamationmark.triangle.fill")
+                }
+                LabeledContent {
+                    Text(upcomingWeekCount.formatted())
+                } label: {
+                    Label(String(localized: "insights.dueThisWeek"), systemImage: "calendar.badge.clock")
+                }
+            }
+            .navigationTitle(String(localized: "tab.insights"))
+        }
+    }
+}
 struct SettingsView: View {
     @AppStorage("language") var language = "system"
 
