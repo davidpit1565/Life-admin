@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 import LifeAdminCore
 
 @main
@@ -8,6 +9,7 @@ struct LifeAdminApp: App {
     @StateObject private var store: ItemStore
 
     init() {
+        UNUserNotificationCenter.current().delegate = NotificationActionHandler.shared
         let container = try! ModelContainer(for: PersistedItem.self)
         modelContainer = container
         _store = StateObject(wrappedValue: ItemStore(modelContext: container.mainContext))
@@ -24,13 +26,49 @@ struct LifeAdminApp: App {
 @MainActor
 final class ItemStore: ObservableObject {
     @Published var items: [LifeAdminItem] = []
+    @Published var lastAddedItemID: UUID?
     private let modelContext: ModelContext
     private let aiService: LifeAdminAIService
+
+    /// Read directly from UserDefaults (rather than @AppStorage, which only works in views) so
+    /// the setting in Settings > AI takes effect on the very next add without any extra plumbing.
+    private var autonomyMode: AIProcessingMode {
+        AIProcessingMode(rawValue: UserDefaults.standard.string(forKey: "aiProcessingMode") ?? "") ?? .allowAutomatically
+    }
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
         self.aiService = LifeAdminAIService(client: ProxyAIClient(endpoint: AppConfig.geminiProxyEndpoint))
         load()
+        observeNotificationActions()
+    }
+
+    private func observeNotificationActions() {
+        NotificationCenter.default.addObserver(forName: NotificationActionHandler.actionReceived, object: nil, queue: .main) { [weak self] note in
+            guard let itemID = note.userInfo?["itemID"] as? UUID, let actionIdentifier = note.userInfo?["actionIdentifier"] as? String else { return }
+            Task { [weak self] in
+                await self?.handleNotificationAction(itemID: itemID, actionIdentifier: actionIdentifier)
+            }
+        }
+    }
+
+    /// Lets the reminder notification itself act as a two-way interface — "Mark Done" or "Snooze"
+    /// right from the banner — instead of requiring the user to open the app to close the loop.
+    func handleNotificationAction(itemID: UUID, actionIdentifier: String) async {
+        guard let index = items.firstIndex(where: { $0.id == itemID }) else { return }
+        var item = items[index]
+        switch actionIdentifier {
+        case NotificationActionHandler.markDoneIdentifier:
+            item.status = .completed
+            ActivityLog.shared.record(String(format: String(localized: "activityLog.markedDoneFromNotification"), item.title))
+            await update(item)
+        case NotificationActionHandler.snoozeIdentifier:
+            item.dueDate = Calendar.current.date(byAdding: .day, value: 1, to: item.dueDate ?? Date())
+            ActivityLog.shared.record(String(format: String(localized: "activityLog.snoozedFromNotification"), item.title))
+            await update(item)
+        default:
+            break
+        }
     }
 
     private func load() {
@@ -44,10 +82,12 @@ final class ItemStore: ObservableObject {
         await NotificationScheduler.shared.requestAuthorizationIfNeeded()
         await CalendarSyncService.shared.requestAuthorizationIfNeeded()
         await ContactsAccessService.shared.requestAuthorizationIfNeeded()
+        await refreshDigest()
     }
 
     func add(text: String) async {
-        let decision = await aiService.extract(text)
+        let mode = autonomyMode
+        let decision = mode == .disabled ? aiService.extractLocalOnly(text) : await aiService.extract(text)
         let extracted = decision.item
         var item = LifeAdminItem(
             title: extracted.title ?? String(localized: "item.untitled"),
@@ -59,10 +99,39 @@ final class ItemStore: ObservableObject {
             reminderOffsets: extracted.reminderOffsets ?? [30]
         )
         item.priority = PriorityEngine().priority(for: item)
+        item.tags.append(contentsOf: LifeEventDetector().detectedTags(in: text))
+        if decision.usedAI {
+            ActivityLog.shared.record(String(format: String(localized: "activityLog.aiHelped"), item.title))
+        }
+
+        // The user re-describing something they already logged (a repeated bill, a double-tapped
+        // Save) should update that item in place rather than clutter the list with a near-copy.
+        if let duplicate = items.first(where: { $0.status == .active && DuplicateDetector().isLikelyDuplicate($0, item) }) {
+            var merged = duplicate
+            merged.dueDate = item.dueDate ?? duplicate.dueDate
+            merged.amount = item.amount ?? duplicate.amount
+            merged.currency = item.currency ?? duplicate.currency
+            merged.recurrence = item.recurrence != .none ? item.recurrence : duplicate.recurrence
+            merged.updatedAt = Date()
+            merged.priority = PriorityEngine().priority(for: merged)
+            ActivityLog.shared.record(String(format: String(localized: "activityLog.merged"), merged.title))
+            if mode == .askEveryTime { lastAddedItemID = merged.id }
+            await update(merged)
+            return
+        }
+
+        // A recurring bill mentioned again months later rarely repeats the contact info the user
+        // already gave once — carry it forward instead of leaving it blank again.
+        if item.contact == nil, let priorMatch = items.first(where: { $0.title.caseInsensitiveCompare(item.title) == .orderedSame && $0.contact != nil }) {
+            item.contact = priorMatch.contact
+            ActivityLog.shared.record(String(format: String(localized: "activityLog.contactAutoFilled"), item.title))
+        }
+
         let persisted = PersistedItem(item: item)
         modelContext.insert(persisted)
         try? modelContext.save()
         items.insert(item, at: 0)
+        if mode == .askEveryTime { lastAddedItemID = item.id }
 
         await NotificationScheduler.shared.requestAuthorizationIfNeeded()
         await NotificationScheduler.shared.schedule(for: item)
@@ -72,6 +141,12 @@ final class ItemStore: ObservableObject {
         persisted.calendarEventIdentifier = sync.eventIdentifier
         persisted.reminderIdentifier = sync.reminderIdentifier
         try? modelContext.save()
+
+        await refreshDigest()
+    }
+
+    private func refreshDigest() async {
+        await NotificationScheduler.shared.scheduleDailyDigest(items: items)
     }
 
     func update(_ item: LifeAdminItem) async {
@@ -86,6 +161,7 @@ final class ItemStore: ObservableObject {
         try? modelContext.save()
 
         await NotificationScheduler.shared.schedule(for: item)
+        await refreshDigest()
     }
 
     private func fetchPersisted(_ id: UUID) -> PersistedItem? {
@@ -102,6 +178,7 @@ final class ItemStore: ObservableObject {
         modelContext.delete(persisted)
         try? modelContext.save()
         items.removeAll { $0.id == item.id }
+        await refreshDigest()
     }
 
     func markAddressSynced(_ itemID: UUID) async {

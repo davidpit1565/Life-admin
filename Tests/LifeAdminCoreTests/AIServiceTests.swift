@@ -38,6 +38,32 @@ final class AIServiceTests: XCTestCase {
         XCTAssertEqual(decision.item.title, "Pay the rent")
     }
 
+    func testHighStakesAmountGetsASecondOpinionEvenWhenLocalParsingLooksConfident() async {
+        // A wrong guess on a large insurance bill costs more than a wrong guess on a trivial
+        // reminder, so this category+amount combination always gets a Gemini double-check, even
+        // though the local parser recognizes "car insurance" and reports high confidence.
+        let ai = ExtractedItem(title: "Car Insurance Renewal", category: .insurance, amount: 840, currency: "EUR", date: nil, recurring: Recurrence.yearly, reminderOffsets: [30], confidence: 0.95)
+        let service = LifeAdminAIService(client: MockClient(result: .success(ai)))
+        let decision = await service.extract("My car insurance costs €840 and renews every March 18.")
+        XCTAssertTrue(decision.usedAI)
+        XCTAssertEqual(decision.item.title, "Car Insurance Renewal")
+    }
+
+    func testLowValueInsuranceItemStaysLocalWithoutExtraScrutiny() async {
+        let client = MockClient(result: .failure(AIExtractionError.unexpectedServerError))
+        let service = LifeAdminAIService(client: client)
+        let decision = await service.extract("My car insurance costs $50 and renews every March 18.")
+        XCTAssertFalse(decision.usedAI)
+        XCTAssertEqual(decision.item.title, "Car Insurance")
+    }
+
+    func testExtractLocalOnlyNeverCallsGeminiEvenForHighStakesText() {
+        let service = LifeAdminAIService(client: MockClient(result: .success(ExtractedItem(title: "Should not be used", category: .insurance, amount: 9000, currency: "EUR", date: nil, recurring: Recurrence.none, reminderOffsets: nil, confidence: 0.99))))
+        let decision = service.extractLocalOnly("My car insurance costs €9000 and renews every March 18.")
+        XCTAssertFalse(decision.usedAI)
+        XCTAssertEqual(decision.item.title, "Car Insurance")
+    }
+
     func testValidGeminiStructuredJSONAccepted() throws {
         let data = #"{"title":"Passport","category":"travel","currency":"USD","confidence":0.91}"#.data(using: .utf8)!
         XCTAssertEqual(try AIJSONValidator().decode(data).category, .travel)

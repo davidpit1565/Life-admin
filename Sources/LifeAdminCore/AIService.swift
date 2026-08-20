@@ -46,22 +46,28 @@ public struct LifeAdminAIService: Sendable {
     public var client: AIExtracting
     public var reachability: ReachabilityChecking
     public var confidenceThreshold: Double
+    public var highStakesCategories: Set<LifeCategory>
+    public var highStakesAmountThreshold: Decimal
 
     public init(
         parser: NaturalLanguageParser = NaturalLanguageParser(),
         client: AIExtracting,
         reachability: ReachabilityChecking = AlwaysOnlineReachability(),
-        confidenceThreshold: Double = 0.80
+        confidenceThreshold: Double = 0.80,
+        highStakesCategories: Set<LifeCategory> = [.money, .bills, .insurance],
+        highStakesAmountThreshold: Decimal = 300
     ) {
         self.parser = parser
         self.client = client
         self.reachability = reachability
         self.confidenceThreshold = confidenceThreshold
+        self.highStakesCategories = highStakesCategories
+        self.highStakesAmountThreshold = highStakesAmountThreshold
     }
 
     public func extract(_ text: String, now: Date = Date()) async -> ExtractionDecision {
         let local = parser.parse(text, now: now)
-        if isCompleteEnough(local) && local.confidence >= confidenceThreshold {
+        if isCompleteEnough(local) && local.confidence >= confidenceThreshold && needsExtraScrutiny(local) == false {
             return ExtractionDecision(item: local, usedAI: false, fallbackReason: nil)
         }
         guard reachability.isNetworkAvailable else {
@@ -78,8 +84,23 @@ public struct LifeAdminAIService: Sendable {
         }
     }
 
+    /// For users who set AI processing to "disabled": skips Gemini entirely, even for high-stakes
+    /// or low-confidence text, so the "off" setting in Settings actually means off.
+    public func extractLocalOnly(_ text: String, now: Date = Date()) -> ExtractionDecision {
+        ExtractionDecision(item: parser.parse(text, now: now), usedAI: false, fallbackReason: nil)
+    }
+
     public func isCompleteEnough(_ item: ExtractedItem) -> Bool {
         item.title?.isEmpty == false && item.category != nil && (item.date != nil || item.amount != nil || item.recurring != Recurrence.none)
+    }
+
+    /// A wrong guess on a large bill or an insurance renewal costs far more than a wrong guess on
+    /// a trivial reminder, so items like that get a second opinion from Gemini even when the local
+    /// parser reports a confidence score above the normal threshold.
+    public func needsExtraScrutiny(_ item: ExtractedItem) -> Bool {
+        guard let category = item.category, highStakesCategories.contains(category) else { return false }
+        guard let amount = item.amount else { return false }
+        return amount >= highStakesAmountThreshold
     }
 
     public func validateStructuredExtraction(_ item: ExtractedItem) throws {

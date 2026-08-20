@@ -1,4 +1,5 @@
 import SwiftUI
+import VisionKit
 import LifeAdminCore
 struct RootTabView: View {
     @EnvironmentObject var store: ItemStore
@@ -37,14 +38,38 @@ struct RootTabView: View {
 }
 struct HomeView: View {
     @EnvironmentObject var store: ItemStore
+    @State private var dismissedMovingBanner = false
 
     private var upcomingItems: [LifeAdminItem] {
         store.items.sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
     }
 
+    private var hasMovingEvent: Bool {
+        store.items.contains { $0.status == .active && $0.tags.contains(LifeEventDetector.movingTag) }
+    }
+
     var body: some View {
         NavigationStack {
             List {
+                if hasMovingEvent && dismissedMovingBanner == false {
+                    Section {
+                        HStack {
+                            NavigationLink {
+                                AddressChangeView()
+                            } label: {
+                                Label(String(localized: "home.movingDetected"), systemImage: "shippingbox.fill")
+                            }
+                            Spacer()
+                            Button {
+                                dismissedMovingBanner = true
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
                 if store.items.isEmpty {
                     ContentUnavailableView(
                         String(localized: "empty.allClear"),
@@ -183,6 +208,11 @@ struct InsightsView: View {
 }
 struct SettingsView: View {
     @AppStorage("language") var language = "system"
+    @AppStorage("aiProcessingMode") var aiProcessingModeRaw = AIProcessingMode.allowAutomatically.rawValue
+
+    private var aiProcessingMode: AIProcessingMode {
+        AIProcessingMode(rawValue: aiProcessingModeRaw) ?? .allowAutomatically
+    }
 
     var body: some View {
         NavigationStack {
@@ -198,12 +228,30 @@ struct SettingsView: View {
                     }
                 }
                 Section(String(localized: "settings.ai")) {
-                    Text(String(localized: "privacy.aiProcessing"))
+                    Picker(String(localized: "settings.aiAutonomy"), selection: $aiProcessingModeRaw) {
+                        Text(String(localized: "settings.aiAutonomy.auto")).tag(AIProcessingMode.allowAutomatically.rawValue)
+                        Text(String(localized: "settings.aiAutonomy.askFirst")).tag(AIProcessingMode.askEveryTime.rawValue)
+                        Text(String(localized: "settings.aiAutonomy.off")).tag(AIProcessingMode.disabled.rawValue)
+                    }
+                    Text(aiProcessingModeDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    NavigationLink(String(localized: "activityLog.title")) {
+                        ActivityLogView()
+                    }
                 }
                 Section(String(localized: "settings.privacy")) {
                     Button(String(localized: "settings.deleteAIData"), role: .destructive) {}
                 }
             }.navigationTitle(String(localized: "tab.settings"))
+        }
+    }
+
+    private var aiProcessingModeDescription: String {
+        switch aiProcessingMode {
+        case .allowAutomatically: return String(localized: "settings.aiAutonomy.auto.description")
+        case .askEveryTime: return String(localized: "settings.aiAutonomy.askFirst.description")
+        case .disabled: return String(localized: "settings.aiAutonomy.off.description")
         }
     }
 }
@@ -212,24 +260,58 @@ struct AddItemView: View {
     @EnvironmentObject var store: ItemStore
     @State var text = ""
     @State private var isSaving = false
+    @State private var itemPendingReview: LifeAdminItem?
+    @State private var showingScanner = false
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section(String(localized: "add.justTellMe")) {
-                    TextEditor(text: $text).frame(minHeight: 140).accessibilityLabel(String(localized: "add.prompt"))
-                }
-                Section {
-                    Button(String(localized: "common.save")) {
-                        isSaving = true
-                        Task {
-                            await store.add(text: text)
-                            isSaving = false
-                            dismiss()
+            if let item = itemPendingReview {
+                ItemDetailView(item: item)
+            } else {
+                Form {
+                    Section(String(localized: "add.justTellMe")) {
+                        TextEditor(text: $text).frame(minHeight: 140).accessibilityLabel(String(localized: "add.prompt"))
+                    }
+                    if VNDocumentCameraViewController.isSupported {
+                        Section {
+                            Button {
+                                showingScanner = true
+                            } label: {
+                                Label(String(localized: "add.scanDocument"), systemImage: "doc.viewfinder")
+                            }
                         }
-                    }.disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
+                    }
+                    Section {
+                        Button(String(localized: "common.save")) {
+                            isSaving = true
+                            Task {
+                                await store.add(text: text)
+                                isSaving = false
+                                // "Ask every time" mode leaves the new item in place but pending
+                                // review — swap this same sheet over to editing it instead of
+                                // dismissing, rather than silently trusting the AI's guess.
+                                if let pendingID = store.lastAddedItemID, let added = store.items.first(where: { $0.id == pendingID }) {
+                                    store.lastAddedItemID = nil
+                                    itemPendingReview = added
+                                } else {
+                                    dismiss()
+                                }
+                            }
+                        }.disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
+                    }
+                }.navigationTitle(String(localized: "add.anything"))
+                .fullScreenCover(isPresented: $showingScanner) {
+                    DocumentScannerView(
+                        onRecognizedText: { recognized in
+                            showingScanner = false
+                            guard recognized.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
+                            text = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? recognized : text + "\n" + recognized
+                        },
+                        onCancel: { showingScanner = false }
+                    )
+                    .ignoresSafeArea()
                 }
-            }.navigationTitle(String(localized: "add.anything"))
+            }
         }
     }
 }
