@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 import LifeAdminCore
 
 @main
@@ -8,6 +9,7 @@ struct LifeAdminApp: App {
     @StateObject private var store: ItemStore
 
     init() {
+        UNUserNotificationCenter.current().delegate = NotificationActionHandler.shared
         let container = try! ModelContainer(for: PersistedItem.self)
         modelContainer = container
         _store = StateObject(wrappedValue: ItemStore(modelContext: container.mainContext))
@@ -31,6 +33,35 @@ final class ItemStore: ObservableObject {
         self.modelContext = modelContext
         self.aiService = LifeAdminAIService(client: ProxyAIClient(endpoint: AppConfig.geminiProxyEndpoint))
         load()
+        observeNotificationActions()
+    }
+
+    private func observeNotificationActions() {
+        NotificationCenter.default.addObserver(forName: NotificationActionHandler.actionReceived, object: nil, queue: .main) { [weak self] note in
+            guard let itemID = note.userInfo?["itemID"] as? UUID, let actionIdentifier = note.userInfo?["actionIdentifier"] as? String else { return }
+            Task { [weak self] in
+                await self?.handleNotificationAction(itemID: itemID, actionIdentifier: actionIdentifier)
+            }
+        }
+    }
+
+    /// Lets the reminder notification itself act as a two-way interface — "Mark Done" or "Snooze"
+    /// right from the banner — instead of requiring the user to open the app to close the loop.
+    func handleNotificationAction(itemID: UUID, actionIdentifier: String) async {
+        guard let index = items.firstIndex(where: { $0.id == itemID }) else { return }
+        var item = items[index]
+        switch actionIdentifier {
+        case NotificationActionHandler.markDoneIdentifier:
+            item.status = .completed
+            ActivityLog.shared.record(String(format: String(localized: "activityLog.markedDoneFromNotification"), item.title))
+            await update(item)
+        case NotificationActionHandler.snoozeIdentifier:
+            item.dueDate = Calendar.current.date(byAdding: .day, value: 1, to: item.dueDate ?? Date())
+            ActivityLog.shared.record(String(format: String(localized: "activityLog.snoozedFromNotification"), item.title))
+            await update(item)
+        default:
+            break
+        }
     }
 
     private func load() {
@@ -60,6 +91,10 @@ final class ItemStore: ObservableObject {
             reminderOffsets: extracted.reminderOffsets ?? [30]
         )
         item.priority = PriorityEngine().priority(for: item)
+        item.tags.append(contentsOf: LifeEventDetector().detectedTags(in: text))
+        if decision.usedAI {
+            ActivityLog.shared.record(String(format: String(localized: "activityLog.aiHelped"), item.title))
+        }
 
         // The user re-describing something they already logged (a repeated bill, a double-tapped
         // Save) should update that item in place rather than clutter the list with a near-copy.
@@ -71,8 +106,16 @@ final class ItemStore: ObservableObject {
             merged.recurrence = item.recurrence != .none ? item.recurrence : duplicate.recurrence
             merged.updatedAt = Date()
             merged.priority = PriorityEngine().priority(for: merged)
+            ActivityLog.shared.record(String(format: String(localized: "activityLog.merged"), merged.title))
             await update(merged)
             return
+        }
+
+        // A recurring bill mentioned again months later rarely repeats the contact info the user
+        // already gave once — carry it forward instead of leaving it blank again.
+        if item.contact == nil, let priorMatch = items.first(where: { $0.title.caseInsensitiveCompare(item.title) == .orderedSame && $0.contact != nil }) {
+            item.contact = priorMatch.contact
+            ActivityLog.shared.record(String(format: String(localized: "activityLog.contactAutoFilled"), item.title))
         }
 
         let persisted = PersistedItem(item: item)

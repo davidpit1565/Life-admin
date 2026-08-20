@@ -37,14 +37,38 @@ struct RootTabView: View {
 }
 struct HomeView: View {
     @EnvironmentObject var store: ItemStore
+    @State private var dismissedMovingBanner = false
 
     private var upcomingItems: [LifeAdminItem] {
         store.items.sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
     }
 
+    private var hasMovingEvent: Bool {
+        store.items.contains { $0.status == .active && $0.tags.contains(LifeEventDetector.movingTag) }
+    }
+
     var body: some View {
         NavigationStack {
             List {
+                if hasMovingEvent && dismissedMovingBanner == false {
+                    Section {
+                        HStack {
+                            NavigationLink {
+                                AddressChangeView()
+                            } label: {
+                                Label(String(localized: "home.movingDetected"), systemImage: "shippingbox.fill")
+                            }
+                            Spacer()
+                            Button {
+                                dismissedMovingBanner = true
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
                 if store.items.isEmpty {
                     ContentUnavailableView(
                         String(localized: "empty.allClear"),
@@ -199,6 +223,9 @@ struct SettingsView: View {
                 }
                 Section(String(localized: "settings.ai")) {
                     Text(String(localized: "privacy.aiProcessing"))
+                    NavigationLink(String(localized: "activityLog.title")) {
+                        ActivityLogView()
+                    }
                 }
                 Section(String(localized: "settings.privacy")) {
                     Button(String(localized: "settings.deleteAIData"), role: .destructive) {}

@@ -8,9 +8,20 @@ struct NotificationScheduler {
     private let center = UNUserNotificationCenter.current()
 
     func requestAuthorizationIfNeeded() async {
+        registerActionCategories()
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .notDetermined else { return }
         _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+    }
+
+    /// Lets a reminder's own notification banner act as a two-way interface — the buttons are
+    /// wired up in `NotificationActionHandler`. Registering categories doesn't require
+    /// authorization, so this runs every launch regardless of the user's permission choice.
+    private func registerActionCategories() {
+        let markDone = UNNotificationAction(identifier: NotificationActionHandler.markDoneIdentifier, title: String(localized: "notification.action.markDone"), options: [])
+        let snooze = UNNotificationAction(identifier: NotificationActionHandler.snoozeIdentifier, title: String(localized: "notification.action.snooze"), options: [])
+        let category = UNNotificationCategory(identifier: NotificationActionHandler.categoryIdentifier, actions: [markDone, snooze], intentIdentifiers: [], options: [])
+        center.setNotificationCategories([category])
     }
 
     func schedule(for item: LifeAdminItem) async {
@@ -26,6 +37,8 @@ struct NotificationScheduler {
             content.title = String(localized: "notification.reminderTitle")
             content.body = item.title
             content.sound = .default
+            content.categoryIdentifier = NotificationActionHandler.categoryIdentifier
+            content.userInfo = ["itemID": item.id.uuidString]
 
             let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
             let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
