@@ -42,6 +42,49 @@ struct NotificationScheduler {
         center.removePendingNotificationRequests(withIdentifiers: idsToRemove)
     }
 
+    /// Re-derives and reschedules the once-a-day "here's what actually needs you" summary from
+    /// the current items, so the app proactively surfaces what matters instead of waiting for the
+    /// user to open it and check. Skipped entirely when nothing is overdue or due today, so it
+    /// never nags when there's nothing to say.
+    func scheduleDailyDigest(items: [LifeAdminItem], calendar: Calendar = .current, now: Date = Date()) async {
+        center.removePendingNotificationRequests(withIdentifiers: [Self.digestIdentifier])
+
+        let summary = DigestEngine().summary(for: items, now: now, calendar: calendar)
+        guard DigestEngine().shouldNotify(summary) else { return }
+
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .authorized else { return }
+        guard let fireDate = Self.nextDigestFireDate(after: now, calendar: calendar) else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = String(localized: "notification.digestTitle")
+        content.body = digestBody(summary)
+        content.sound = .default
+
+        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let request = UNNotificationRequest(identifier: Self.digestIdentifier, content: content, trigger: trigger)
+        try? await center.add(request)
+    }
+
+    private func digestBody(_ summary: DigestEngine.Summary) -> String {
+        if summary.overdueCount > 0 {
+            return String(format: String(localized: "notification.digestOverdue"), summary.overdueCount)
+        }
+        return String(format: String(localized: "notification.digestDueToday"), summary.dueTodayCount)
+    }
+
+    private static let digestIdentifier = "daily-digest"
+
+    private static func nextDigestFireDate(after now: Date, calendar: Calendar, hour: Int = 8, minute: Int = 0) -> Date? {
+        var components = calendar.dateComponents([.year, .month, .day], from: now)
+        components.hour = hour
+        components.minute = minute
+        guard let todayAtHour = calendar.date(from: components) else { return nil }
+        if todayAtHour > now { return todayAtHour }
+        return calendar.date(byAdding: .day, value: 1, to: todayAtHour)
+    }
+
     private static func identifierPrefix(itemID: UUID) -> String {
         "item-\(itemID.uuidString)-"
     }

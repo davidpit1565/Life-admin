@@ -49,3 +49,6 @@
 "itemDetail.delete" = "Delete Item";
 "itemDetail.deleteConfirm" = "Delete this item? This also removes its calendar event and reminder.";
 "calendar.noItemsThisDay" = "Nothing due on this day";
+"notification.digestTitle" = "Today's priorities";
+"notification.digestOverdue" = "%d item(s) are overdue";
+"notification.digestDueToday" = "%d item(s) due today";

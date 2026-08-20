@@ -44,6 +44,7 @@ final class ItemStore: ObservableObject {
         await NotificationScheduler.shared.requestAuthorizationIfNeeded()
         await CalendarSyncService.shared.requestAuthorizationIfNeeded()
         await ContactsAccessService.shared.requestAuthorizationIfNeeded()
+        await refreshDigest()
     }
 
     func add(text: String) async {
@@ -59,6 +60,21 @@ final class ItemStore: ObservableObject {
             reminderOffsets: extracted.reminderOffsets ?? [30]
         )
         item.priority = PriorityEngine().priority(for: item)
+
+        // The user re-describing something they already logged (a repeated bill, a double-tapped
+        // Save) should update that item in place rather than clutter the list with a near-copy.
+        if let duplicate = items.first(where: { $0.status == .active && DuplicateDetector().isLikelyDuplicate($0, item) }) {
+            var merged = duplicate
+            merged.dueDate = item.dueDate ?? duplicate.dueDate
+            merged.amount = item.amount ?? duplicate.amount
+            merged.currency = item.currency ?? duplicate.currency
+            merged.recurrence = item.recurrence != .none ? item.recurrence : duplicate.recurrence
+            merged.updatedAt = Date()
+            merged.priority = PriorityEngine().priority(for: merged)
+            await update(merged)
+            return
+        }
+
         let persisted = PersistedItem(item: item)
         modelContext.insert(persisted)
         try? modelContext.save()
@@ -72,6 +88,12 @@ final class ItemStore: ObservableObject {
         persisted.calendarEventIdentifier = sync.eventIdentifier
         persisted.reminderIdentifier = sync.reminderIdentifier
         try? modelContext.save()
+
+        await refreshDigest()
+    }
+
+    private func refreshDigest() async {
+        await NotificationScheduler.shared.scheduleDailyDigest(items: items)
     }
 
     func update(_ item: LifeAdminItem) async {
@@ -86,6 +108,7 @@ final class ItemStore: ObservableObject {
         try? modelContext.save()
 
         await NotificationScheduler.shared.schedule(for: item)
+        await refreshDigest()
     }
 
     private func fetchPersisted(_ id: UUID) -> PersistedItem? {
@@ -102,6 +125,7 @@ final class ItemStore: ObservableObject {
         modelContext.delete(persisted)
         try? modelContext.save()
         items.removeAll { $0.id == item.id }
+        await refreshDigest()
     }
 
     func markAddressSynced(_ itemID: UUID) async {
