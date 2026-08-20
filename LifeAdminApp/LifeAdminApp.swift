@@ -93,6 +93,17 @@ final class ItemStore: ObservableObject {
         return try? modelContext.fetch(descriptor).first
     }
 
+    func delete(_ item: LifeAdminItem) async {
+        guard let persisted = fetchPersisted(item.id) else { return }
+        var cleared = item
+        cleared.dueDate = nil
+        _ = CalendarSyncService.shared.sync(item: cleared, existingEventID: persisted.calendarEventIdentifier, existingReminderID: persisted.reminderIdentifier)
+        await NotificationScheduler.shared.cancel(for: item.id)
+        modelContext.delete(persisted)
+        try? modelContext.save()
+        items.removeAll { $0.id == item.id }
+    }
+
     func markAddressSynced(_ itemID: UUID) async {
         guard let index = items.firstIndex(where: { $0.id == itemID }) else { return }
         var item = items[index]

@@ -13,7 +13,6 @@
 "empty.noAttention" = "Nothing needs your attention right now.";
 "settings.language" = "Language";
 "home.upcoming" = "Upcoming";
-"calendar.monthly" = "Monthly calendar";
 "settings.general" = "General";
 "settings.ai" = "AI";
 "settings.privacy" = "Privacy";
@@ -38,3 +37,15 @@
 "insights.urgent" = "Needs attention";
 "insights.dueThisWeek" = "Due this week";
 "editContact.chooseFromContacts" = "Choose from Contacts";
+"itemDetail.details" = "Details";
+"itemDetail.title" = "Title";
+"itemDetail.category" = "Category";
+"itemDetail.dueDate" = "Due Date";
+"itemDetail.hasDueDate" = "Has due date";
+"itemDetail.recurrence" = "Repeat";
+"itemDetail.amount" = "Amount";
+"itemDetail.currency" = "Currency";
+"itemDetail.notes" = "Notes";
+"itemDetail.delete" = "Delete Item";
+"itemDetail.deleteConfirm" = "Delete this item? This also removes its calendar event and reminder.";
+"calendar.noItemsThisDay" = "Nothing due on this day";
