@@ -1,4 +1,5 @@
 import SwiftUI
+import VisionKit
 import LifeAdminCore
 struct RootTabView: View {
     @EnvironmentObject var store: ItemStore
@@ -260,6 +261,7 @@ struct AddItemView: View {
     @State var text = ""
     @State private var isSaving = false
     @State private var itemPendingReview: LifeAdminItem?
+    @State private var showingScanner = false
 
     var body: some View {
         NavigationStack {
@@ -269,6 +271,15 @@ struct AddItemView: View {
                 Form {
                     Section(String(localized: "add.justTellMe")) {
                         TextEditor(text: $text).frame(minHeight: 140).accessibilityLabel(String(localized: "add.prompt"))
+                    }
+                    if VNDocumentCameraViewController.isSupported {
+                        Section {
+                            Button {
+                                showingScanner = true
+                            } label: {
+                                Label(String(localized: "add.scanDocument"), systemImage: "doc.viewfinder")
+                            }
+                        }
                     }
                     Section {
                         Button(String(localized: "common.save")) {
@@ -289,6 +300,17 @@ struct AddItemView: View {
                         }.disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
                     }
                 }.navigationTitle(String(localized: "add.anything"))
+                .fullScreenCover(isPresented: $showingScanner) {
+                    DocumentScannerView(
+                        onRecognizedText: { recognized in
+                            showingScanner = false
+                            guard recognized.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
+                            text = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? recognized : text + "\n" + recognized
+                        },
+                        onCancel: { showingScanner = false }
+                    )
+                    .ignoresSafeArea()
+                }
             }
         }
     }

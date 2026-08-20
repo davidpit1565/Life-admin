@@ -69,3 +69,4 @@
 "settings.aiAutonomy.auto.description" = "The app saves what it understands right away and lets you fix anything afterward.";
 "settings.aiAutonomy.askFirst.description" = "Every new item opens for your review before it's finalized.";
 "settings.aiAutonomy.off.description" = "Nothing is ever sent to AI — only basic on-device recognition is used.";
+"add.scanDocument" = "Scan a Document";
