@@ -8,7 +8,11 @@ Configure `GEMINI_API_KEY` as a server-side environment variable in local develo
 
 ## Model
 
-The proxy uses `gemini-2.5-flash-lite` for structured Life Admin extraction.
+The proxy uses `gemini-3.5-flash-lite` for structured Life Admin extraction. Google
+periodically retires older model IDs; if the proxy starts returning
+`gemini_request_failed`, check the deployment's runtime logs for a
+`"Gemini API returned a non-ok response"` entry — Google's 404 error message names
+the exact replacement model ID to switch to.
 
 ## Local verification
 
