@@ -25,6 +25,19 @@ final class AIServiceTests: XCTestCase {
         XCTAssertEqual(decision.item.title, "Tax paperwork")
     }
 
+    func testGenericDateSentenceEscalatesToGeminiInsteadOfGarbledTitle() async {
+        // Regression: a sentence with a date but no recognized keyword ("car insurance",
+        // "passport") used to get the local parser's naive first-four-words title (e.g. "On the
+        // 24 august") reported at high confidence, so the service never asked Gemini for a real
+        // title. Confirmed live on-device: this exact input produced two items titled "On the 24
+        // august" and "I pay each month".
+        let ai = ExtractedItem(title: "Pay the rent", category: .bills, amount: nil, currency: nil, date: nil, recurring: Recurrence.none, reminderOffsets: [30], confidence: 0.9)
+        let service = LifeAdminAIService(client: MockClient(result: .success(ai)))
+        let decision = await service.extract("On the 24 august I pay my rent each month")
+        XCTAssertTrue(decision.usedAI)
+        XCTAssertEqual(decision.item.title, "Pay the rent")
+    }
+
     func testValidGeminiStructuredJSONAccepted() throws {
         let data = #"{"title":"Passport","category":"travel","currency":"USD","confidence":0.91}"#.data(using: .utf8)!
         XCTAssertEqual(try AIJSONValidator().decode(data).category, .travel)
