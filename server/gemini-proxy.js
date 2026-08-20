@@ -25,8 +25,13 @@ function normalizeCategory(value) {
   return allowed.has(value) ? value : 'other';
 }
 
-function buildPrompt(text) {
-  return `You extract structured Life Admin items. Return only JSON. Extract only facts present in the user text. Never invent dates, prices, companies, people, or currencies. Use ISO 8601 dates. Use null when missing. Preserve currency as ISO 4217. Mark ambiguous fields with lower confidence. Schema: {"title": string|null, "category": one of documents,insurance,money,bills,subscriptions,car,home,health,travel,work,education,shopping,warranties,memberships,appointments,personal,family,other|null, "amount": number|null, "currency": string|null, "date": string|null, "recurring": one of none,daily,weekly,biweekly,monthly,everyTwoMonths,quarterly,everySixMonths,yearly,custom|null, "reminderOffsets": number[]|null, "notes": string|null, "confidence": number}. User text: ${JSON.stringify(text)}`;
+function buildPrompt(text, now = new Date()) {
+  const today = now.toISOString().slice(0, 10);
+  return `You extract structured Life Admin items. Return only JSON. Extract only facts present in the user text. Never invent prices, companies, or people. Today's date is ${today}. Always output complete dates as YYYY-MM-DD — never a partial date missing the year. When the user gives a recurring date without a year (for example "every March 18"), resolve it to the next future occurrence: use this year if that month/day has not yet passed relative to today, otherwise use next year. Use null when a date is missing entirely. Use null for other fields when missing. Preserve currency as ISO 4217. Mark ambiguous fields with lower confidence. Schema: {"title": string|null, "category": one of documents,insurance,money,bills,subscriptions,car,home,health,travel,work,education,shopping,warranties,memberships,appointments,personal,family,other|null, "amount": number|null, "currency": string|null, "date": string|null, "recurring": one of none,daily,weekly,biweekly,monthly,everyTwoMonths,quarterly,everySixMonths,yearly,custom|null, "reminderOffsets": number[]|null, "notes": string|null, "confidence": number}. User text: ${JSON.stringify(text)}`;
+}
+
+function normalizeDate(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value) ? value : null;
 }
 
 function toExtraction(raw) {
@@ -38,7 +43,7 @@ function toExtraction(raw) {
     category: typeof raw.category === 'string' ? normalizeCategory(raw.category) : null,
     amount: typeof raw.amount === 'number' && Number.isFinite(raw.amount) ? raw.amount : null,
     currency: typeof raw.currency === 'string' ? raw.currency.toUpperCase().slice(0, 3) : null,
-    date: typeof raw.date === 'string' ? raw.date : null,
+    date: normalizeDate(raw.date),
     recurring: typeof raw.recurring === 'string' ? raw.recurring : null,
     reminderOffsets: Array.isArray(raw.reminderOffsets) ? raw.reminderOffsets.filter((n) => Number.isInteger(n) && n >= 0 && n <= 3650).slice(0, 8) : null,
     notes: typeof raw.notes === 'string' ? raw.notes.slice(0, 1000) : null,
@@ -111,4 +116,4 @@ if (require.main === module) {
   server.listen(port, () => safeLog('Life Admin Gemini proxy listening', { port, model, apiVersion, keyConfigured: Boolean(key) }));
 }
 
-module.exports = { buildPrompt, toExtraction, callGemini, buildGeminiUrl, model, apiVersion };
+module.exports = { buildPrompt, toExtraction, normalizeDate, callGemini, buildGeminiUrl, model, apiVersion };

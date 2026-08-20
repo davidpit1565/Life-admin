@@ -3,6 +3,8 @@ set -euo pipefail
 swift test
 swift run lifeadmin-qa
 ./scripts/security_scan.sh
+node js-tests/gemini-model-contract.js
+node js-tests/gemini-proxy-unit.js
 if [[ -n "${GEMINI_API_KEY:-}" ]]; then
   node js-tests/gemini-integration.js
 else

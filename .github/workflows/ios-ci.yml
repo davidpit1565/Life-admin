@@ -22,6 +22,11 @@ jobs:
       - name: Run repo QA checks (secret/placeholder scan)
         run: ./scripts/security_scan.sh
 
+      - name: Run Gemini proxy contract and unit tests
+        run: |
+          node js-tests/gemini-model-contract.js
+          node js-tests/gemini-proxy-unit.js
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
