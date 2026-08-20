@@ -26,8 +26,15 @@ struct LifeAdminApp: App {
 @MainActor
 final class ItemStore: ObservableObject {
     @Published var items: [LifeAdminItem] = []
+    @Published var lastAddedItemID: UUID?
     private let modelContext: ModelContext
     private let aiService: LifeAdminAIService
+
+    /// Read directly from UserDefaults (rather than @AppStorage, which only works in views) so
+    /// the setting in Settings > AI takes effect on the very next add without any extra plumbing.
+    private var autonomyMode: AIProcessingMode {
+        AIProcessingMode(rawValue: UserDefaults.standard.string(forKey: "aiProcessingMode") ?? "") ?? .allowAutomatically
+    }
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
@@ -79,7 +86,8 @@ final class ItemStore: ObservableObject {
     }
 
     func add(text: String) async {
-        let decision = await aiService.extract(text)
+        let mode = autonomyMode
+        let decision = mode == .disabled ? aiService.extractLocalOnly(text) : await aiService.extract(text)
         let extracted = decision.item
         var item = LifeAdminItem(
             title: extracted.title ?? String(localized: "item.untitled"),
@@ -107,6 +115,7 @@ final class ItemStore: ObservableObject {
             merged.updatedAt = Date()
             merged.priority = PriorityEngine().priority(for: merged)
             ActivityLog.shared.record(String(format: String(localized: "activityLog.merged"), merged.title))
+            if mode == .askEveryTime { lastAddedItemID = merged.id }
             await update(merged)
             return
         }
@@ -122,6 +131,7 @@ final class ItemStore: ObservableObject {
         modelContext.insert(persisted)
         try? modelContext.save()
         items.insert(item, at: 0)
+        if mode == .askEveryTime { lastAddedItemID = item.id }
 
         await NotificationScheduler.shared.requestAuthorizationIfNeeded()
         await NotificationScheduler.shared.schedule(for: item)

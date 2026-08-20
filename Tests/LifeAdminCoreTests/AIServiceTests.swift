@@ -57,6 +57,13 @@ final class AIServiceTests: XCTestCase {
         XCTAssertEqual(decision.item.title, "Car Insurance")
     }
 
+    func testExtractLocalOnlyNeverCallsGeminiEvenForHighStakesText() {
+        let service = LifeAdminAIService(client: MockClient(result: .success(ExtractedItem(title: "Should not be used", category: .insurance, amount: 9000, currency: "EUR", date: nil, recurring: Recurrence.none, reminderOffsets: nil, confidence: 0.99))))
+        let decision = service.extractLocalOnly("My car insurance costs €9000 and renews every March 18.")
+        XCTAssertFalse(decision.usedAI)
+        XCTAssertEqual(decision.item.title, "Car Insurance")
+    }
+
     func testValidGeminiStructuredJSONAccepted() throws {
         let data = #"{"title":"Passport","category":"travel","currency":"USD","confidence":0.91}"#.data(using: .utf8)!
         XCTAssertEqual(try AIJSONValidator().decode(data).category, .travel)

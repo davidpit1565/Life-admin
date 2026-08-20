@@ -84,6 +84,12 @@ public struct LifeAdminAIService: Sendable {
         }
     }
 
+    /// For users who set AI processing to "disabled": skips Gemini entirely, even for high-stakes
+    /// or low-confidence text, so the "off" setting in Settings actually means off.
+    public func extractLocalOnly(_ text: String, now: Date = Date()) -> ExtractionDecision {
+        ExtractionDecision(item: parser.parse(text, now: now), usedAI: false, fallbackReason: nil)
+    }
+
     public func isCompleteEnough(_ item: ExtractedItem) -> Bool {
         item.title?.isEmpty == false && item.category != nil && (item.date != nil || item.amount != nil || item.recurring != Recurrence.none)
     }

@@ -207,6 +207,11 @@ struct InsightsView: View {
 }
 struct SettingsView: View {
     @AppStorage("language") var language = "system"
+    @AppStorage("aiProcessingMode") var aiProcessingModeRaw = AIProcessingMode.allowAutomatically.rawValue
+
+    private var aiProcessingMode: AIProcessingMode {
+        AIProcessingMode(rawValue: aiProcessingModeRaw) ?? .allowAutomatically
+    }
 
     var body: some View {
         NavigationStack {
@@ -222,7 +227,14 @@ struct SettingsView: View {
                     }
                 }
                 Section(String(localized: "settings.ai")) {
-                    Text(String(localized: "privacy.aiProcessing"))
+                    Picker(String(localized: "settings.aiAutonomy"), selection: $aiProcessingModeRaw) {
+                        Text(String(localized: "settings.aiAutonomy.auto")).tag(AIProcessingMode.allowAutomatically.rawValue)
+                        Text(String(localized: "settings.aiAutonomy.askFirst")).tag(AIProcessingMode.askEveryTime.rawValue)
+                        Text(String(localized: "settings.aiAutonomy.off")).tag(AIProcessingMode.disabled.rawValue)
+                    }
+                    Text(aiProcessingModeDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     NavigationLink(String(localized: "activityLog.title")) {
                         ActivityLogView()
                     }
@@ -233,30 +245,51 @@ struct SettingsView: View {
             }.navigationTitle(String(localized: "tab.settings"))
         }
     }
+
+    private var aiProcessingModeDescription: String {
+        switch aiProcessingMode {
+        case .allowAutomatically: return String(localized: "settings.aiAutonomy.auto.description")
+        case .askEveryTime: return String(localized: "settings.aiAutonomy.askFirst.description")
+        case .disabled: return String(localized: "settings.aiAutonomy.off.description")
+        }
+    }
 }
 struct AddItemView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var store: ItemStore
     @State var text = ""
     @State private var isSaving = false
+    @State private var itemPendingReview: LifeAdminItem?
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section(String(localized: "add.justTellMe")) {
-                    TextEditor(text: $text).frame(minHeight: 140).accessibilityLabel(String(localized: "add.prompt"))
-                }
-                Section {
-                    Button(String(localized: "common.save")) {
-                        isSaving = true
-                        Task {
-                            await store.add(text: text)
-                            isSaving = false
-                            dismiss()
-                        }
-                    }.disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
-                }
-            }.navigationTitle(String(localized: "add.anything"))
+            if let item = itemPendingReview {
+                ItemDetailView(item: item)
+            } else {
+                Form {
+                    Section(String(localized: "add.justTellMe")) {
+                        TextEditor(text: $text).frame(minHeight: 140).accessibilityLabel(String(localized: "add.prompt"))
+                    }
+                    Section {
+                        Button(String(localized: "common.save")) {
+                            isSaving = true
+                            Task {
+                                await store.add(text: text)
+                                isSaving = false
+                                // "Ask every time" mode leaves the new item in place but pending
+                                // review — swap this same sheet over to editing it instead of
+                                // dismissing, rather than silently trusting the AI's guess.
+                                if let pendingID = store.lastAddedItemID, let added = store.items.first(where: { $0.id == pendingID }) {
+                                    store.lastAddedItemID = nil
+                                    itemPendingReview = added
+                                } else {
+                                    dismiss()
+                                }
+                            }
+                        }.disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
+                    }
+                }.navigationTitle(String(localized: "add.anything"))
+            }
         }
     }
 }

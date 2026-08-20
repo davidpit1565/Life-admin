@@ -62,3 +62,10 @@
 "activityLog.contactAutoFilled" = "Auto-filled contact for: %@";
 "activityLog.markedDoneFromNotification" = "Marked done from a notification: %@";
 "activityLog.snoozedFromNotification" = "Snoozed by 1 day from a notification: %@";
+"settings.aiAutonomy" = "AI Autonomy";
+"settings.aiAutonomy.auto" = "Act automatically";
+"settings.aiAutonomy.askFirst" = "Ask me first";
+"settings.aiAutonomy.off" = "Off (local only)";
+"settings.aiAutonomy.auto.description" = "The app saves what it understands right away and lets you fix anything afterward.";
+"settings.aiAutonomy.askFirst.description" = "Every new item opens for your review before it's finalized.";
+"settings.aiAutonomy.off.description" = "Nothing is ever sent to AI — only basic on-device recognition is used.";
