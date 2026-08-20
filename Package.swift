@@ -10,7 +10,7 @@ let package = Package(
         .executable(name: "lifeadmin-qa", targets: ["LifeAdminQA"])
     ],
     targets: [
-        .target(name: "LifeAdminCore", resources: [.process("Resources")]),
+        .target(name: "LifeAdminCore"),
         .executableTarget(name: "LifeAdminQA", dependencies: ["LifeAdminCore"]),
         .testTarget(name: "LifeAdminCoreTests", dependencies: ["LifeAdminCore"])
     ]

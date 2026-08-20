@@ -55,7 +55,7 @@ struct HomeView: View {
                     Section(String(localized: "home.upcoming")) {
                         ForEach(upcomingItems) { item in
                             NavigationLink {
-                                EditContactView(item: item)
+                                ItemDetailView(item: item)
                             } label: {
                                 ItemRow(item: item)
                             }
@@ -81,7 +81,7 @@ struct ItemsView: View {
         NavigationStack {
             List(filteredItems) { item in
                 NavigationLink {
-                    EditContactView(item: item)
+                    ItemDetailView(item: item)
                 } label: {
                     ItemRow(item: item)
                 }
@@ -104,7 +104,47 @@ struct ItemsView: View {
         }
     }
 }
-struct CalendarView: View { var body: some View { NavigationStack { Text(String(localized:"calendar.monthly")).navigationTitle(String(localized:"tab.calendar")) } } }
+struct CalendarView: View {
+    @EnvironmentObject var store: ItemStore
+    @State private var selectedDate = Date()
+
+    private var itemsByDay: [DateComponents: [LifeAdminItem]] {
+        Dictionary(grouping: store.items.filter { $0.dueDate != nil }) { item in
+            Calendar.current.dateComponents([.year, .month, .day], from: item.dueDate!)
+        }
+    }
+
+    private var selectedDayItems: [LifeAdminItem] {
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: selectedDate)
+        return itemsByDay[components] ?? []
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                CalendarGridView(selectedDate: $selectedDate, markedDays: Set(itemsByDay.keys))
+                    .frame(height: 360)
+                List {
+                    if selectedDayItems.isEmpty {
+                        ContentUnavailableView(
+                            String(localized: "calendar.noItemsThisDay"),
+                            systemImage: "calendar"
+                        )
+                    } else {
+                        ForEach(selectedDayItems) { item in
+                            NavigationLink {
+                                ItemDetailView(item: item)
+                            } label: {
+                                ItemRow(item: item)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle(String(localized: "tab.calendar"))
+        }
+    }
+}
 struct InsightsView: View {
     @EnvironmentObject var store: ItemStore
 
