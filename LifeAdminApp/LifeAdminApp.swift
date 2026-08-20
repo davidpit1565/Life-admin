@@ -38,6 +38,14 @@ final class ItemStore: ObservableObject {
         items = ((try? modelContext.fetch(descriptor)) ?? []).map { $0.asItem }
     }
 
+    /// Requests every permission the app can use, all at once, right when it opens — rather
+    /// than one at a time the first time each feature is actually used.
+    func requestAllPermissionsUpfront() async {
+        await NotificationScheduler.shared.requestAuthorizationIfNeeded()
+        await CalendarSyncService.shared.requestAuthorizationIfNeeded()
+        await ContactsAccessService.shared.requestAuthorizationIfNeeded()
+    }
+
     func add(text: String) async {
         let decision = await aiService.extract(text)
         let extracted = decision.item
@@ -51,23 +59,38 @@ final class ItemStore: ObservableObject {
             reminderOffsets: extracted.reminderOffsets ?? [30]
         )
         item.priority = PriorityEngine().priority(for: item)
-        modelContext.insert(PersistedItem(item: item))
+        let persisted = PersistedItem(item: item)
+        modelContext.insert(persisted)
         try? modelContext.save()
         items.insert(item, at: 0)
+
         await NotificationScheduler.shared.requestAuthorizationIfNeeded()
         await NotificationScheduler.shared.schedule(for: item)
+
+        await CalendarSyncService.shared.requestAuthorizationIfNeeded()
+        let sync = CalendarSyncService.shared.sync(item: item, existingEventID: nil, existingReminderID: nil)
+        persisted.calendarEventIdentifier = sync.eventIdentifier
+        persisted.reminderIdentifier = sync.reminderIdentifier
+        try? modelContext.save()
     }
 
     func update(_ item: LifeAdminItem) async {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
         items[index] = item
-        let targetID = item.id
-        let descriptor = FetchDescriptor<PersistedItem>(predicate: #Predicate { $0.id == targetID })
-        if let persisted = try? modelContext.fetch(descriptor).first {
-            persisted.apply(item)
-            try? modelContext.save()
-        }
+        guard let persisted = fetchPersisted(item.id) else { return }
+        persisted.apply(item)
+
+        let sync = CalendarSyncService.shared.sync(item: item, existingEventID: persisted.calendarEventIdentifier, existingReminderID: persisted.reminderIdentifier)
+        persisted.calendarEventIdentifier = sync.eventIdentifier
+        persisted.reminderIdentifier = sync.reminderIdentifier
+        try? modelContext.save()
+
         await NotificationScheduler.shared.schedule(for: item)
+    }
+
+    private func fetchPersisted(_ id: UUID) -> PersistedItem? {
+        let descriptor = FetchDescriptor<PersistedItem>(predicate: #Predicate { $0.id == id })
+        return try? modelContext.fetch(descriptor).first
     }
 
     func markAddressSynced(_ itemID: UUID) async {

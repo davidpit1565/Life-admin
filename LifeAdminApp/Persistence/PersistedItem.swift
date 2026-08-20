@@ -25,6 +25,11 @@ final class PersistedItem {
     var location: String?
     var createdAt: Date
     var updatedAt: Date
+    // EventKit identifiers, kept only here (not on LifeAdminItem) since they're a pure
+    // app-target persistence concern — lets CalendarSyncService update/remove the same
+    // calendar event or reminder instead of creating a duplicate every time.
+    var calendarEventIdentifier: String?
+    var reminderIdentifier: String?
 
     init(item: LifeAdminItem) {
         id = item.id
