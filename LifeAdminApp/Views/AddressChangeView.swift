@@ -93,12 +93,13 @@ struct AddressChangeView: View {
     }
 
     private func handleResult(_ result: MFMailComposeResult, for message: AddressChangeMessage) {
-        if result == .sent {
-            store.markAddressSynced(message.itemID)
-        }
         queue.removeAll { $0.itemID == message.itemID }
         currentMessage = nil
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        Task {
+            if result == .sent {
+                await store.markAddressSynced(message.itemID)
+            }
+            try? await Task.sleep(for: .seconds(0.3))
             advanceQueue()
         }
     }

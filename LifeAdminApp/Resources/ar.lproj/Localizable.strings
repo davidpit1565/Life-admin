@@ -33,3 +33,7 @@
 "editContact.name" = "Name";
 "editContact.company" = "Company";
 "editContact.email" = "Email";
+"notification.reminderTitle" = "Reminder";
+"insights.total" = "Total items";
+"insights.urgent" = "Needs attention";
+"insights.dueThisWeek" = "Due this week";

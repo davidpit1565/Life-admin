@@ -54,9 +54,11 @@ final class ItemStore: ObservableObject {
         modelContext.insert(PersistedItem(item: item))
         try? modelContext.save()
         items.insert(item, at: 0)
+        await NotificationScheduler.shared.requestAuthorizationIfNeeded()
+        await NotificationScheduler.shared.schedule(for: item)
     }
 
-    func update(_ item: LifeAdminItem) {
+    func update(_ item: LifeAdminItem) async {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
         items[index] = item
         let targetID = item.id
@@ -65,14 +67,15 @@ final class ItemStore: ObservableObject {
             persisted.apply(item)
             try? modelContext.save()
         }
+        await NotificationScheduler.shared.schedule(for: item)
     }
 
-    func markAddressSynced(_ itemID: UUID) {
+    func markAddressSynced(_ itemID: UUID) async {
         guard let index = items.firstIndex(where: { $0.id == itemID }) else { return }
         var item = items[index]
         if item.tags.contains(AddressChangeEngine.syncedTag) == false {
             item.tags.append(AddressChangeEngine.syncedTag)
         }
-        update(item)
+        await update(item)
     }
 }

@@ -28,15 +28,17 @@ struct EditContactView: View {
             }
             Section {
                 Button(String(localized: "common.save")) {
-                    save()
-                    dismiss()
+                    Task {
+                        await save()
+                        dismiss()
+                    }
                 }
             }
         }
         .navigationTitle(item.title)
     }
 
-    private func save() {
+    private func save() async {
         var updated = item
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedCompany = company.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -46,6 +48,6 @@ struct EditContactView: View {
             company: trimmedCompany.isEmpty ? nil : trimmedCompany,
             email: trimmedEmail.isEmpty ? nil : trimmedEmail
         )
-        store.update(updated)
+        await store.update(updated)
     }
 }
