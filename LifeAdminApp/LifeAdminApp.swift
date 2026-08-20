@@ -38,6 +38,14 @@ final class ItemStore: ObservableObject {
         items = ((try? modelContext.fetch(descriptor)) ?? []).map { $0.asItem }
     }
 
+    /// Requests every permission the app can use, all at once, right when it opens — rather
+    /// than one at a time the first time each feature is actually used.
+    func requestAllPermissionsUpfront() async {
+        await NotificationScheduler.shared.requestAuthorizationIfNeeded()
+        await CalendarSyncService.shared.requestAuthorizationIfNeeded()
+        await ContactsAccessService.shared.requestAuthorizationIfNeeded()
+    }
+
     func add(text: String) async {
         let decision = await aiService.extract(text)
         let extracted = decision.item

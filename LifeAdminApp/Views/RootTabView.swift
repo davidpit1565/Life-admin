@@ -1,6 +1,40 @@
 import SwiftUI
 import LifeAdminCore
-struct RootTabView: View { @State private var adding=false; var body: some View { TabView { HomeView().tabItem{Label(String(localized:"tab.home"), systemImage:"house")}; ItemsView().tabItem{Label(String(localized:"tab.items"), systemImage:"folder")}; CalendarView().tabItem{Label(String(localized:"tab.calendar"), systemImage:"calendar")}; InsightsView().tabItem{Label(String(localized:"tab.insights"), systemImage:"chart.line.uptrend.xyaxis")}; SettingsView().tabItem{Label(String(localized:"tab.settings"), systemImage:"gear")} }.overlay(alignment:.bottom){ Button{adding=true}label:{Image(systemName:"plus").font(.title2.bold()).frame(width:60,height:60).background(.tint).foregroundStyle(.white).clipShape(Circle()).shadow(radius:8)}.accessibilityLabel(String(localized:"add.anything")).padding(.bottom,58) }.sheet(isPresented:$adding){AddItemView()} } }
+struct RootTabView: View {
+    @EnvironmentObject var store: ItemStore
+    @State private var adding = false
+
+    var body: some View {
+        TabView {
+            HomeView().tabItem { Label(String(localized: "tab.home"), systemImage: "house") }
+            ItemsView().tabItem { Label(String(localized: "tab.items"), systemImage: "folder") }
+            CalendarView().tabItem { Label(String(localized: "tab.calendar"), systemImage: "calendar") }
+            InsightsView().tabItem { Label(String(localized: "tab.insights"), systemImage: "chart.line.uptrend.xyaxis") }
+            SettingsView().tabItem { Label(String(localized: "tab.settings"), systemImage: "gear") }
+        }
+        .overlay(alignment: .bottom) {
+            Button {
+                adding = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.title2.bold())
+                    .frame(width: 60, height: 60)
+                    .background(.tint)
+                    .foregroundStyle(.white)
+                    .clipShape(Circle())
+                    .shadow(radius: 8)
+            }
+            .accessibilityLabel(String(localized: "add.anything"))
+            .padding(.bottom, 58)
+        }
+        .sheet(isPresented: $adding) {
+            AddItemView()
+        }
+        .task {
+            await store.requestAllPermissionsUpfront()
+        }
+    }
+}
 struct HomeView: View {
     @EnvironmentObject var store: ItemStore
 
