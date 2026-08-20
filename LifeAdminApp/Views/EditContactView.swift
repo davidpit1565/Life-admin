@@ -1,4 +1,5 @@
 import SwiftUI
+import ContactsUI
 import LifeAdminCore
 
 struct EditContactView: View {
@@ -8,6 +9,7 @@ struct EditContactView: View {
     @State private var name: String
     @State private var company: String
     @State private var email: String
+    @State private var showingContactPicker = false
 
     init(item: LifeAdminItem) {
         self.item = item
@@ -18,6 +20,13 @@ struct EditContactView: View {
 
     var body: some View {
         Form {
+            Section {
+                Button {
+                    showingContactPicker = true
+                } label: {
+                    Label(String(localized: "editContact.chooseFromContacts"), systemImage: "person.crop.circle.badge.plus")
+                }
+            }
             Section(String(localized: "editContact.section")) {
                 TextField(String(localized: "editContact.name"), text: $name)
                 TextField(String(localized: "editContact.company"), text: $company)
@@ -36,6 +45,18 @@ struct EditContactView: View {
             }
         }
         .navigationTitle(item.title)
+        .sheet(isPresented: $showingContactPicker) {
+            ContactPickerView { contact in
+                apply(contact)
+            }
+        }
+    }
+
+    private func apply(_ contact: CNContact) {
+        let fullName = [contact.givenName, contact.familyName].filter { $0.isEmpty == false }.joined(separator: " ")
+        if fullName.isEmpty == false { name = fullName }
+        if contact.organizationName.isEmpty == false { company = contact.organizationName }
+        if let firstEmail = contact.emailAddresses.first?.value as String? { email = firstEmail }
     }
 
     private func save() async {
