@@ -120,16 +120,46 @@ struct HomeView: View {
                 } else {
                     Section(String(localized: "home.upcoming")) {
                         ForEach(upcomingItems) { item in
-                            NavigationLink {
-                                ItemDetailView(item: item)
-                            } label: {
-                                ItemRow(item: item)
-                            }
+                            ItemRowLink(item: item)
                         }
                     }
                 }
             }
             .navigationTitle(String(localized: "app.name"))
+        }
+    }
+}
+/// Shared by every list that shows items (Home, Items, Calendar's day list) so swipe-to-complete
+/// and swipe-to-delete — the single biggest everyday time-saver for someone managing more than a
+/// couple of items — only has to be written, and gotten right, once.
+private struct ItemRowLink: View {
+    @EnvironmentObject var store: ItemStore
+    let item: LifeAdminItem
+
+    var body: some View {
+        NavigationLink {
+            ItemDetailView(item: item)
+        } label: {
+            ItemRow(item: item)
+        }
+        .swipeActions(edge: .trailing) {
+            Button(role: .destructive) {
+                Task { await store.delete(item) }
+            } label: {
+                Label(String(localized: "itemDetail.delete"), systemImage: "trash")
+            }
+            if item.status == .active {
+                Button {
+                    Task {
+                        var done = item
+                        done.status = .completed
+                        await store.update(done)
+                    }
+                } label: {
+                    Label(String(localized: "itemDetail.markDone"), systemImage: "checkmark.circle.fill")
+                }
+                .tint(.green)
+            }
         }
     }
 }
@@ -158,11 +188,7 @@ struct ItemsView: View {
     var body: some View {
         NavigationStack {
             List(filteredItems) { item in
-                NavigationLink {
-                    ItemDetailView(item: item)
-                } label: {
-                    ItemRow(item: item)
-                }
+                ItemRowLink(item: item)
             }
             .overlay {
                 if filteredItems.isEmpty {
@@ -294,11 +320,7 @@ struct CalendarView: View {
                         )
                     } else {
                         ForEach(selectedDayItems) { item in
-                            NavigationLink {
-                                ItemDetailView(item: item)
-                            } label: {
-                                ItemRow(item: item)
-                            }
+                            ItemRowLink(item: item)
                         }
                     }
                 }
