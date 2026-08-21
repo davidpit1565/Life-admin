@@ -387,8 +387,13 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section(String(localized: "settings.general")) {
+                    // Offering all 14 SupportedLanguage cases here would be worse than offering
+                    // none: only .en and .he have real translations, the other 11 locale files
+                    // are English-placeholder copies (lower priority, no clear audience yet) —
+                    // picking "Français" and landing on English text now that switching actually
+                    // works (see below) would read as broken, not just untranslated.
                     Picker(String(localized: "settings.language"), selection: $language) {
-                        ForEach(SupportedLanguage.allCases, id: \.rawValue) {
+                        ForEach([SupportedLanguage.system, .en, .he], id: \.rawValue) {
                             Text(displayName(for: $0)).tag($0.rawValue)
                         }
                     }
