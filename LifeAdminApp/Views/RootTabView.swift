@@ -239,7 +239,11 @@ struct ItemsView: View {
                             }
                         }
                         Menu(String(localized: "items.filterByStatus")) {
-                            ForEach(ItemStatus.allCases, id: \.self) { status in
+                            // .snoozed and .archived are part of the data model but nothing in the
+                            // app ever sets an item to either — offering them here would let
+                            // someone filter for "Snoozed" and get zero results forever, with no
+                            // way to tell that from "nothing happens to be snoozed right now".
+                            ForEach([ItemStatus.active, .completed], id: \.self) { status in
                                 Button {
                                     toggleStatus(status)
                                 } label: {
