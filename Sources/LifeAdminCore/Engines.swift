@@ -64,4 +64,38 @@ public struct DigestEngine: Sendable {
         summary.overdueCount > 0 || summary.dueTodayCount > 0
     }
 }
+public struct RecurrenceEngine: Sendable {
+    public init() {}
+
+    public func nextDueDate(after date: Date, recurrence: Recurrence, calendar: Calendar = .current) -> Date? {
+        switch recurrence {
+        case .none, .custom: return nil
+        case .daily: return calendar.date(byAdding: .day, value: 1, to: date)
+        case .weekly: return calendar.date(byAdding: .day, value: 7, to: date)
+        case .biweekly: return calendar.date(byAdding: .day, value: 14, to: date)
+        case .monthly: return calendar.date(byAdding: .month, value: 1, to: date)
+        case .everyTwoMonths: return calendar.date(byAdding: .month, value: 2, to: date)
+        case .quarterly: return calendar.date(byAdding: .month, value: 3, to: date)
+        case .everySixMonths: return calendar.date(byAdding: .month, value: 6, to: date)
+        case .yearly: return calendar.date(byAdding: .year, value: 1, to: date)
+        }
+    }
+
+    /// The whole point of marking a recurring item's dueDate/recurrence is that it keeps coming
+    /// back — without this, "every month" only ever fires once: the first time it's marked done,
+    /// the reminder is gone for good, exactly the opposite of what setting a recurrence promised.
+    /// Returns a fresh active item for the next occurrence, or nil for a one-off item, an item
+    /// with no due date, or a custom recurrence rule this can't compute without a rule parser.
+    public func nextOccurrence(of item: LifeAdminItem, calendar: Calendar = .current, now: Date = Date()) -> LifeAdminItem? {
+        guard let due = item.dueDate, let next = nextDueDate(after: due, recurrence: item.recurrence, calendar: calendar) else { return nil }
+        var nextItem = item
+        nextItem.id = UUID()
+        nextItem.status = .active
+        nextItem.dueDate = next
+        nextItem.priorityOverride = nil
+        nextItem.createdAt = now
+        nextItem.updatedAt = now
+        return nextItem
+    }
+}
 public struct ImportExportEngine { let encoder=JSONEncoder(); let decoder=JSONDecoder(); public init() { encoder.dateEncodingStrategy = .iso8601; decoder.dateDecodingStrategy = .iso8601 }; public func exportJSON(_ items: [LifeAdminItem]) throws -> Data { try encoder.encode(items) }; public func importJSON(_ data: Data) throws -> [LifeAdminItem] { let items = try decoder.decode([LifeAdminItem].self, from: data); try items.forEach { try ItemValidator().validate($0) }; return items }; public func exportCSV(_ items: [LifeAdminItem]) -> String { (["Title,Category,Status,Priority,DueDate,Amount,Currency"] + items.map { "\($0.title),\($0.category.rawValue),\($0.status.rawValue),\($0.priority.rawValue),\($0.dueDate?.ISO8601Format() ?? ""),\($0.amount.map(String.init(describing:)) ?? ""),\($0.currency ?? "")" }).joined(separator:"\n") } }

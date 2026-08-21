@@ -85,9 +85,8 @@ final class ItemStore: ObservableObject {
         var item = items[index]
         switch actionIdentifier {
         case NotificationActionHandler.markDoneIdentifier:
-            item.status = .completed
             ActivityLog.shared.record(String(format: String(localized: "activityLog.markedDoneFromNotification"), item.title))
-            await update(item)
+            await markCompleted(item)
         case NotificationActionHandler.snoozeIdentifier:
             item.dueDate = Calendar.current.date(byAdding: .day, value: 1, to: item.dueDate ?? Date())
             ActivityLog.shared.record(String(format: String(localized: "activityLog.snoozedFromNotification"), item.title))
@@ -201,6 +200,37 @@ final class ItemStore: ObservableObject {
     private func fetchPersisted(_ id: UUID) -> PersistedItem? {
         let descriptor = FetchDescriptor<PersistedItem>(predicate: #Predicate { $0.id == id })
         return try? modelContext.fetch(descriptor).first
+    }
+
+    /// The single place every "mark done" path (the detail screen's button, a swipe action, or
+    /// the notification action) goes through, so a recurring item's whole point — that it keeps
+    /// coming back — actually happens, instead of only ever firing once before the reminder is
+    /// gone for good.
+    func markCompleted(_ item: LifeAdminItem) async {
+        var completed = item
+        completed.status = .completed
+        await update(completed)
+
+        guard let next = RecurrenceEngine().nextOccurrence(of: completed) else { return }
+        await createRecurringOccurrence(next)
+    }
+
+    private func createRecurringOccurrence(_ item: LifeAdminItem) async {
+        var newItem = item
+        newItem.priority = PriorityEngine().priority(for: newItem)
+        let persisted = PersistedItem(item: newItem)
+        modelContext.insert(persisted)
+        try? modelContext.save()
+        items.insert(newItem, at: 0)
+
+        await NotificationScheduler.shared.schedule(for: newItem)
+        let sync = CalendarSyncService.shared.sync(item: newItem, existingEventID: nil, existingReminderID: nil)
+        persisted.calendarEventIdentifier = sync.eventIdentifier
+        persisted.reminderIdentifier = sync.reminderIdentifier
+        try? modelContext.save()
+
+        ActivityLog.shared.record(String(format: String(localized: "activityLog.recurrenceCreated"), newItem.title))
+        await refreshDigest()
     }
 
     func delete(_ item: LifeAdminItem) async {

@@ -178,8 +178,7 @@ struct ItemDetailView: View {
 
     private func markDone() async {
         var updated = fieldsApplied(to: item)
-        updated.status = .completed
         updated.priority = PriorityEngine().priority(for: updated)
-        await store.update(updated)
+        await store.markCompleted(updated)
     }
 }

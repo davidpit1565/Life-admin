@@ -150,11 +150,7 @@ private struct ItemRowLink: View {
             }
             if item.status == .active {
                 Button {
-                    Task {
-                        var done = item
-                        done.status = .completed
-                        await store.update(done)
-                    }
+                    Task { await store.markCompleted(item) }
                 } label: {
                     Label(String(localized: "itemDetail.markDone"), systemImage: "checkmark.circle.fill")
                 }

@@ -39,4 +39,24 @@ final class LifeAdminCoreTests: XCTestCase {
  func testSearchFilterByStatusCanIncludeCompleted() { var done=LifeAdminItem(title:"Paid"); done.status = .completed; var f=SearchFilter(); f.statuses=[.completed]; XCTAssertEqual(SearchEngine().search([done], filter:f).count, 1) }
  func testCompletedItemsGetNoMoreReminders() { var done=LifeAdminItem(title:"Paid", dueDate:Date().addingTimeInterval(86400*5), reminderOffsets:[1,3]); done.status = .completed; XCTAssertTrue(ReminderEngine().notificationDates(for:done).isEmpty) }
  func testActiveItemsStillGetReminders() { let active=LifeAdminItem(title:"Owed", dueDate:Date().addingTimeInterval(86400*5), reminderOffsets:[1]); XCTAssertFalse(ReminderEngine().notificationDates(for:active).isEmpty) }
+ func testMonthlyRecurrenceProducesNextMonthActiveItem() {
+     let due = Date(timeIntervalSince1970: 1_700_000_000)
+     var item = LifeAdminItem(title: "Rent", dueDate: due, recurrence: .monthly)
+     item.status = .completed
+     let next = RecurrenceEngine().nextOccurrence(of: item)
+     XCTAssertNotNil(next)
+     XCTAssertEqual(next?.status, .active)
+     XCTAssertNotEqual(next?.id, item.id)
+     let expected = Calendar.current.date(byAdding: .month, value: 1, to: due)
+     XCTAssertEqual(next?.dueDate, expected)
+ }
+ func testNonRecurringItemProducesNoNextOccurrence() { let item = LifeAdminItem(title: "One-off", dueDate: Date(), recurrence: .none); XCTAssertNil(RecurrenceEngine().nextOccurrence(of: item)) }
+ func testRecurrenceWithNoDueDateProducesNoNextOccurrence() { let item = LifeAdminItem(title: "No date", recurrence: .yearly); XCTAssertNil(RecurrenceEngine().nextOccurrence(of: item)) }
+ func testNextOccurrenceClearsPriorityOverrideAndGetsNewID() {
+     var item = LifeAdminItem(title: "Insurance", dueDate: Date(), recurrence: .yearly)
+     item.priorityOverride = .critical
+     let next = RecurrenceEngine().nextOccurrence(of: item)
+     XCTAssertNil(next?.priorityOverride)
+     XCTAssertNotEqual(next?.id, item.id)
+ }
 }

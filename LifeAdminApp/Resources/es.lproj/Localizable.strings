@@ -99,3 +99,4 @@
 "activityLog.addressUpdateSent" = "Address update sent for: %@";
 "items.filterByStatus" = "By Status";
 "itemDetail.markDone" = "Mark as Done";
+"activityLog.recurrenceCreated" = "Created the next occurrence: %@";

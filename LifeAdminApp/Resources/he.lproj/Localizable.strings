@@ -99,3 +99,4 @@
 "activityLog.addressUpdateSent" = "עדכון כתובת נשלח עבור: %@";
 "items.filterByStatus" = "לפי סטטוס";
 "itemDetail.markDone" = "סמן כבוצע";
+"activityLog.recurrenceCreated" = "נוצרה הפעם הבאה של פריט חזרתי: %@";
