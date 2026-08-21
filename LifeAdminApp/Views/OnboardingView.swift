@@ -15,17 +15,17 @@ struct OnboardingView: View {
                 OnboardingPageView(
                     systemImage: "brain.head.profile",
                     title: String(localized: "onboarding.page1.title"),
-                    body: String(localized: "onboarding.page1.body")
+                    detail: String(localized: "onboarding.page1.body")
                 ).tag(0)
                 OnboardingPageView(
                     systemImage: "text.bubble.fill",
                     title: String(localized: "onboarding.page2.title"),
-                    body: String(localized: "onboarding.page2.body")
+                    detail: String(localized: "onboarding.page2.body")
                 ).tag(1)
                 OnboardingPageView(
                     systemImage: "checkmark.shield.fill",
                     title: String(localized: "onboarding.page3.title"),
-                    body: String(localized: "onboarding.page3.body")
+                    detail: String(localized: "onboarding.page3.body")
                 ).tag(2)
             }
             .tabViewStyle(.page(indexDisplayMode: .always))
@@ -48,7 +48,7 @@ struct OnboardingView: View {
 private struct OnboardingPageView: View {
     let systemImage: String
     let title: String
-    let body: String
+    let detail: String
 
     var body: some View {
         VStack(spacing: 20) {
@@ -60,7 +60,7 @@ private struct OnboardingPageView: View {
                 .font(.title.bold())
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
-            Text(body)
+            Text(detail)
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
