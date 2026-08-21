@@ -82,3 +82,8 @@
 "notification.reminderBodyGeneric" = "יש משהו שדורש את תשומת הלב שלך — פתח את Life Admin לפרטים";
 "settings.language.system" = "מערכת";
 "notification.digestBodyWithTopItem" = "%@ · הכי דחוף: %@";
+"items.filter" = "סינון";
+"items.filterByCategory" = "לפי קטגוריה";
+"items.filterByPriority" = "לפי עדיפות";
+"items.clearFilters" = "נקה סינון";
+"items.noFilterMatches" = "אין פריטים שמתאימים לסינון הזה";

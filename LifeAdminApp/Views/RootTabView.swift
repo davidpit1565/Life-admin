@@ -107,11 +107,19 @@ struct HomeView: View {
 struct ItemsView: View {
     @EnvironmentObject var store: ItemStore
     @State private var query = ""
+    @State private var selectedCategories: Set<LifeCategory> = []
+    @State private var selectedPriorities: Set<Priority> = []
 
     private var filteredItems: [LifeAdminItem] {
         var filter = SearchFilter()
         filter.query = query
+        filter.categories = selectedCategories
+        filter.priorities = selectedPriorities
         return SearchEngine().search(store.items, filter: filter)
+    }
+
+    private var hasActiveFilters: Bool {
+        selectedCategories.isEmpty == false || selectedPriorities.isEmpty == false
     }
 
     var body: some View {
@@ -125,11 +133,16 @@ struct ItemsView: View {
             }
             .overlay {
                 if filteredItems.isEmpty {
-                    if query.isEmpty {
+                    if query.isEmpty && hasActiveFilters == false {
                         ContentUnavailableView(
                             String(localized: "empty.allClear"),
                             systemImage: "folder",
                             description: Text(String(localized: "empty.noAttention"))
+                        )
+                    } else if query.isEmpty {
+                        ContentUnavailableView(
+                            String(localized: "items.noFilterMatches"),
+                            systemImage: "line.3.horizontal.decrease.circle"
                         )
                     } else {
                         ContentUnavailableView.search(text: query)
@@ -138,6 +151,63 @@ struct ItemsView: View {
             }
             .searchable(text: $query)
             .navigationTitle(String(localized: "tab.items"))
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Menu(String(localized: "items.filterByCategory")) {
+                            ForEach(LifeCategory.allCases, id: \.self) { category in
+                                Button {
+                                    toggleCategory(category)
+                                } label: {
+                                    if selectedCategories.contains(category) {
+                                        Label(category.rawValue.capitalized, systemImage: "checkmark")
+                                    } else {
+                                        Text(category.rawValue.capitalized)
+                                    }
+                                }
+                            }
+                        }
+                        Menu(String(localized: "items.filterByPriority")) {
+                            ForEach(Priority.allCases, id: \.self) { priority in
+                                Button {
+                                    togglePriority(priority)
+                                } label: {
+                                    if selectedPriorities.contains(priority) {
+                                        Label(priority.rawValue.capitalized, systemImage: "checkmark")
+                                    } else {
+                                        Text(priority.rawValue.capitalized)
+                                    }
+                                }
+                            }
+                        }
+                        if hasActiveFilters {
+                            Button(String(localized: "items.clearFilters"), role: .destructive) {
+                                selectedCategories = []
+                                selectedPriorities = []
+                            }
+                        }
+                    } label: {
+                        Image(systemName: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                    }
+                    .accessibilityLabel(String(localized: "items.filter"))
+                }
+            }
+        }
+    }
+
+    private func toggleCategory(_ category: LifeCategory) {
+        if selectedCategories.contains(category) {
+            selectedCategories.remove(category)
+        } else {
+            selectedCategories.insert(category)
+        }
+    }
+
+    private func togglePriority(_ priority: Priority) {
+        if selectedPriorities.contains(priority) {
+            selectedPriorities.remove(priority)
+        } else {
+            selectedPriorities.insert(priority)
         }
     }
 }
