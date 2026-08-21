@@ -54,14 +54,19 @@ struct ItemDetailView: View {
                 Toggle(String(localized: "itemDetail.hasDueDate"), isOn: $hasDueDate.animation())
                 if hasDueDate {
                     DatePicker(String(localized: "itemDetail.dueDate"), selection: $dueDate, displayedComponents: [.date, .hourAndMinute])
-                }
-                Picker(String(localized: "itemDetail.recurrence"), selection: $recurrence) {
-                    // .custom is excluded deliberately: there's no UI anywhere to actually define
-                    // a custom rule, and RecurrenceEngine treats it exactly like .none (never
-                    // recurs) — offering it would let someone pick "Custom", assume they've set
-                    // up a schedule, and never find out it silently does nothing.
-                    ForEach(Recurrence.allCases.filter { $0 != .custom }, id: \.self) { r in
-                        Text(r.displayName).tag(r)
+                    // Recurrence with no due date to recur from is exactly the same trap as
+                    // .custom above: RecurrenceEngine.nextOccurrence requires a dueDate, so
+                    // "Repeat: Monthly" on an item with no due date would silently never fire —
+                    // gating this alongside the date picker keeps it from ever being offered
+                    // without the one thing it needs to mean anything.
+                    Picker(String(localized: "itemDetail.recurrence"), selection: $recurrence) {
+                        // .custom is excluded deliberately: there's no UI anywhere to actually
+                        // define a custom rule, and RecurrenceEngine treats it exactly like .none
+                        // (never recurs) — offering it would let someone pick "Custom", assume
+                        // they've set up a schedule, and never find out it silently does nothing.
+                        ForEach(Recurrence.allCases.filter { $0 != .custom }, id: \.self) { r in
+                            Text(r.displayName).tag(r)
+                        }
                     }
                 }
             }
@@ -196,7 +201,10 @@ struct ItemDetailView: View {
         updated.title = trimmedTitle.isEmpty ? item.title : trimmedTitle
         updated.category = category
         updated.dueDate = hasDueDate ? dueDate : nil
-        updated.recurrence = recurrence
+        // Recurrence is meaningless without a due date to recur from — the picker itself is
+        // already hidden in that case, but the state variable could otherwise still hold a
+        // stale value from before "Has due date" was turned off.
+        updated.recurrence = hasDueDate ? recurrence : .none
         // .decimalPad shows the device's own locale-appropriate separator (e.g. "," in many
         // European locales) — parsing with Decimal(string:) alone only ever accepts ".", silently
         // dropping the amount entirely for anyone whose keyboard shows anything else.
