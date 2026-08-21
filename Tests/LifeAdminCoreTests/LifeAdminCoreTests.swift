@@ -64,6 +64,16 @@ final class LifeAdminCoreTests: XCTestCase {
  func testAmountIsNotConfusedWithABareDayNumberNextToARecognizedDate() { let e = NaturalLanguageParser().parse("On the 24 august I pay my rent each month"); XCTAssertNil(e.amount) }
  func testAmountStillFoundWhenItGenuinelyMatchesTheDayNumber() { let e = NaturalLanguageParser().parse("Rent due on the 5th, $5"); XCTAssertEqual(e.amount, 5) }
  func testAmountWithCurrencyWordAfterTheNumber() { let e = NaturalLanguageParser().parse("Electric bill 300 NIS due next week"); XCTAssertEqual(e.amount, 300) }
+ func testClockTimeIsNotMisreadAsAnAmount() { let e = NaturalLanguageParser().parse("Driving test 4 september 11:00 am deurne examen centrum"); XCTAssertNil(e.amount) }
+ func testClockTimeIsAppliedToTheDueDate() {
+     let e = NaturalLanguageParser().parse("Driving test 4 september 11:00 am deurne examen centrum")
+     XCTAssertNotNil(e.date)
+     let components = Calendar.current.dateComponents([.hour, .minute], from: e.date!)
+     XCTAssertEqual(components.hour, 11)
+     XCTAssertEqual(components.minute, 0)
+ }
+ func testDateWithNoStatedTimeStaysAtMidnight() { let e = NaturalLanguageParser().parse("Passport renewal March 18"); let components = Calendar.current.dateComponents([.hour, .minute], from: e.date!); XCTAssertEqual(components.hour, 0); XCTAssertEqual(components.minute, 0) }
+ func testDrivingTestIsRecognizedAsAnAppointment() { let e = NaturalLanguageParser().parse("Driving test 4 september 11:00 am"); XCTAssertEqual(e.title, "Driving Test"); XCTAssertEqual(e.category, .appointments) }
  func testParserRecognizesShekelWord() { let e = NaturalLanguageParser().parse("ביטוח רכב מתחדש ב-15 באוגוסט, 840 ש״ח"); XCTAssertEqual(e.currency, "ILS") }
  func testNextOccurrenceClearsAttachments() {
      let a = Attachment(filename: "bill.jpg", mimeType: "image/jpeg", sizeBytes: 1, localPath: "/local/bill.jpg")
