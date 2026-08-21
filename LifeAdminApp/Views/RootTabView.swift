@@ -313,8 +313,13 @@ struct CalendarView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // A hardcoded height clipped whichever week row didn't fit — reported directly by
+                // a user whose July had its last row (27-31) cut off entirely, with no way to
+                // even scroll to it. UICalendarView already reports its own correct intrinsic
+                // height for however many rows the visible month actually needs (4, 5, or 6);
+                // fixedSize lets that size through instead of forcing a fixed number.
                 CalendarGridView(selectedDate: $selectedDate, markedDays: Set(itemsByDay.keys))
-                    .frame(height: 360)
+                    .fixedSize(horizontal: false, vertical: true)
                 List {
                     if selectedDayItems.isEmpty {
                         ContentUnavailableView(
