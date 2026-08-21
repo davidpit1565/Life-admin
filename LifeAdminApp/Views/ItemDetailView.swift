@@ -45,7 +45,7 @@ struct ItemDetailView: View {
                 TextField(String(localized: "itemDetail.title"), text: $title)
                 Picker(String(localized: "itemDetail.category"), selection: $category) {
                     ForEach(LifeCategory.allCases, id: \.self) { cat in
-                        Label(cat.rawValue.capitalized, systemImage: cat.symbolName).tag(cat)
+                        Label(cat.displayName, systemImage: cat.symbolName).tag(cat)
                     }
                 }
             }
@@ -56,8 +56,12 @@ struct ItemDetailView: View {
                     DatePicker(String(localized: "itemDetail.dueDate"), selection: $dueDate, displayedComponents: [.date, .hourAndMinute])
                 }
                 Picker(String(localized: "itemDetail.recurrence"), selection: $recurrence) {
-                    ForEach(Recurrence.allCases, id: \.self) { r in
-                        Text(r.rawValue.capitalized).tag(r)
+                    // .custom is excluded deliberately: there's no UI anywhere to actually define
+                    // a custom rule, and RecurrenceEngine treats it exactly like .none (never
+                    // recurs) — offering it would let someone pick "Custom", assume they've set
+                    // up a schedule, and never find out it silently does nothing.
+                    ForEach(Recurrence.allCases.filter { $0 != .custom }, id: \.self) { r in
+                        Text(r.displayName).tag(r)
                     }
                 }
             }

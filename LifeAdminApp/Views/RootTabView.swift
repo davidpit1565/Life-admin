@@ -217,9 +217,9 @@ struct ItemsView: View {
                                     toggleCategory(category)
                                 } label: {
                                     if selectedCategories.contains(category) {
-                                        Label(category.rawValue.capitalized, systemImage: "checkmark")
+                                        Label(category.displayName, systemImage: "checkmark")
                                     } else {
-                                        Text(category.rawValue.capitalized)
+                                        Text(category.displayName)
                                     }
                                 }
                             }
@@ -230,9 +230,9 @@ struct ItemsView: View {
                                     togglePriority(priority)
                                 } label: {
                                     if selectedPriorities.contains(priority) {
-                                        Label(priority.rawValue.capitalized, systemImage: "checkmark")
+                                        Label(priority.displayName, systemImage: "checkmark")
                                     } else {
-                                        Text(priority.rawValue.capitalized)
+                                        Text(priority.displayName)
                                     }
                                 }
                             }
@@ -243,9 +243,9 @@ struct ItemsView: View {
                                     toggleStatus(status)
                                 } label: {
                                     if selectedStatuses.contains(status) {
-                                        Label(status.rawValue.capitalized, systemImage: "checkmark")
+                                        Label(status.displayName, systemImage: "checkmark")
                                     } else {
-                                        Text(status.rawValue.capitalized)
+                                        Text(status.displayName)
                                     }
                                 }
                             }
