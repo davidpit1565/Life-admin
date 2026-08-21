@@ -93,6 +93,10 @@ public struct RecurrenceEngine: Sendable {
         nextItem.status = .active
         nextItem.dueDate = next
         nextItem.priorityOverride = nil
+        // Last month's scanned bill or receipt doesn't belong on next month's occurrence —
+        // carrying it forward would show a stale document against a due date it has nothing to
+        // do with.
+        nextItem.attachments = []
         nextItem.createdAt = now
         nextItem.updatedAt = now
         return nextItem

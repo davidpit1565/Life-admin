@@ -46,6 +46,7 @@
 "itemDetail.amount" = "Amount";
 "itemDetail.currency" = "Currency";
 "itemDetail.notes" = "Notes";
+"itemDetail.attachments" = "Attachments";
 "itemDetail.delete" = "Delete Item";
 "itemDetail.deleteConfirm" = "Delete this item? This also removes its calendar event and reminder.";
 "calendar.noItemsThisDay" = "Nothing due on this day";
@@ -70,6 +71,7 @@
 "settings.aiAutonomy.askFirst.description" = "Every new item opens for your review before it's finalized.";
 "settings.aiAutonomy.off.description" = "Nothing is ever sent to AI — only basic on-device recognition is used.";
 "add.scanDocument" = "Scan a Document";
+"add.scannedPageFilename" = "Scanned Page %d";
 "aiConsent.navTitle" = "AI Processing";
 "aiConsent.title" = "Before we start";
 "aiConsent.body" = "When Life Admin can't confidently understand what you typed on its own — or when it's something important like a large bill or insurance renewal — it sends just that text to Google's Gemini AI to help. Nothing else: not your contacts, calendar, or photos.";

@@ -1,5 +1,6 @@
 import SwiftUI
 import ContactsUI
+import UIKit
 import LifeAdminCore
 
 struct ItemDetailView: View {
@@ -18,6 +19,7 @@ struct ItemDetailView: View {
     @State private var name: String
     @State private var company: String
     @State private var email: String
+    @State private var attachments: [Attachment]
     @State private var showingContactPicker = false
     @State private var showingDeleteConfirmation = false
 
@@ -34,6 +36,7 @@ struct ItemDetailView: View {
         _name = State(initialValue: item.contact?.name ?? "")
         _company = State(initialValue: item.contact?.company ?? "")
         _email = State(initialValue: item.contact?.email ?? "")
+        _attachments = State(initialValue: item.attachments)
     }
 
     var body: some View {
@@ -85,6 +88,26 @@ struct ItemDetailView: View {
 
             Section(String(localized: "itemDetail.notes")) {
                 TextEditor(text: $notes).frame(minHeight: 80)
+            }
+
+            if attachments.isEmpty == false {
+                Section(String(localized: "itemDetail.attachments")) {
+                    ForEach(attachments) { attachment in
+                        HStack {
+                            if let uiImage = UIImage(contentsOfFile: attachment.localPath) {
+                                Image(uiImage: uiImage).resizable().scaledToFill()
+                                    .frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 6))
+                            } else {
+                                Image(systemName: "doc.fill").foregroundStyle(.secondary)
+                            }
+                            Text(attachment.filename)
+                        }
+                    }
+                    .onDelete { offsets in
+                        for index in offsets { AttachmentStore.shared.delete(attachments[index]) }
+                        attachments.remove(atOffsets: offsets)
+                    }
+                }
             }
 
             if item.status == .active {
@@ -158,6 +181,7 @@ struct ItemDetailView: View {
         updated.currency = Locale.commonISOCurrencyCodes.contains(trimmedCurrency) ? trimmedCurrency : nil
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.notes = trimmedNotes.isEmpty ? nil : trimmedNotes
+        updated.attachments = attachments
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedCompany = company.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
