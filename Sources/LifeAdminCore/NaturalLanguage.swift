@@ -3,20 +3,18 @@ public struct ExtractedItem: Codable, Equatable, Sendable { public var title: St
 public struct NaturalLanguageParser: Sendable {
     public init() {}
 
+    /// Recognizes both orderings — "March 18" and "18 March" — since day-before-month is the
+    /// everyday order outside the US, and the confirmed on-device bug report that motivated the
+    /// garbled-title fix elsewhere in this file used exactly that order ("On the 24 august").
     static func simpleDate(in lower: String, now: Date) -> Date? {
         let months = ["january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6, "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12]
         let parts = lower.split { !$0.isLetter && !$0.isNumber }.map(String.init)
         for (i, p) in parts.enumerated() {
-            if let m = months[p], i + 1 < parts.count, let day = Int(parts[i + 1]) {
-                var c = Calendar.current.dateComponents([.year], from: now)
-                c.month = m
-                c.day = day
-                let candidate = Calendar.current.date(from: c)
-                if let d = candidate, d < now {
-                    c.year = (c.year ?? 2026) + 1
-                    return Calendar.current.date(from: c)
-                }
-                return candidate
+            if let m = months[p], i + 1 < parts.count, let day = Int(parts[i + 1]), (1...31).contains(day) {
+                return Self.nextOccurrence(month: m, day: day, now: now)
+            }
+            if let day = Int(p), (1...31).contains(day), i + 1 < parts.count, let m = months[parts[i + 1]] {
+                return Self.nextOccurrence(month: m, day: day, now: now)
             }
             if let y = Int(p), y > 1900, y < 2200 {
                 return Calendar.current.date(from: DateComponents(year: y, month: 12, day: 31))
@@ -25,15 +23,63 @@ public struct NaturalLanguageParser: Sendable {
         return nil
     }
 
+    private static func nextOccurrence(month: Int, day: Int, now: Date) -> Date? {
+        var components = Calendar.current.dateComponents([.year], from: now)
+        components.month = month
+        components.day = day
+        let candidate = Calendar.current.date(from: components)
+        if let candidate, candidate < now {
+            components.year = (components.year ?? 2026) + 1
+            return Calendar.current.date(from: components)
+        }
+        return candidate
+    }
+
+    /// A single-word keyword is matched against whole words only ("rent" must not match inside
+    /// "parent"); a multi-word phrase is matched as a substring, since it's specific enough on its
+    /// own not to need that guard.
+    private struct KeywordMatch { let keywords: [String]; let title: String; let category: LifeCategory }
+
+    private static let knownMatches: [KeywordMatch] = [
+        KeywordMatch(keywords: ["car insurance"], title: "Car Insurance", category: .insurance),
+        KeywordMatch(keywords: ["home insurance"], title: "Home Insurance", category: .insurance),
+        KeywordMatch(keywords: ["health insurance"], title: "Health Insurance", category: .insurance),
+        KeywordMatch(keywords: ["life insurance"], title: "Life Insurance", category: .insurance),
+        KeywordMatch(keywords: ["insurance"], title: "Insurance", category: .insurance),
+        KeywordMatch(keywords: ["passport"], title: "Passport", category: .travel),
+        KeywordMatch(keywords: ["visa renewal", "visa"], title: "Visa", category: .travel),
+        KeywordMatch(keywords: ["netflix"], title: "Netflix", category: .subscriptions),
+        KeywordMatch(keywords: ["spotify"], title: "Spotify", category: .subscriptions),
+        KeywordMatch(keywords: ["warranty"], title: "Warranty", category: .warranties),
+        KeywordMatch(keywords: ["gym"], title: "Gym Membership", category: .memberships),
+        KeywordMatch(keywords: ["rent"], title: "Rent", category: .bills),
+        KeywordMatch(keywords: ["mortgage"], title: "Mortgage", category: .bills),
+        KeywordMatch(keywords: ["electricity bill", "electric bill"], title: "Electricity Bill", category: .bills),
+        KeywordMatch(keywords: ["water bill"], title: "Water Bill", category: .bills),
+        KeywordMatch(keywords: ["phone bill"], title: "Phone Bill", category: .bills),
+        KeywordMatch(keywords: ["dentist"], title: "Dentist Appointment", category: .appointments),
+        KeywordMatch(keywords: ["doctor"], title: "Doctor Appointment", category: .appointments)
+    ]
+
+    private static func firstMatch(in lower: String, words: Set<String>) -> KeywordMatch? {
+        knownMatches.first { match in
+            match.keywords.contains { keyword in
+                keyword.contains(" ") ? lower.contains(keyword) : words.contains(keyword)
+            }
+        }
+    }
+
     public func parse(_ text: String, now: Date = Date()) -> ExtractedItem {
         let lower = text.lowercased()
-        let category: LifeCategory = lower.contains("insurance") ? .insurance : lower.contains("passport") ? .travel : lower.contains("netflix") ? .subscriptions : lower.contains("warranty") ? .warranties : .other
+        let words = Set(lower.split { $0.isLetter == false }.map(String.init))
+        let match = Self.firstMatch(in: lower, words: words)
+        let category = match?.category ?? .other
         // A recognized title comes from an actual keyword match. Anything else falls back to the
         // first few words of the input, which is rarely a meaningful title (e.g. "On the 24 august"
         // for "On the 24 august I pay my rent") — that fallback must not be reported as confident,
         // or LifeAdminAIService.isCompleteEnough will treat it as good enough and never ask Gemini
         // for a real title.
-        let recognizedTitle: String? = lower.contains("car insurance") ? "Car Insurance" : lower.contains("passport") ? "Passport" : nil
+        let recognizedTitle: String? = match?.title
         let fallbackTitle = text.split(separator: " ").prefix(4).joined(separator: " ")
         let title = recognizedTitle ?? fallbackTitle
         let currency = lower.contains("€") ? "EUR" : lower.contains("$") ? "USD" : nil

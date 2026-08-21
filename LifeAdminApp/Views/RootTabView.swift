@@ -1,9 +1,18 @@
 import SwiftUI
 import VisionKit
 import LifeAdminCore
+private enum FirstRunStep: Identifiable {
+    case onboarding
+    case aiConsent
+    var id: Self { self }
+}
+
 struct RootTabView: View {
     @EnvironmentObject var store: ItemStore
     @State private var adding = false
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
+    @AppStorage("aiConsentDecision") private var aiConsentDecision = ""
+    @State private var firstRunStep: FirstRunStep?
 
     var body: some View {
         TabView {
@@ -32,7 +41,36 @@ struct RootTabView: View {
             AddItemView()
         }
         .task {
-            await store.requestAllPermissionsUpfront()
+            if hasSeenOnboarding == false {
+                firstRunStep = .onboarding
+            } else if aiConsentDecision.isEmpty {
+                firstRunStep = .aiConsent
+            } else {
+                await store.requestAllPermissionsUpfront()
+            }
+        }
+        .fullScreenCover(item: $firstRunStep) { step in
+            Group {
+                switch step {
+                case .onboarding:
+                    OnboardingView {
+                        hasSeenOnboarding = true
+                        if aiConsentDecision.isEmpty {
+                            firstRunStep = .aiConsent
+                        } else {
+                            firstRunStep = nil
+                            Task { await store.requestAllPermissionsUpfront() }
+                        }
+                    }
+                case .aiConsent:
+                    AIConsentView { decision in
+                        aiConsentDecision = decision
+                        firstRunStep = nil
+                        Task { await store.requestAllPermissionsUpfront() }
+                    }
+                }
+            }
+            .interactiveDismissDisabled()
         }
     }
 }
@@ -40,8 +78,11 @@ struct HomeView: View {
     @EnvironmentObject var store: ItemStore
     @State private var dismissedMovingBanner = false
 
+    // Completed items (e.g. via "Mark Done" on a notification) stay in store.items rather than
+    // being deleted, so Home must filter them out itself — otherwise a done item just sits here
+    // forever, indistinguishable from an active one, and "Mark Done" accomplishes nothing visible.
     private var upcomingItems: [LifeAdminItem] {
-        store.items.sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
+        store.items.filter { $0.status == .active }.sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
     }
 
     private var hasMovingEvent: Bool {
@@ -70,7 +111,7 @@ struct HomeView: View {
                         }
                     }
                 }
-                if store.items.isEmpty {
+                if upcomingItems.isEmpty {
                     ContentUnavailableView(
                         String(localized: "empty.allClear"),
                         systemImage: "checkmark.seal.fill",
@@ -79,11 +120,7 @@ struct HomeView: View {
                 } else {
                     Section(String(localized: "home.upcoming")) {
                         ForEach(upcomingItems) { item in
-                            NavigationLink {
-                                ItemDetailView(item: item)
-                            } label: {
-                                ItemRow(item: item)
-                            }
+                            ItemRowLink(item: item)
                         }
                     }
                 }
@@ -92,32 +129,75 @@ struct HomeView: View {
         }
     }
 }
+/// Shared by every list that shows items (Home, Items, Calendar's day list) so swipe-to-complete
+/// and swipe-to-delete — the single biggest everyday time-saver for someone managing more than a
+/// couple of items — only has to be written, and gotten right, once.
+private struct ItemRowLink: View {
+    @EnvironmentObject var store: ItemStore
+    let item: LifeAdminItem
+
+    var body: some View {
+        NavigationLink {
+            ItemDetailView(item: item)
+        } label: {
+            ItemRow(item: item)
+        }
+        .swipeActions(edge: .trailing) {
+            Button(role: .destructive) {
+                Task { await store.delete(item) }
+            } label: {
+                Label(String(localized: "itemDetail.delete"), systemImage: "trash")
+            }
+            if item.status == .active {
+                Button {
+                    Task { await store.markCompleted(item) }
+                } label: {
+                    Label(String(localized: "itemDetail.markDone"), systemImage: "checkmark.circle.fill")
+                }
+                .tint(.green)
+            }
+        }
+    }
+}
 struct ItemsView: View {
     @EnvironmentObject var store: ItemStore
     @State private var query = ""
+    @State private var selectedCategories: Set<LifeCategory> = []
+    @State private var selectedPriorities: Set<Priority> = []
+    @State private var selectedStatuses: Set<ItemStatus> = []
 
     private var filteredItems: [LifeAdminItem] {
         var filter = SearchFilter()
         filter.query = query
+        filter.categories = selectedCategories
+        filter.priorities = selectedPriorities
+        // Default to active-only — a completed/archived item shouldn't clutter the everyday list
+        // unless the user explicitly asks to see it via the status filter.
+        filter.statuses = selectedStatuses.isEmpty ? [.active] : selectedStatuses
         return SearchEngine().search(store.items, filter: filter)
+    }
+
+    private var hasActiveFilters: Bool {
+        selectedCategories.isEmpty == false || selectedPriorities.isEmpty == false || selectedStatuses.isEmpty == false
     }
 
     var body: some View {
         NavigationStack {
             List(filteredItems) { item in
-                NavigationLink {
-                    ItemDetailView(item: item)
-                } label: {
-                    ItemRow(item: item)
-                }
+                ItemRowLink(item: item)
             }
             .overlay {
                 if filteredItems.isEmpty {
-                    if query.isEmpty {
+                    if query.isEmpty && hasActiveFilters == false {
                         ContentUnavailableView(
                             String(localized: "empty.allClear"),
                             systemImage: "folder",
                             description: Text(String(localized: "empty.noAttention"))
+                        )
+                    } else if query.isEmpty {
+                        ContentUnavailableView(
+                            String(localized: "items.noFilterMatches"),
+                            systemImage: "line.3.horizontal.decrease.circle"
                         )
                     } else {
                         ContentUnavailableView.search(text: query)
@@ -126,6 +206,85 @@ struct ItemsView: View {
             }
             .searchable(text: $query)
             .navigationTitle(String(localized: "tab.items"))
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Menu(String(localized: "items.filterByCategory")) {
+                            ForEach(LifeCategory.allCases, id: \.self) { category in
+                                Button {
+                                    toggleCategory(category)
+                                } label: {
+                                    if selectedCategories.contains(category) {
+                                        Label(category.rawValue.capitalized, systemImage: "checkmark")
+                                    } else {
+                                        Text(category.rawValue.capitalized)
+                                    }
+                                }
+                            }
+                        }
+                        Menu(String(localized: "items.filterByPriority")) {
+                            ForEach(Priority.allCases, id: \.self) { priority in
+                                Button {
+                                    togglePriority(priority)
+                                } label: {
+                                    if selectedPriorities.contains(priority) {
+                                        Label(priority.rawValue.capitalized, systemImage: "checkmark")
+                                    } else {
+                                        Text(priority.rawValue.capitalized)
+                                    }
+                                }
+                            }
+                        }
+                        Menu(String(localized: "items.filterByStatus")) {
+                            ForEach(ItemStatus.allCases, id: \.self) { status in
+                                Button {
+                                    toggleStatus(status)
+                                } label: {
+                                    if selectedStatuses.contains(status) {
+                                        Label(status.rawValue.capitalized, systemImage: "checkmark")
+                                    } else {
+                                        Text(status.rawValue.capitalized)
+                                    }
+                                }
+                            }
+                        }
+                        if hasActiveFilters {
+                            Button(String(localized: "items.clearFilters"), role: .destructive) {
+                                selectedCategories = []
+                                selectedPriorities = []
+                                selectedStatuses = []
+                            }
+                        }
+                    } label: {
+                        Image(systemName: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                    }
+                    .accessibilityLabel(String(localized: "items.filter"))
+                }
+            }
+        }
+    }
+
+    private func toggleCategory(_ category: LifeCategory) {
+        if selectedCategories.contains(category) {
+            selectedCategories.remove(category)
+        } else {
+            selectedCategories.insert(category)
+        }
+    }
+
+    private func togglePriority(_ priority: Priority) {
+        if selectedPriorities.contains(priority) {
+            selectedPriorities.remove(priority)
+        } else {
+            selectedPriorities.insert(priority)
+        }
+    }
+
+    private func toggleStatus(_ status: ItemStatus) {
+        if selectedStatuses.contains(status) {
+            selectedStatuses.remove(status)
+        } else {
+            selectedStatuses.insert(status)
         }
     }
 }
@@ -134,7 +293,7 @@ struct CalendarView: View {
     @State private var selectedDate = Date()
 
     private var itemsByDay: [DateComponents: [LifeAdminItem]] {
-        Dictionary(grouping: store.items.filter { $0.dueDate != nil }) { item in
+        Dictionary(grouping: store.items.filter { $0.status == .active && $0.dueDate != nil }) { item in
             Calendar.current.dateComponents([.year, .month, .day], from: item.dueDate!)
         }
     }
@@ -157,11 +316,7 @@ struct CalendarView: View {
                         )
                     } else {
                         ForEach(selectedDayItems) { item in
-                            NavigationLink {
-                                ItemDetailView(item: item)
-                            } label: {
-                                ItemRow(item: item)
-                            }
+                            ItemRowLink(item: item)
                         }
                     }
                 }
@@ -174,12 +329,14 @@ struct InsightsView: View {
     @EnvironmentObject var store: ItemStore
 
     private var urgentCount: Int {
-        store.items.filter { $0.priority == .critical || $0.priority == .high }.count
+        store.items.filter { $0.status == .active && ($0.priority == .critical || $0.priority == .high) }.count
     }
 
+    // Reuses DigestEngine instead of re-deriving this — the hand-rolled version here compared
+    // dueDate against only the upper bound of the week, so an item overdue by months satisfied
+    // "<= horizon" too and never stopped counting as "due this week".
     private var upcomingWeekCount: Int {
-        let horizon = Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date()
-        return store.items.filter { ($0.dueDate ?? .distantFuture) <= horizon }.count
+        DigestEngine().summary(for: store.items).dueThisWeekCount
     }
 
     var body: some View {
@@ -209,6 +366,9 @@ struct InsightsView: View {
 struct SettingsView: View {
     @AppStorage("language") var language = "system"
     @AppStorage("aiProcessingMode") var aiProcessingModeRaw = AIProcessingMode.allowAutomatically.rawValue
+    @AppStorage("aiConsentDecision") private var aiConsentDecision = ""
+    @State private var showingAIConsentReview = false
+    @State private var showingDeleteAIDataConfirmation = false
 
     private var aiProcessingMode: AIProcessingMode {
         AIProcessingMode(rawValue: aiProcessingModeRaw) ?? .allowAutomatically
@@ -220,7 +380,7 @@ struct SettingsView: View {
                 Section(String(localized: "settings.general")) {
                     Picker(String(localized: "settings.language"), selection: $language) {
                         ForEach(SupportedLanguage.allCases, id: \.rawValue) {
-                            Text($0.rawValue).tag($0.rawValue)
+                            Text(displayName(for: $0)).tag($0.rawValue)
                         }
                     }
                     NavigationLink(String(localized: "settings.addressChange")) {
@@ -228,23 +388,58 @@ struct SettingsView: View {
                     }
                 }
                 Section(String(localized: "settings.ai")) {
-                    Picker(String(localized: "settings.aiAutonomy"), selection: $aiProcessingModeRaw) {
-                        Text(String(localized: "settings.aiAutonomy.auto")).tag(AIProcessingMode.allowAutomatically.rawValue)
-                        Text(String(localized: "settings.aiAutonomy.askFirst")).tag(AIProcessingMode.askEveryTime.rawValue)
-                        Text(String(localized: "settings.aiAutonomy.off")).tag(AIProcessingMode.disabled.rawValue)
+                    if aiConsentDecision == "granted" {
+                        Picker(String(localized: "settings.aiAutonomy"), selection: $aiProcessingModeRaw) {
+                            Text(String(localized: "settings.aiAutonomy.auto")).tag(AIProcessingMode.allowAutomatically.rawValue)
+                            Text(String(localized: "settings.aiAutonomy.askFirst")).tag(AIProcessingMode.askEveryTime.rawValue)
+                            Text(String(localized: "settings.aiAutonomy.off")).tag(AIProcessingMode.disabled.rawValue)
+                        }
+                        Text(aiProcessingModeDescription)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button(String(localized: "settings.aiConsent.revoke"), role: .destructive) {
+                            aiConsentDecision = "declined"
+                        }
+                    } else {
+                        Text(String(localized: "settings.aiConsent.declinedNotice"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button(String(localized: "settings.aiConsent.review")) {
+                            showingAIConsentReview = true
+                        }
                     }
-                    Text(aiProcessingModeDescription)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                     NavigationLink(String(localized: "activityLog.title")) {
                         ActivityLogView()
                     }
                 }
                 Section(String(localized: "settings.privacy")) {
-                    Button(String(localized: "settings.deleteAIData"), role: .destructive) {}
+                    Button(String(localized: "settings.deleteAIData"), role: .destructive) {
+                        showingDeleteAIDataConfirmation = true
+                    }
                 }
             }.navigationTitle(String(localized: "tab.settings"))
+            .sheet(isPresented: $showingAIConsentReview) {
+                AIConsentView { decision in
+                    aiConsentDecision = decision
+                    showingAIConsentReview = false
+                }
+            }
+            .confirmationDialog(
+                String(localized: "settings.deleteAIData.confirm"),
+                isPresented: $showingDeleteAIDataConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button(String(localized: "settings.deleteAIData"), role: .destructive) {
+                    ActivityLog.shared.clear()
+                }
+            }
         }
+    }
+
+    private func displayName(for language: SupportedLanguage) -> String {
+        guard language != .system else { return String(localized: "settings.language.system") }
+        let identifier = language.localeIdentifier
+        return Locale(identifier: identifier).localizedString(forIdentifier: identifier)?.localizedCapitalized ?? language.rawValue
     }
 
     private var aiProcessingModeDescription: String {
@@ -282,7 +477,7 @@ struct AddItemView: View {
                         }
                     }
                     Section {
-                        Button(String(localized: "common.save")) {
+                        Button {
                             isSaving = true
                             Task {
                                 await store.add(text: text)
@@ -296,6 +491,18 @@ struct AddItemView: View {
                                 } else {
                                     dismiss()
                                 }
+                            }
+                        } label: {
+                            // The AI call behind this can take a few seconds — a button that just
+                            // sits there disabled with no other feedback reads as frozen/broken,
+                            // not "working on it".
+                            if isSaving {
+                                HStack {
+                                    ProgressView().controlSize(.small)
+                                    Text(String(localized: "common.save"))
+                                }
+                            } else {
+                                Text(String(localized: "common.save"))
                             }
                         }.disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
                     }

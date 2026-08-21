@@ -87,6 +87,19 @@ struct ItemDetailView: View {
                 TextEditor(text: $notes).frame(minHeight: 80)
             }
 
+            if item.status == .active {
+                Section {
+                    Button {
+                        Task {
+                            await markDone()
+                            dismiss()
+                        }
+                    } label: {
+                        Label(String(localized: "itemDetail.markDone"), systemImage: "checkmark.circle.fill")
+                    }
+                }
+            }
+
             Section {
                 Button(String(localized: "common.save")) {
                     Task {
@@ -126,16 +139,23 @@ struct ItemDetailView: View {
         if let firstEmail = contact.emailAddresses.first?.value as String? { email = firstEmail }
     }
 
-    private func save() async {
-        var updated = item
+    private func fieldsApplied(to base: LifeAdminItem) -> LifeAdminItem {
+        var updated = base
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.title = trimmedTitle.isEmpty ? item.title : trimmedTitle
         updated.category = category
         updated.dueDate = hasDueDate ? dueDate : nil
         updated.recurrence = recurrence
-        updated.amount = Decimal(string: amountText.trimmingCharacters(in: .whitespacesAndNewlines))
-        let trimmedCurrency = currency.trimmingCharacters(in: .whitespacesAndNewlines)
-        updated.currency = trimmedCurrency.isEmpty ? nil : trimmedCurrency.uppercased()
+        // .decimalPad shows the device's own locale-appropriate separator (e.g. "," in many
+        // European locales) — parsing with Decimal(string:) alone only ever accepts ".", silently
+        // dropping the amount entirely for anyone whose keyboard shows anything else.
+        updated.amount = Decimal(string: amountText.trimmingCharacters(in: .whitespacesAndNewlines), locale: Locale.current)
+        // The AI-extraction path already rejects an invalid ISO currency code before it ever
+        // reaches an item (see LifeAdminAIService.validateStructuredExtraction) — this free-text
+        // field was the one place nothing checked it, so a typo here would silently save a
+        // currency code that formats wrong (or not at all) everywhere the amount is shown.
+        let trimmedCurrency = currency.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        updated.currency = Locale.commonISOCurrencyCodes.contains(trimmedCurrency) ? trimmedCurrency : nil
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.notes = trimmedNotes.isEmpty ? nil : trimmedNotes
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -147,7 +167,18 @@ struct ItemDetailView: View {
             email: trimmedEmail.isEmpty ? nil : trimmedEmail
         )
         updated.updatedAt = Date()
+        return updated
+    }
+
+    private func save() async {
+        var updated = fieldsApplied(to: item)
         updated.priority = PriorityEngine().priority(for: updated)
         await store.update(updated)
+    }
+
+    private func markDone() async {
+        var updated = fieldsApplied(to: item)
+        updated.priority = PriorityEngine().priority(for: updated)
+        await store.markCompleted(updated)
     }
 }

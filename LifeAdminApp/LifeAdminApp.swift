@@ -10,7 +10,7 @@ struct LifeAdminApp: App {
 
     init() {
         UNUserNotificationCenter.current().delegate = NotificationActionHandler.shared
-        let container = try! ModelContainer(for: PersistedItem.self)
+        let container = Self.makeModelContainer()
         modelContainer = container
         _store = StateObject(wrappedValue: ItemStore(modelContext: container.mainContext))
     }
@@ -20,6 +20,28 @@ struct LifeAdminApp: App {
             RootTabView().environmentObject(store)
         }
         .modelContainer(modelContainer)
+    }
+
+    /// A `try!` here means every future launch crashes identically if the on-disk store is ever
+    /// corrupted (disk issues, an interrupted write, an incompatible schema change) — the user's
+    /// only way out would be deleting and reinstalling, losing everything anyway. Falls back to a
+    /// fresh on-disk store (wiping the corrupted one) and, if even that fails, to an in-memory
+    /// store so the app can still open rather than crash-loop forever.
+    private static func makeModelContainer() -> ModelContainer {
+        if let container = try? ModelContainer(for: PersistedItem.self) {
+            return container
+        }
+
+        let storeURL = URL.applicationSupportDirectory.appending(path: "default.store")
+        for suffix in ["", "-wal", "-shm"] {
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: storeURL.path + suffix))
+        }
+        if let container = try? ModelContainer(for: PersistedItem.self) {
+            return container
+        }
+
+        let inMemoryConfiguration = ModelConfiguration(isStoredInMemoryOnly: true)
+        return try! ModelContainer(for: PersistedItem.self, configurations: inMemoryConfiguration)
     }
 }
 
@@ -32,13 +54,17 @@ final class ItemStore: ObservableObject {
 
     /// Read directly from UserDefaults (rather than @AppStorage, which only works in views) so
     /// the setting in Settings > AI takes effect on the very next add without any extra plumbing.
+    /// Falls back to local-only whenever AI consent hasn't been explicitly granted (declined, or
+    /// not yet asked) — this is the actual enforcement point for the consent screen in
+    /// AIConsentView, not just its UI. No consent, no Gemini calls, regardless of this setting.
     private var autonomyMode: AIProcessingMode {
-        AIProcessingMode(rawValue: UserDefaults.standard.string(forKey: "aiProcessingMode") ?? "") ?? .allowAutomatically
+        guard UserDefaults.standard.string(forKey: "aiConsentDecision") == "granted" else { return .disabled }
+        return AIProcessingMode(rawValue: UserDefaults.standard.string(forKey: "aiProcessingMode") ?? "") ?? .allowAutomatically
     }
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
-        self.aiService = LifeAdminAIService(client: ProxyAIClient(endpoint: AppConfig.geminiProxyEndpoint))
+        self.aiService = LifeAdminAIService(client: ProxyAIClient(endpoint: AppConfig.geminiProxyEndpoint), reachability: NetworkPathReachability())
         load()
         observeNotificationActions()
     }
@@ -59,9 +85,8 @@ final class ItemStore: ObservableObject {
         var item = items[index]
         switch actionIdentifier {
         case NotificationActionHandler.markDoneIdentifier:
-            item.status = .completed
             ActivityLog.shared.record(String(format: String(localized: "activityLog.markedDoneFromNotification"), item.title))
-            await update(item)
+            await markCompleted(item)
         case NotificationActionHandler.snoozeIdentifier:
             item.dueDate = Calendar.current.date(byAdding: .day, value: 1, to: item.dueDate ?? Date())
             ActivityLog.shared.record(String(format: String(localized: "activityLog.snoozedFromNotification"), item.title))
@@ -152,7 +177,15 @@ final class ItemStore: ObservableObject {
     func update(_ item: LifeAdminItem) async {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
         items[index] = item
-        guard let persisted = fetchPersisted(item.id) else { return }
+        // Self-heal rather than silently drop the edit: if the persisted record can't be found
+        // (it shouldn't normally happen, but a mismatch here would otherwise make the in-memory
+        // change look like it saved while actually vanishing on the next launch), recreate it
+        // instead of returning early.
+        let persisted = fetchPersisted(item.id) ?? {
+            let created = PersistedItem(item: item)
+            modelContext.insert(created)
+            return created
+        }()
         persisted.apply(item)
 
         let sync = CalendarSyncService.shared.sync(item: item, existingEventID: persisted.calendarEventIdentifier, existingReminderID: persisted.reminderIdentifier)
@@ -169,14 +202,49 @@ final class ItemStore: ObservableObject {
         return try? modelContext.fetch(descriptor).first
     }
 
-    func delete(_ item: LifeAdminItem) async {
-        guard let persisted = fetchPersisted(item.id) else { return }
-        var cleared = item
-        cleared.dueDate = nil
-        _ = CalendarSyncService.shared.sync(item: cleared, existingEventID: persisted.calendarEventIdentifier, existingReminderID: persisted.reminderIdentifier)
-        await NotificationScheduler.shared.cancel(for: item.id)
-        modelContext.delete(persisted)
+    /// The single place every "mark done" path (the detail screen's button, a swipe action, or
+    /// the notification action) goes through, so a recurring item's whole point — that it keeps
+    /// coming back — actually happens, instead of only ever firing once before the reminder is
+    /// gone for good.
+    func markCompleted(_ item: LifeAdminItem) async {
+        var completed = item
+        completed.status = .completed
+        await update(completed)
+
+        guard let next = RecurrenceEngine().nextOccurrence(of: completed) else { return }
+        await createRecurringOccurrence(next)
+    }
+
+    private func createRecurringOccurrence(_ item: LifeAdminItem) async {
+        var newItem = item
+        newItem.priority = PriorityEngine().priority(for: newItem)
+        let persisted = PersistedItem(item: newItem)
+        modelContext.insert(persisted)
         try? modelContext.save()
+        items.insert(newItem, at: 0)
+
+        await NotificationScheduler.shared.schedule(for: newItem)
+        let sync = CalendarSyncService.shared.sync(item: newItem, existingEventID: nil, existingReminderID: nil)
+        persisted.calendarEventIdentifier = sync.eventIdentifier
+        persisted.reminderIdentifier = sync.reminderIdentifier
+        try? modelContext.save()
+
+        ActivityLog.shared.record(String(format: String(localized: "activityLog.recurrenceCreated"), newItem.title))
+        await refreshDigest()
+    }
+
+    func delete(_ item: LifeAdminItem) async {
+        // Always remove from the in-memory list and cancel notifications, even if the persisted
+        // record can't be found — otherwise a lookup mismatch would make "Delete" silently do
+        // nothing visible, leaving the item sitting right where it was.
+        if let persisted = fetchPersisted(item.id) {
+            var cleared = item
+            cleared.dueDate = nil
+            _ = CalendarSyncService.shared.sync(item: cleared, existingEventID: persisted.calendarEventIdentifier, existingReminderID: persisted.reminderIdentifier)
+            modelContext.delete(persisted)
+            try? modelContext.save()
+        }
+        await NotificationScheduler.shared.cancel(for: item.id)
         items.removeAll { $0.id == item.id }
         await refreshDigest()
     }
@@ -186,6 +254,7 @@ final class ItemStore: ObservableObject {
         var item = items[index]
         if item.tags.contains(AddressChangeEngine.syncedTag) == false {
             item.tags.append(AddressChangeEngine.syncedTag)
+            ActivityLog.shared.record(String(format: String(localized: "activityLog.addressUpdateSent"), item.title))
         }
         await update(item)
     }

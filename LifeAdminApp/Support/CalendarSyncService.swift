@@ -50,6 +50,7 @@ struct CalendarSyncService {
             if reminder.calendar == nil { reminder.calendar = store.defaultCalendarForNewReminders() }
             reminder.title = item.title
             reminder.dueDateComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: dueDate)
+            reminder.isCompleted = item.status == .completed
             if (try? store.save(reminder, commit: true)) != nil {
                 result.reminderIdentifier = reminder.calendarItemIdentifier
             }

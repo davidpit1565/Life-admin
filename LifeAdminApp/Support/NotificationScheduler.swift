@@ -35,7 +35,7 @@ struct NotificationScheduler {
         for (index, date) in dates.enumerated() {
             let content = UNMutableNotificationContent()
             content.title = String(localized: "notification.reminderTitle")
-            content.body = item.title
+            content.body = item.category.isSensitive ? String(localized: "notification.reminderBodyGeneric") : item.title
             content.sound = .default
             content.categoryIdentifier = NotificationActionHandler.categoryIdentifier
             content.userInfo = ["itemID": item.id.uuidString]
@@ -81,10 +81,17 @@ struct NotificationScheduler {
     }
 
     private func digestBody(_ summary: DigestEngine.Summary) -> String {
+        let countPhrase: String
         if summary.overdueCount > 0 {
-            return String(format: String(localized: "notification.digestOverdue"), summary.overdueCount)
+            countPhrase = String(format: String(localized: "notification.digestOverdue"), summary.overdueCount)
+        } else {
+            countPhrase = String(format: String(localized: "notification.digestDueToday"), summary.dueTodayCount)
         }
-        return String(format: String(localized: "notification.digestDueToday"), summary.dueTodayCount)
+        // Rank by consequence, not just chronology: name the single most urgent item so the
+        // notification is a decision, not just a count — but only when it's safe to show on a
+        // lock screen (see LifeCategory.isSensitive).
+        guard let top = summary.topItem, top.category.isSensitive == false else { return countPhrase }
+        return String(format: String(localized: "notification.digestBodyWithTopItem"), countPhrase, top.title)
     }
 
     private static let digestIdentifier = "daily-digest"

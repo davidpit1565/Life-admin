@@ -24,4 +24,39 @@ final class LifeAdminCoreTests: XCTestCase {
  func testNonCriticalItemsDoNotGetTheEscalatedReminder() { let i=LifeAdminItem(title:"Gym", category:.other, dueDate:Date().addingTimeInterval(86400*5), reminderOffsets:[30]); XCTAssertEqual(i.priority, .low); XCTAssertFalse(ReminderEngine().notificationDates(for:i).contains { Calendar.current.isDate($0, inSameDayAs: i.dueDate!) }) }
  func testLifeEventDetectorFlagsMoving() { XCTAssertEqual(LifeEventDetector().detectedTags(in: "I'm moving to a new apartment next month"), [LifeEventDetector.movingTag]) }
  func testLifeEventDetectorIgnoresUnrelatedText() { XCTAssertTrue(LifeEventDetector().detectedTags(in: "Pay the Netflix subscription").isEmpty) }
+ func testSensitiveCategoriesFlaggedForGenericNotifications() { XCTAssertTrue(LifeCategory.insurance.isSensitive); XCTAssertTrue(LifeCategory.money.isSensitive); XCTAssertTrue(LifeCategory.health.isSensitive) }
+ func testNonSensitiveCategoriesShowTitleInNotifications() { XCTAssertFalse(LifeCategory.subscriptions.isSensitive); XCTAssertFalse(LifeCategory.travel.isSensitive) }
+ func testChineseLocaleIdentifiersAreValidBCP47() { XCTAssertEqual(SupportedLanguage.zhHans.localeIdentifier, "zh-Hans"); XCTAssertEqual(SupportedLanguage.zhHant.localeIdentifier, "zh-Hant") }
+ func testOrdinaryLocaleIdentifierMatchesRawValue() { XCTAssertEqual(SupportedLanguage.he.localeIdentifier, "he") }
+ func testParserRecognizesRentAsABill() { let e = NaturalLanguageParser().parse("I need to pay rent on the 1st"); XCTAssertEqual(e.title, "Rent"); XCTAssertEqual(e.category, .bills) }
+ func testParserRecognizesGymAsMembership() { let e = NaturalLanguageParser().parse("My gym renews in March"); XCTAssertEqual(e.title, "Gym Membership"); XCTAssertEqual(e.category, .memberships) }
+ func testParserRecognizesDoctorAsAppointment() { let e = NaturalLanguageParser().parse("Doctor visit next week"); XCTAssertEqual(e.title, "Doctor Appointment"); XCTAssertEqual(e.category, .appointments) }
+ func testParserDoesNotFalsePositiveRentInsideParent() { let e = NaturalLanguageParser().parse("Dinner with my parents on Friday"); XCTAssertNotEqual(e.title, "Rent"); XCTAssertNotEqual(e.category, .bills) }
+ func testParserPrefersSpecificInsuranceOverGeneric() { let e = NaturalLanguageParser().parse("My home insurance renews in June"); XCTAssertEqual(e.title, "Home Insurance") }
+ func testDayBeforeMonthOrderParses() { XCTAssertNotNil(NaturalLanguageParser().parse("Due on 24 august").date) }
+ func testMonthBeforeDayOrderStillParses() { XCTAssertNotNil(NaturalLanguageParser().parse("Due on august 24").date) }
+ func testSearchFilterByStatusExcludesCompletedByDefault() { var done=LifeAdminItem(title:"Paid"); done.status = .completed; let active=LifeAdminItem(title:"Owed"); var f=SearchFilter(); f.statuses=[.active]; XCTAssertEqual(SearchEngine().search([done, active], filter:f).map(\.title), ["Owed"]) }
+ func testSearchFilterByStatusCanIncludeCompleted() { var done=LifeAdminItem(title:"Paid"); done.status = .completed; var f=SearchFilter(); f.statuses=[.completed]; XCTAssertEqual(SearchEngine().search([done], filter:f).count, 1) }
+ func testCompletedItemsGetNoMoreReminders() { var done=LifeAdminItem(title:"Paid", dueDate:Date().addingTimeInterval(86400*5), reminderOffsets:[1,3]); done.status = .completed; XCTAssertTrue(ReminderEngine().notificationDates(for:done).isEmpty) }
+ func testActiveItemsStillGetReminders() { let active=LifeAdminItem(title:"Owed", dueDate:Date().addingTimeInterval(86400*5), reminderOffsets:[1]); XCTAssertFalse(ReminderEngine().notificationDates(for:active).isEmpty) }
+ func testMonthlyRecurrenceProducesNextMonthActiveItem() {
+     let due = Date(timeIntervalSince1970: 1_700_000_000)
+     var item = LifeAdminItem(title: "Rent", dueDate: due, recurrence: .monthly)
+     item.status = .completed
+     let next = RecurrenceEngine().nextOccurrence(of: item)
+     XCTAssertNotNil(next)
+     XCTAssertEqual(next?.status, .active)
+     XCTAssertNotEqual(next?.id, item.id)
+     let expected = Calendar.current.date(byAdding: .month, value: 1, to: due)
+     XCTAssertEqual(next?.dueDate, expected)
+ }
+ func testNonRecurringItemProducesNoNextOccurrence() { let item = LifeAdminItem(title: "One-off", dueDate: Date(), recurrence: .none); XCTAssertNil(RecurrenceEngine().nextOccurrence(of: item)) }
+ func testRecurrenceWithNoDueDateProducesNoNextOccurrence() { let item = LifeAdminItem(title: "No date", recurrence: .yearly); XCTAssertNil(RecurrenceEngine().nextOccurrence(of: item)) }
+ func testNextOccurrenceClearsPriorityOverrideAndGetsNewID() {
+     var item = LifeAdminItem(title: "Insurance", dueDate: Date(), recurrence: .yearly)
+     item.priorityOverride = .critical
+     let next = RecurrenceEngine().nextOccurrence(of: item)
+     XCTAssertNil(next?.priorityOverride)
+     XCTAssertNotEqual(next?.id, item.id)
+ }
 }

@@ -30,6 +30,11 @@ final class ActivityLog: ObservableObject {
         save()
     }
 
+    func clear() {
+        entries = []
+        save()
+    }
+
     private func load() {
         guard let data = UserDefaults.standard.data(forKey: storageKey) else { return }
         entries = (try? JSONDecoder().decode([ActivityLogEntry].self, from: data)) ?? []
