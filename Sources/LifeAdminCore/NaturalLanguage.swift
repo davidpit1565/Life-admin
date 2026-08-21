@@ -35,6 +35,29 @@ public struct NaturalLanguageParser: Sendable {
         return candidate
     }
 
+    /// "Driving test 4 september 11:00 am" saved a due date of midnight — simpleDate only ever
+    /// looks for month/day/year, never a clock time, so an explicitly stated time was silently
+    /// thrown away and replaced with one that's likely wrong. Only matches a clear am/pm time
+    /// ("11:00 am", "3pm") — a bare 24-hour "14:30" is ambiguous with other colon-separated
+    /// numbers in casual text, so it's deliberately left alone rather than guessed at.
+    static func timeOfDay(in lower: String) -> (hour: Int, minute: Int)? {
+        let pattern = #"(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { return nil }
+        let range = NSRange(lower.startIndex..., in: lower)
+        guard let match = regex.firstMatch(in: lower, range: range),
+              let hourRange = Range(match.range(at: 1), in: lower),
+              var hour = Int(lower[hourRange]) else { return nil }
+        var minute = 0
+        if let minuteRange = Range(match.range(at: 2), in: lower), let m = Int(lower[minuteRange]) { minute = m }
+        if let periodRange = Range(match.range(at: 3), in: lower) {
+            let period = lower[periodRange].lowercased()
+            if period == "pm" && hour != 12 { hour += 12 }
+            if period == "am" && hour == 12 { hour = 0 }
+        }
+        guard (0...23).contains(hour), (0...59).contains(minute) else { return nil }
+        return (hour, minute)
+    }
+
     /// A single-word keyword is matched against whole words only ("rent" must not match inside
     /// "parent"); a multi-word phrase is matched as a substring, since it's specific enough on its
     /// own not to need that guard.
@@ -58,7 +81,8 @@ public struct NaturalLanguageParser: Sendable {
         KeywordMatch(keywords: ["water bill"], title: "Water Bill", category: .bills),
         KeywordMatch(keywords: ["phone bill"], title: "Phone Bill", category: .bills),
         KeywordMatch(keywords: ["dentist"], title: "Dentist Appointment", category: .appointments),
-        KeywordMatch(keywords: ["doctor"], title: "Doctor Appointment", category: .appointments)
+        KeywordMatch(keywords: ["doctor"], title: "Doctor Appointment", category: .appointments),
+        KeywordMatch(keywords: ["driving test"], title: "Driving Test", category: .appointments)
     ]
 
     private static func firstMatch(in lower: String, words: Set<String>) -> KeywordMatch? {
@@ -85,6 +109,10 @@ public struct NaturalLanguageParser: Sendable {
     static func extractAmount(from text: String, dayOfMonth: Int? = nil) -> Decimal? {
         let tokens = text.replacingOccurrences(of: ",", with: "").split(separator: " ").map(String.init)
         func decimalValue(_ token: String) -> Decimal? {
+            // A clock time like "11:00" strips down to "1100" if the colon is treated as noise —
+            // that's not a smaller version of the same number, it's a completely different one,
+            // so a token that ever had a colon is never a valid amount candidate at all.
+            guard token.contains(":") == false else { return nil }
             let digits = token.filter { "0123456789.".contains($0) }
             return digits.isEmpty ? nil : Decimal(string: digits)
         }
@@ -132,7 +160,13 @@ public struct NaturalLanguageParser: Sendable {
             : lower.contains("₪") || lower.contains("שקל") || lower.contains("ש\"ח") || lower.contains("ש״ח") ? "ILS"
             : nil
         let recurrence: Recurrence = lower.contains("every year") || lower.contains("yearly") || lower.contains("annual") || lower.contains("renews every") ? .yearly : lower.contains("every month") || lower.contains("monthly") ? .monthly : lower.contains("six months") ? .everySixMonths : .none
-        let date = Self.simpleDate(in: lower, now: now)
+        var date = Self.simpleDate(in: lower, now: now)
+        if let recognizedDate = date, let time = Self.timeOfDay(in: lower) {
+            var components = Calendar.current.dateComponents([.year, .month, .day], from: recognizedDate)
+            components.hour = time.hour
+            components.minute = time.minute
+            date = Calendar.current.date(from: components) ?? recognizedDate
+        }
         let amount = Self.extractAmount(from: text, dayOfMonth: date.map { Calendar.current.component(.day, from: $0) })
         let baseConfidence = date == nil ? 0.55 : 0.86
         let confidence = recognizedTitle == nil ? min(baseConfidence, 0.65) : baseConfidence
