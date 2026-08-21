@@ -95,3 +95,4 @@
 "onboarding.page3.body" = "כדי לשים דברים ישר ביומן ובתזכורות האמיתיות שלך, ולשלוח לך תזכורות. אפשר לשנות הכל בהגדרות בכל שלב.";
 "onboarding.next" = "הבא";
 "onboarding.getStarted" = "התחל";
+"settings.deleteAIData.confirm" = "למחוק את יומן הפעילות של ה-AI? אי אפשר לשחזר את זה.";

@@ -95,3 +95,4 @@
 "onboarding.page3.body" = "So it can put things straight into your real Calendar and Reminders, and send you reminders. You can change any of this later in Settings.";
 "onboarding.next" = "Next";
 "onboarding.getStarted" = "Get Started";
+"settings.deleteAIData.confirm" = "Delete the AI activity log? This cannot be undone.";

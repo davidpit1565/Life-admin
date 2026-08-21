@@ -321,6 +321,7 @@ struct SettingsView: View {
     @AppStorage("aiProcessingMode") var aiProcessingModeRaw = AIProcessingMode.allowAutomatically.rawValue
     @AppStorage("aiConsentDecision") private var aiConsentDecision = ""
     @State private var showingAIConsentReview = false
+    @State private var showingDeleteAIDataConfirmation = false
 
     private var aiProcessingMode: AIProcessingMode {
         AIProcessingMode(rawValue: aiProcessingModeRaw) ?? .allowAutomatically
@@ -365,13 +366,24 @@ struct SettingsView: View {
                     }
                 }
                 Section(String(localized: "settings.privacy")) {
-                    Button(String(localized: "settings.deleteAIData"), role: .destructive) {}
+                    Button(String(localized: "settings.deleteAIData"), role: .destructive) {
+                        showingDeleteAIDataConfirmation = true
+                    }
                 }
             }.navigationTitle(String(localized: "tab.settings"))
             .sheet(isPresented: $showingAIConsentReview) {
                 AIConsentView { decision in
                     aiConsentDecision = decision
                     showingAIConsentReview = false
+                }
+            }
+            .confirmationDialog(
+                String(localized: "settings.deleteAIData.confirm"),
+                isPresented: $showingDeleteAIDataConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button(String(localized: "settings.deleteAIData"), role: .destructive) {
+                    ActivityLog.shared.clear()
                 }
             }
         }
