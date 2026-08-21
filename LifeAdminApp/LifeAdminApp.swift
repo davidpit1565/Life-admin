@@ -45,10 +45,17 @@ struct LifeAdminApp: App {
     }
 }
 
+/// Whether a just-added item needs the user's eyes on it before it's final ("Ask me first" mode)
+/// or was already saved as-is — AddItemView uses this to decide whether to show a review screen
+/// or a brief "here's what we understood" confirmation before closing.
+enum AddOutcome {
+    case pendingReview(LifeAdminItem)
+    case added(LifeAdminItem)
+}
+
 @MainActor
 final class ItemStore: ObservableObject {
     @Published var items: [LifeAdminItem] = []
-    @Published var lastAddedItemID: UUID?
     private let modelContext: ModelContext
     private let aiService: LifeAdminAIService
 
@@ -110,7 +117,8 @@ final class ItemStore: ObservableObject {
         await refreshDigest()
     }
 
-    func add(text: String, attachments: [Attachment] = []) async {
+    @discardableResult
+    func add(text: String, attachments: [Attachment] = []) async -> AddOutcome {
         let mode = autonomyMode
         let decision = mode == .disabled ? aiService.extractLocalOnly(text) : await aiService.extract(text)
         let extracted = decision.item
@@ -142,9 +150,8 @@ final class ItemStore: ObservableObject {
             merged.updatedAt = Date()
             merged.priority = PriorityEngine().priority(for: merged)
             ActivityLog.shared.record(String(format: String(localized: "activityLog.merged"), merged.title))
-            if mode == .askEveryTime { lastAddedItemID = merged.id }
             await update(merged)
-            return
+            return mode == .askEveryTime ? .pendingReview(merged) : .added(merged)
         }
 
         // A recurring bill mentioned again months later rarely repeats the contact info the user
@@ -158,7 +165,6 @@ final class ItemStore: ObservableObject {
         modelContext.insert(persisted)
         try? modelContext.save()
         items.insert(item, at: 0)
-        if mode == .askEveryTime { lastAddedItemID = item.id }
 
         await NotificationScheduler.shared.requestAuthorizationIfNeeded()
         await NotificationScheduler.shared.schedule(for: item)
@@ -170,6 +176,7 @@ final class ItemStore: ObservableObject {
         try? modelContext.save()
 
         await refreshDigest()
+        return mode == .askEveryTime ? .pendingReview(item) : .added(item)
     }
 
     private func refreshDigest() async {

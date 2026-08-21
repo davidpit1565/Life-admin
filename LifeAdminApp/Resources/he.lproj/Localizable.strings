@@ -8,6 +8,10 @@
 "add.anything" = "הוסף כל דבר";
 "add.justTellMe" = "רק תגיד לי";
 "add.prompt" = "תגיד לי מה אתה צריך לזכור";
+"add.placeholderExample" = "לדוגמה: ביטוח רכב מתחדש ב-15 באוגוסט, 840 ש״ח";
+"add.example.insurance" = "🚗 ביטוח רכב מתחדש ב-15 באוגוסט, 840 ש״ח";
+"add.example.subscription" = "🎬 נטפליקס מתחדש בכל 1 לחודש";
+"add.example.appointment" = "🦷 תור לרופא שיניים ביום שלישי הקרוב";
 "privacy.aiProcessing" = "עיבוד AI: שאל בכל פעם";
 "empty.allClear" = "הכל מסודר 🎉";
 "empty.noAttention" = "שום דבר לא דורש את תשומת הלב שלך כרגע.";
@@ -80,6 +84,7 @@
 "settings.aiAutonomy.off.description" = "שום דבר לא נשלח ל-AI — נעשה שימוש רק בזיהוי בסיסי על המכשיר.";
 "add.scanDocument" = "סרוק מסמך";
 "add.scannedPageFilename" = "עמוד סרוק %d";
+"add.confirmation.label" = "נוסף";
 "aiConsent.navTitle" = "עיבוד AI";
 "aiConsent.title" = "לפני שמתחילים";
 "aiConsent.body" = "כש-Life Admin לא מבין בביטחון מספיק את מה שהקלדת בעצמו — או כשזה משהו חשוב כמו חשבון גדול או חידוש ביטוח — הוא שולח רק את הטקסט הזה ל-AI של Gemini מבית Google כדי לעזור. שום דבר אחר: לא אנשי הקשר שלך, לא היומן, ולא התמונות.";
