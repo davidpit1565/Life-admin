@@ -32,8 +32,12 @@ final class ItemStore: ObservableObject {
 
     /// Read directly from UserDefaults (rather than @AppStorage, which only works in views) so
     /// the setting in Settings > AI takes effect on the very next add without any extra plumbing.
+    /// Falls back to local-only whenever AI consent hasn't been explicitly granted (declined, or
+    /// not yet asked) — this is the actual enforcement point for the consent screen in
+    /// AIConsentView, not just its UI. No consent, no Gemini calls, regardless of this setting.
     private var autonomyMode: AIProcessingMode {
-        AIProcessingMode(rawValue: UserDefaults.standard.string(forKey: "aiProcessingMode") ?? "") ?? .allowAutomatically
+        guard UserDefaults.standard.string(forKey: "aiConsentDecision") == "granted" else { return .disabled }
+        return AIProcessingMode(rawValue: UserDefaults.standard.string(forKey: "aiProcessingMode") ?? "") ?? .allowAutomatically
     }
 
     init(modelContext: ModelContext) {

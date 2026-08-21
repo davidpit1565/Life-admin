@@ -4,6 +4,8 @@ import LifeAdminCore
 struct RootTabView: View {
     @EnvironmentObject var store: ItemStore
     @State private var adding = false
+    @AppStorage("aiConsentDecision") private var aiConsentDecision = ""
+    @State private var showingAIConsent = false
 
     var body: some View {
         TabView {
@@ -32,7 +34,17 @@ struct RootTabView: View {
             AddItemView()
         }
         .task {
+            if aiConsentDecision.isEmpty {
+                showingAIConsent = true
+            }
             await store.requestAllPermissionsUpfront()
+        }
+        .fullScreenCover(isPresented: $showingAIConsent) {
+            AIConsentView { decision in
+                aiConsentDecision = decision
+                showingAIConsent = false
+            }
+            .interactiveDismissDisabled()
         }
     }
 }
@@ -209,6 +221,8 @@ struct InsightsView: View {
 struct SettingsView: View {
     @AppStorage("language") var language = "system"
     @AppStorage("aiProcessingMode") var aiProcessingModeRaw = AIProcessingMode.allowAutomatically.rawValue
+    @AppStorage("aiConsentDecision") private var aiConsentDecision = ""
+    @State private var showingAIConsentReview = false
 
     private var aiProcessingMode: AIProcessingMode {
         AIProcessingMode(rawValue: aiProcessingModeRaw) ?? .allowAutomatically
@@ -228,14 +242,26 @@ struct SettingsView: View {
                     }
                 }
                 Section(String(localized: "settings.ai")) {
-                    Picker(String(localized: "settings.aiAutonomy"), selection: $aiProcessingModeRaw) {
-                        Text(String(localized: "settings.aiAutonomy.auto")).tag(AIProcessingMode.allowAutomatically.rawValue)
-                        Text(String(localized: "settings.aiAutonomy.askFirst")).tag(AIProcessingMode.askEveryTime.rawValue)
-                        Text(String(localized: "settings.aiAutonomy.off")).tag(AIProcessingMode.disabled.rawValue)
+                    if aiConsentDecision == "granted" {
+                        Picker(String(localized: "settings.aiAutonomy"), selection: $aiProcessingModeRaw) {
+                            Text(String(localized: "settings.aiAutonomy.auto")).tag(AIProcessingMode.allowAutomatically.rawValue)
+                            Text(String(localized: "settings.aiAutonomy.askFirst")).tag(AIProcessingMode.askEveryTime.rawValue)
+                            Text(String(localized: "settings.aiAutonomy.off")).tag(AIProcessingMode.disabled.rawValue)
+                        }
+                        Text(aiProcessingModeDescription)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button(String(localized: "settings.aiConsent.revoke"), role: .destructive) {
+                            aiConsentDecision = "declined"
+                        }
+                    } else {
+                        Text(String(localized: "settings.aiConsent.declinedNotice"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button(String(localized: "settings.aiConsent.review")) {
+                            showingAIConsentReview = true
+                        }
                     }
-                    Text(aiProcessingModeDescription)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                     NavigationLink(String(localized: "activityLog.title")) {
                         ActivityLogView()
                     }
@@ -244,6 +270,12 @@ struct SettingsView: View {
                     Button(String(localized: "settings.deleteAIData"), role: .destructive) {}
                 }
             }.navigationTitle(String(localized: "tab.settings"))
+            .sheet(isPresented: $showingAIConsentReview) {
+                AIConsentView { decision in
+                    aiConsentDecision = decision
+                    showingAIConsentReview = false
+                }
+            }
         }
     }
 
