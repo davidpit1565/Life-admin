@@ -96,3 +96,4 @@
 "onboarding.next" = "Next";
 "onboarding.getStarted" = "Get Started";
 "settings.deleteAIData.confirm" = "Delete the AI activity log? This cannot be undone.";
+"activityLog.addressUpdateSent" = "Address update sent for: %@";

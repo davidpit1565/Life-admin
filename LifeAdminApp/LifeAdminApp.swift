@@ -190,6 +190,7 @@ final class ItemStore: ObservableObject {
         var item = items[index]
         if item.tags.contains(AddressChangeEngine.syncedTag) == false {
             item.tags.append(AddressChangeEngine.syncedTag)
+            ActivityLog.shared.record(String(format: String(localized: "activityLog.addressUpdateSent"), item.title))
         }
         await update(item)
     }
