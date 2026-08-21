@@ -10,7 +10,7 @@ struct LifeAdminApp: App {
 
     init() {
         UNUserNotificationCenter.current().delegate = NotificationActionHandler.shared
-        let container = try! ModelContainer(for: PersistedItem.self)
+        let container = Self.makeModelContainer()
         modelContainer = container
         _store = StateObject(wrappedValue: ItemStore(modelContext: container.mainContext))
     }
@@ -20,6 +20,28 @@ struct LifeAdminApp: App {
             RootTabView().environmentObject(store)
         }
         .modelContainer(modelContainer)
+    }
+
+    /// A `try!` here means every future launch crashes identically if the on-disk store is ever
+    /// corrupted (disk issues, an interrupted write, an incompatible schema change) — the user's
+    /// only way out would be deleting and reinstalling, losing everything anyway. Falls back to a
+    /// fresh on-disk store (wiping the corrupted one) and, if even that fails, to an in-memory
+    /// store so the app can still open rather than crash-loop forever.
+    private static func makeModelContainer() -> ModelContainer {
+        if let container = try? ModelContainer(for: PersistedItem.self) {
+            return container
+        }
+
+        let storeURL = URL.applicationSupportDirectory.appending(path: "default.store")
+        for suffix in ["", "-wal", "-shm"] {
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: storeURL.path + suffix))
+        }
+        if let container = try? ModelContainer(for: PersistedItem.self) {
+            return container
+        }
+
+        let inMemoryConfiguration = ModelConfiguration(isStoredInMemoryOnly: true)
+        return try! ModelContainer(for: PersistedItem.self, configurations: inMemoryConfiguration)
     }
 }
 
@@ -156,7 +178,15 @@ final class ItemStore: ObservableObject {
     func update(_ item: LifeAdminItem) async {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
         items[index] = item
-        guard let persisted = fetchPersisted(item.id) else { return }
+        // Self-heal rather than silently drop the edit: if the persisted record can't be found
+        // (it shouldn't normally happen, but a mismatch here would otherwise make the in-memory
+        // change look like it saved while actually vanishing on the next launch), recreate it
+        // instead of returning early.
+        let persisted = fetchPersisted(item.id) ?? {
+            let created = PersistedItem(item: item)
+            modelContext.insert(created)
+            return created
+        }()
         persisted.apply(item)
 
         let sync = CalendarSyncService.shared.sync(item: item, existingEventID: persisted.calendarEventIdentifier, existingReminderID: persisted.reminderIdentifier)
@@ -174,13 +204,17 @@ final class ItemStore: ObservableObject {
     }
 
     func delete(_ item: LifeAdminItem) async {
-        guard let persisted = fetchPersisted(item.id) else { return }
-        var cleared = item
-        cleared.dueDate = nil
-        _ = CalendarSyncService.shared.sync(item: cleared, existingEventID: persisted.calendarEventIdentifier, existingReminderID: persisted.reminderIdentifier)
+        // Always remove from the in-memory list and cancel notifications, even if the persisted
+        // record can't be found — otherwise a lookup mismatch would make "Delete" silently do
+        // nothing visible, leaving the item sitting right where it was.
+        if let persisted = fetchPersisted(item.id) {
+            var cleared = item
+            cleared.dueDate = nil
+            _ = CalendarSyncService.shared.sync(item: cleared, existingEventID: persisted.calendarEventIdentifier, existingReminderID: persisted.reminderIdentifier)
+            modelContext.delete(persisted)
+            try? modelContext.save()
+        }
         await NotificationScheduler.shared.cancel(for: item.id)
-        modelContext.delete(persisted)
-        try? modelContext.save()
         items.removeAll { $0.id == item.id }
         await refreshDigest()
     }
