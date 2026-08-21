@@ -2,6 +2,16 @@ import Foundation
 
 public enum LifeCategory: String, Codable, CaseIterable, Sendable {
     case documents, insurance, money, bills, subscriptions, car, home, health, travel, work, education, shopping, warranties, memberships, appointments, personal, family, other
+
+    /// Categories where an item's title could itself read as financial or health information —
+    /// "Car Insurance" next to a due date is closer to a disclosure than "Gym" is. Notifications
+    /// for these stay generic on the lock screen instead of showing the title verbatim.
+    public var isSensitive: Bool {
+        switch self {
+        case .money, .bills, .insurance, .health: return true
+        default: return false
+        }
+    }
 }
 public enum ItemStatus: String, Codable, CaseIterable, Sendable { case active, completed, snoozed, archived }
 public enum Priority: String, Codable, CaseIterable, Comparable, Sendable {

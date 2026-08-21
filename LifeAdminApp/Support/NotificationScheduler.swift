@@ -35,7 +35,7 @@ struct NotificationScheduler {
         for (index, date) in dates.enumerated() {
             let content = UNMutableNotificationContent()
             content.title = String(localized: "notification.reminderTitle")
-            content.body = item.title
+            content.body = item.category.isSensitive ? String(localized: "notification.reminderBodyGeneric") : item.title
             content.sound = .default
             content.categoryIdentifier = NotificationActionHandler.categoryIdentifier
             content.userInfo = ["itemID": item.id.uuidString]
