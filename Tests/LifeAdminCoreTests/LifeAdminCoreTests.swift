@@ -28,4 +28,9 @@ final class LifeAdminCoreTests: XCTestCase {
  func testNonSensitiveCategoriesShowTitleInNotifications() { XCTAssertFalse(LifeCategory.subscriptions.isSensitive); XCTAssertFalse(LifeCategory.travel.isSensitive) }
  func testChineseLocaleIdentifiersAreValidBCP47() { XCTAssertEqual(SupportedLanguage.zhHans.localeIdentifier, "zh-Hans"); XCTAssertEqual(SupportedLanguage.zhHant.localeIdentifier, "zh-Hant") }
  func testOrdinaryLocaleIdentifierMatchesRawValue() { XCTAssertEqual(SupportedLanguage.he.localeIdentifier, "he") }
+ func testParserRecognizesRentAsABill() { let e = NaturalLanguageParser().parse("I need to pay rent on the 1st"); XCTAssertEqual(e.title, "Rent"); XCTAssertEqual(e.category, .bills) }
+ func testParserRecognizesGymAsMembership() { let e = NaturalLanguageParser().parse("My gym renews in March"); XCTAssertEqual(e.title, "Gym Membership"); XCTAssertEqual(e.category, .memberships) }
+ func testParserRecognizesDoctorAsAppointment() { let e = NaturalLanguageParser().parse("Doctor visit next week"); XCTAssertEqual(e.title, "Doctor Appointment"); XCTAssertEqual(e.category, .appointments) }
+ func testParserDoesNotFalsePositiveRentInsideParent() { let e = NaturalLanguageParser().parse("Dinner with my parents on Friday"); XCTAssertNotEqual(e.title, "Rent"); XCTAssertNotEqual(e.category, .bills) }
+ func testParserPrefersSpecificInsuranceOverGeneric() { let e = NaturalLanguageParser().parse("My home insurance renews in June"); XCTAssertEqual(e.title, "Home Insurance") }
 }

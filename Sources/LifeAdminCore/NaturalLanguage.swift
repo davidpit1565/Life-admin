@@ -25,15 +25,51 @@ public struct NaturalLanguageParser: Sendable {
         return nil
     }
 
+    /// A single-word keyword is matched against whole words only ("rent" must not match inside
+    /// "parent"); a multi-word phrase is matched as a substring, since it's specific enough on its
+    /// own not to need that guard.
+    private struct KeywordMatch { let keywords: [String]; let title: String; let category: LifeCategory }
+
+    private static let knownMatches: [KeywordMatch] = [
+        KeywordMatch(keywords: ["car insurance"], title: "Car Insurance", category: .insurance),
+        KeywordMatch(keywords: ["home insurance"], title: "Home Insurance", category: .insurance),
+        KeywordMatch(keywords: ["health insurance"], title: "Health Insurance", category: .insurance),
+        KeywordMatch(keywords: ["life insurance"], title: "Life Insurance", category: .insurance),
+        KeywordMatch(keywords: ["insurance"], title: "Insurance", category: .insurance),
+        KeywordMatch(keywords: ["passport"], title: "Passport", category: .travel),
+        KeywordMatch(keywords: ["visa renewal", "visa"], title: "Visa", category: .travel),
+        KeywordMatch(keywords: ["netflix"], title: "Netflix", category: .subscriptions),
+        KeywordMatch(keywords: ["spotify"], title: "Spotify", category: .subscriptions),
+        KeywordMatch(keywords: ["warranty"], title: "Warranty", category: .warranties),
+        KeywordMatch(keywords: ["gym"], title: "Gym Membership", category: .memberships),
+        KeywordMatch(keywords: ["rent"], title: "Rent", category: .bills),
+        KeywordMatch(keywords: ["mortgage"], title: "Mortgage", category: .bills),
+        KeywordMatch(keywords: ["electricity bill", "electric bill"], title: "Electricity Bill", category: .bills),
+        KeywordMatch(keywords: ["water bill"], title: "Water Bill", category: .bills),
+        KeywordMatch(keywords: ["phone bill"], title: "Phone Bill", category: .bills),
+        KeywordMatch(keywords: ["dentist"], title: "Dentist Appointment", category: .appointments),
+        KeywordMatch(keywords: ["doctor"], title: "Doctor Appointment", category: .appointments)
+    ]
+
+    private static func firstMatch(in lower: String, words: Set<String>) -> KeywordMatch? {
+        knownMatches.first { match in
+            match.keywords.contains { keyword in
+                keyword.contains(" ") ? lower.contains(keyword) : words.contains(keyword)
+            }
+        }
+    }
+
     public func parse(_ text: String, now: Date = Date()) -> ExtractedItem {
         let lower = text.lowercased()
-        let category: LifeCategory = lower.contains("insurance") ? .insurance : lower.contains("passport") ? .travel : lower.contains("netflix") ? .subscriptions : lower.contains("warranty") ? .warranties : .other
+        let words = Set(lower.split { $0.isLetter == false }.map(String.init))
+        let match = Self.firstMatch(in: lower, words: words)
+        let category = match?.category ?? .other
         // A recognized title comes from an actual keyword match. Anything else falls back to the
         // first few words of the input, which is rarely a meaningful title (e.g. "On the 24 august"
         // for "On the 24 august I pay my rent") — that fallback must not be reported as confident,
         // or LifeAdminAIService.isCompleteEnough will treat it as good enough and never ask Gemini
         // for a real title.
-        let recognizedTitle: String? = lower.contains("car insurance") ? "Car Insurance" : lower.contains("passport") ? "Passport" : nil
+        let recognizedTitle: String? = match?.title
         let fallbackTitle = text.split(separator: " ").prefix(4).joined(separator: " ")
         let title = recognizedTitle ?? fallbackTitle
         let currency = lower.contains("€") ? "EUR" : lower.contains("$") ? "USD" : nil
