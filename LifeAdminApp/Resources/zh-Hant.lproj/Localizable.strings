@@ -8,6 +8,10 @@
 "add.anything" = "Add Anything";
 "add.justTellMe" = "Just tell me";
 "add.prompt" = "Tell me what you need to remember";
+"add.placeholderExample" = "e.g. Car insurance renews August 15th, $240";
+"add.example.insurance" = "🚗 Car insurance renews August 15th, $240";
+"add.example.subscription" = "🎬 Netflix renews on the 1st every month";
+"add.example.appointment" = "🦷 Dentist appointment next Tuesday";
 "privacy.aiProcessing" = "AI Processing: Ask Every Time";
 "empty.allClear" = "You're all clear 🎉";
 "empty.noAttention" = "Nothing needs your attention right now.";
@@ -80,6 +84,7 @@
 "settings.aiAutonomy.off.description" = "Nothing is ever sent to AI — only basic on-device recognition is used.";
 "add.scanDocument" = "Scan a Document";
 "add.scannedPageFilename" = "Scanned Page %d";
+"add.confirmation.label" = "Added";
 "aiConsent.navTitle" = "AI Processing";
 "aiConsent.title" = "Before we start";
 "aiConsent.body" = "When Life Admin can't confidently understand what you typed on its own — or when it's something important like a large bill or insurance renewal — it sends just that text to Google's Gemini AI to help. Nothing else: not your contacts, calendar, or photos.";

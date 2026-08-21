@@ -525,6 +525,16 @@ struct AddItemView: View {
     @State private var itemPendingReview: LifeAdminItem?
     @State private var showingScanner = false
     @State private var pendingAttachments: [Attachment] = []
+    @State private var confirmedItem: LifeAdminItem?
+
+    /// A handful of ready-made examples spanning different categories — tapping one fills the
+    /// text box with exactly what to type, so a first-time (or simply overwhelmed) user can see
+    /// the whole point of this screen without having to invent an example themselves.
+    private static let quickExamples = [
+        "add.example.insurance",
+        "add.example.subscription",
+        "add.example.appointment",
+    ]
 
     var body: some View {
         NavigationStack {
@@ -533,7 +543,30 @@ struct AddItemView: View {
             } else {
                 Form {
                     Section(String(localized: "add.justTellMe")) {
-                        TextEditor(text: $text).frame(minHeight: 140).accessibilityLabel(String(localized: "add.prompt"))
+                        TextEditor(text: $text)
+                            .frame(minHeight: 140)
+                            .accessibilityLabel(String(localized: "add.prompt"))
+                            .overlay(alignment: .topLeading) {
+                                if text.isEmpty {
+                                    Text(String(localized: "add.placeholderExample"))
+                                        .foregroundStyle(Color(uiColor: .placeholderText))
+                                        .padding(.top, 8)
+                                        .padding(.leading, 5)
+                                        .allowsHitTesting(false)
+                                }
+                            }
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack {
+                                ForEach(Self.quickExamples, id: \.self) { key in
+                                    let example = Bundle.main.localizedString(forKey: key, value: nil, table: nil)
+                                    Button(example) {
+                                        text = example
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                }
+                            }
+                        }
                     }
                     if VNDocumentCameraViewController.isSupported {
                         Section {
@@ -568,15 +601,22 @@ struct AddItemView: View {
                         Button {
                             isSaving = true
                             Task {
-                                await store.add(text: text, attachments: pendingAttachments)
+                                let outcome = await store.add(text: text, attachments: pendingAttachments)
                                 isSaving = false
-                                // "Ask every time" mode leaves the new item in place but pending
-                                // review — swap this same sheet over to editing it instead of
-                                // dismissing, rather than silently trusting the AI's guess.
-                                if let pendingID = store.lastAddedItemID, let added = store.items.first(where: { $0.id == pendingID }) {
-                                    store.lastAddedItemID = nil
-                                    itemPendingReview = added
-                                } else {
+                                switch outcome {
+                                case .pendingReview(let item):
+                                    // "Ask every time" mode leaves the new item in place but
+                                    // pending review — swap this same sheet over to editing it
+                                    // instead of dismissing, rather than silently trusting the
+                                    // AI's guess.
+                                    itemPendingReview = item
+                                case .added(let item):
+                                    // Auto mode saves instantly with no review step — without a
+                                    // visible "here's what we understood" moment, tapping Save
+                                    // just closes the screen with no sign anything happened at
+                                    // all, which reads as broken rather than automatic.
+                                    withAnimation { confirmedItem = item }
+                                    try? await Task.sleep(for: .seconds(1.2))
                                     dismiss()
                                 }
                             }
@@ -595,6 +635,13 @@ struct AddItemView: View {
                         }.disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
                     }
                 }.navigationTitle(String(localized: "add.anything"))
+                .overlay(alignment: .bottom) {
+                    if let confirmedItem {
+                        AddConfirmationBanner(item: confirmedItem)
+                            .padding(.bottom, 12)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                }
                 .fullScreenCover(isPresented: $showingScanner) {
                     DocumentScannerView(
                         onScanned: { recognized, pageImages in
@@ -615,5 +662,34 @@ struct AddItemView: View {
                 }
             }
         }
+    }
+}
+
+private struct AddConfirmationBanner: View {
+    let item: LifeAdminItem
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.title2)
+                .foregroundStyle(.green)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(String(localized: "add.confirmation.label"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(item.title)
+                    .font(.headline)
+                if let due = item.dueDate {
+                    Text(due, style: .date)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal)
+        .shadow(radius: 4)
     }
 }
