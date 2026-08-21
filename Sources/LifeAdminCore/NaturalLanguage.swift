@@ -69,6 +69,48 @@ public struct NaturalLanguageParser: Sendable {
         }
     }
 
+    private static let currencyMarks: Set<Character> = ["$", "€", "₪"]
+    private static let currencyWords: Set<String> = ["שקל", "שקלים", "ש\"ח", "ש״ח", "nis", "ils", "usd", "eur"]
+    private static func mentionsCurrency(_ token: String) -> Bool {
+        token.contains { currencyMarks.contains($0) } || currencyWords.contains(token.lowercased())
+    }
+
+    /// A bare first-numeric-token scan finds "15" in "August 15th, $240" before it ever reaches
+    /// the actual amount — a real bug hit on the very first on-device test, confirmed by the app
+    /// literally saving $15 for a $240 bill. Prefers a number that's touching or next to a
+    /// currency mark; only falls back to the old any-number scan when nothing mentions currency
+    /// at all, and even then skips an obvious day-of-month ordinal ("15th") or the exact day
+    /// number `simpleDate` already recognized elsewhere in the same text ("24" in "on the 24
+    /// august", which the earlier date parser already consumed as the day-of-month).
+    static func extractAmount(from text: String, dayOfMonth: Int? = nil) -> Decimal? {
+        let tokens = text.replacingOccurrences(of: ",", with: "").split(separator: " ").map(String.init)
+        func decimalValue(_ token: String) -> Decimal? {
+            let digits = token.filter { "0123456789.".contains($0) }
+            return digits.isEmpty ? nil : Decimal(string: digits)
+        }
+        for (index, token) in tokens.enumerated() {
+            guard let value = decimalValue(token) else { continue }
+            if mentionsCurrency(token) { return value }
+            // Only a bare currency mark (no digits of its own, like "₪" or "שקל" sitting next to
+            // "840") lends its currency-ness to a neighboring number — a neighbor that has digits
+            // of its own (like "$240" next to "15th") is a separate, self-contained amount, not
+            // one split across two tokens.
+            let prevIsBareMark = index > 0 && mentionsCurrency(tokens[index - 1]) && decimalValue(tokens[index - 1]) == nil
+            let nextIsBareMark = index + 1 < tokens.count && mentionsCurrency(tokens[index + 1]) && decimalValue(tokens[index + 1]) == nil
+            if prevIsBareMark || nextIsBareMark {
+                return value
+            }
+        }
+        let ordinalDatePattern = try! NSRegularExpression(pattern: #"^\d{1,2}(st|nd|rd|th)$"#, options: .caseInsensitive)
+        for token in tokens {
+            let range = NSRange(token.startIndex..., in: token)
+            if ordinalDatePattern.firstMatch(in: token, range: range) != nil { continue }
+            if let dayOfMonth, Int(token) == dayOfMonth { continue }
+            if let value = decimalValue(token) { return value }
+        }
+        return nil
+    }
+
     public func parse(_ text: String, now: Date = Date()) -> ExtractedItem {
         let lower = text.lowercased()
         let words = Set(lower.split { $0.isLetter == false }.map(String.init))
@@ -89,9 +131,9 @@ public struct NaturalLanguageParser: Sendable {
             : lower.contains("$") ? "USD"
             : lower.contains("₪") || lower.contains("שקל") || lower.contains("ש\"ח") || lower.contains("ש״ח") ? "ILS"
             : nil
-        let amount = text.replacingOccurrences(of: ",", with: "").split(separator: " ").compactMap { Decimal(string: $0.filter { "0123456789.".contains($0) }) }.first
         let recurrence: Recurrence = lower.contains("every year") || lower.contains("yearly") || lower.contains("annual") || lower.contains("renews every") ? .yearly : lower.contains("every month") || lower.contains("monthly") ? .monthly : lower.contains("six months") ? .everySixMonths : .none
         let date = Self.simpleDate(in: lower, now: now)
+        let amount = Self.extractAmount(from: text, dayOfMonth: date.map { Calendar.current.component(.day, from: $0) })
         let baseConfidence = date == nil ? 0.55 : 0.86
         let confidence = recognizedTitle == nil ? min(baseConfidence, 0.65) : baseConfidence
         return ExtractedItem(

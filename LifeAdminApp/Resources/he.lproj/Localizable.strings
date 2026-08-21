@@ -92,6 +92,7 @@
 "recurrence.custom" = "מותאם אישית";
 "itemDetail.amount" = "סכום";
 "itemDetail.currency" = "מטבע";
+"itemDetail.currency.none" = "לא צוין";
 "itemDetail.notes" = "הערות";
 "itemDetail.attachments" = "קבצים מצורפים";
 "itemDetail.delete" = "מחק פריט";
