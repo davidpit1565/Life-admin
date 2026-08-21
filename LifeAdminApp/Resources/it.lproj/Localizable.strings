@@ -80,3 +80,4 @@
 "settings.aiConsent.review" = "Review AI processing";
 "settings.aiConsent.declinedNotice" = "AI processing is off. Everything is understood on this device only, and nothing is sent anywhere.";
 "notification.reminderBodyGeneric" = "Something needs your attention — open Life Admin for details";
+"settings.language.system" = "System";

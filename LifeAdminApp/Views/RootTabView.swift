@@ -234,7 +234,7 @@ struct SettingsView: View {
                 Section(String(localized: "settings.general")) {
                     Picker(String(localized: "settings.language"), selection: $language) {
                         ForEach(SupportedLanguage.allCases, id: \.rawValue) {
-                            Text($0.rawValue).tag($0.rawValue)
+                            Text(displayName(for: $0)).tag($0.rawValue)
                         }
                     }
                     NavigationLink(String(localized: "settings.addressChange")) {
@@ -277,6 +277,12 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    private func displayName(for language: SupportedLanguage) -> String {
+        guard language != .system else { return String(localized: "settings.language.system") }
+        let identifier = language.localeIdentifier
+        return Locale(identifier: identifier).localizedString(forIdentifier: identifier)?.localizedCapitalized ?? language.rawValue
     }
 
     private var aiProcessingModeDescription: String {

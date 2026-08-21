@@ -80,3 +80,4 @@
 "settings.aiConsent.review" = "בדוק מחדש עיבוד AI";
 "settings.aiConsent.declinedNotice" = "עיבוד AI כבוי. הכל מובן רק על המכשיר הזה, ושום דבר לא נשלח לשום מקום.";
 "notification.reminderBodyGeneric" = "יש משהו שדורש את תשומת הלב שלך — פתח את Life Admin לפרטים";
+"settings.language.system" = "מערכת";
