@@ -12,7 +12,6 @@
 "add.example.insurance" = "🚗 Car insurance renews August 15th, $240";
 "add.example.subscription" = "🎬 Netflix renews on the 1st every month";
 "add.example.appointment" = "🦷 Dentist appointment next Tuesday";
-"privacy.aiProcessing" = "AI Processing: Ask Every Time";
 "empty.allClear" = "You're all clear 🎉";
 "empty.noAttention" = "Nothing needs your attention right now.";
 "settings.language" = "Language";
@@ -133,6 +132,10 @@
 "settings.aiConsent.declinedNotice" = "AI processing is off. Everything is understood on this device only, and nothing is sent anywhere.";
 "notification.reminderBodyGeneric" = "Something needs your attention — open Life Admin for details";
 "settings.language.system" = "System";
+"settings.language.restartTitle" = "Restart Needed";
+"settings.language.restartMessage" = "Restart Life Admin to see it in the new language.";
+"settings.language.restartNow" = "Restart Now";
+"settings.language.later" = "Later";
 "notification.digestBodyWithTopItem" = "%@ · Most urgent: %@";
 "items.filter" = "Filter";
 "items.filterByCategory" = "By Category";
