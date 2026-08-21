@@ -459,7 +459,7 @@ struct AddItemView: View {
                         }
                     }
                     Section {
-                        Button(String(localized: "common.save")) {
+                        Button {
                             isSaving = true
                             Task {
                                 await store.add(text: text)
@@ -473,6 +473,18 @@ struct AddItemView: View {
                                 } else {
                                     dismiss()
                                 }
+                            }
+                        } label: {
+                            // The AI call behind this can take a few seconds — a button that just
+                            // sits there disabled with no other feedback reads as frozen/broken,
+                            // not "working on it".
+                            if isSaving {
+                                HStack {
+                                    ProgressView().controlSize(.small)
+                                    Text(String(localized: "common.save"))
+                                }
+                            } else {
+                                Text(String(localized: "common.save"))
                             }
                         }.disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
                     }
