@@ -59,6 +59,8 @@ final class LifeAdminCoreTests: XCTestCase {
      XCTAssertNil(next?.priorityOverride)
      XCTAssertNotEqual(next?.id, item.id)
  }
+ func testParserRecognizesShekelSymbol() { let e = NaturalLanguageParser().parse("Car insurance renews August 15th, 840 ₪"); XCTAssertEqual(e.currency, "ILS") }
+ func testParserRecognizesShekelWord() { let e = NaturalLanguageParser().parse("ביטוח רכב מתחדש ב-15 באוגוסט, 840 ש״ח"); XCTAssertEqual(e.currency, "ILS") }
  func testNextOccurrenceClearsAttachments() {
      let a = Attachment(filename: "bill.jpg", mimeType: "image/jpeg", sizeBytes: 1, localPath: "/local/bill.jpg")
      var item = LifeAdminItem(title: "Electric Bill", dueDate: Date(), recurrence: .monthly, attachments: [a])
