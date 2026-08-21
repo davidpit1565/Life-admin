@@ -33,4 +33,6 @@ final class LifeAdminCoreTests: XCTestCase {
  func testParserRecognizesDoctorAsAppointment() { let e = NaturalLanguageParser().parse("Doctor visit next week"); XCTAssertEqual(e.title, "Doctor Appointment"); XCTAssertEqual(e.category, .appointments) }
  func testParserDoesNotFalsePositiveRentInsideParent() { let e = NaturalLanguageParser().parse("Dinner with my parents on Friday"); XCTAssertNotEqual(e.title, "Rent"); XCTAssertNotEqual(e.category, .bills) }
  func testParserPrefersSpecificInsuranceOverGeneric() { let e = NaturalLanguageParser().parse("My home insurance renews in June"); XCTAssertEqual(e.title, "Home Insurance") }
+ func testDayBeforeMonthOrderParses() { XCTAssertNotNil(NaturalLanguageParser().parse("Due on 24 august").date) }
+ func testMonthBeforeDayOrderStillParses() { XCTAssertNotNil(NaturalLanguageParser().parse("Due on august 24").date) }
 }

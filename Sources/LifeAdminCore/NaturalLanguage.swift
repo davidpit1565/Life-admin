@@ -3,26 +3,36 @@ public struct ExtractedItem: Codable, Equatable, Sendable { public var title: St
 public struct NaturalLanguageParser: Sendable {
     public init() {}
 
+    /// Recognizes both orderings — "March 18" and "18 March" — since day-before-month is the
+    /// everyday order outside the US, and the confirmed on-device bug report that motivated the
+    /// garbled-title fix elsewhere in this file used exactly that order ("On the 24 august").
     static func simpleDate(in lower: String, now: Date) -> Date? {
         let months = ["january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6, "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12]
         let parts = lower.split { !$0.isLetter && !$0.isNumber }.map(String.init)
         for (i, p) in parts.enumerated() {
-            if let m = months[p], i + 1 < parts.count, let day = Int(parts[i + 1]) {
-                var c = Calendar.current.dateComponents([.year], from: now)
-                c.month = m
-                c.day = day
-                let candidate = Calendar.current.date(from: c)
-                if let d = candidate, d < now {
-                    c.year = (c.year ?? 2026) + 1
-                    return Calendar.current.date(from: c)
-                }
-                return candidate
+            if let m = months[p], i + 1 < parts.count, let day = Int(parts[i + 1]), (1...31).contains(day) {
+                return Self.nextOccurrence(month: m, day: day, now: now)
+            }
+            if let day = Int(p), (1...31).contains(day), i + 1 < parts.count, let m = months[parts[i + 1]] {
+                return Self.nextOccurrence(month: m, day: day, now: now)
             }
             if let y = Int(p), y > 1900, y < 2200 {
                 return Calendar.current.date(from: DateComponents(year: y, month: 12, day: 31))
             }
         }
         return nil
+    }
+
+    private static func nextOccurrence(month: Int, day: Int, now: Date) -> Date? {
+        var components = Calendar.current.dateComponents([.year], from: now)
+        components.month = month
+        components.day = day
+        let candidate = Calendar.current.date(from: components)
+        if let candidate, candidate < now {
+            components.year = (components.year ?? 2026) + 1
+            return Calendar.current.date(from: components)
+        }
+        return candidate
     }
 
     /// A single-word keyword is matched against whole words only ("rent" must not match inside
