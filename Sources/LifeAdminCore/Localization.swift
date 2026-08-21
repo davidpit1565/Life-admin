@@ -13,4 +13,4 @@ public enum SupportedLanguage: String, CaseIterable {
         }
     }
 }
-public let requiredLocalizationKeys = ["app.name","app.tagline","tab.home","tab.items","tab.calendar","tab.insights","tab.settings","add.anything","add.justTellMe","privacy.aiProcessing","empty.allClear","settings.language"]
+public let requiredLocalizationKeys = ["app.name","app.tagline","tab.home","tab.items","tab.calendar","tab.insights","tab.settings","add.anything","add.justTellMe","aiConsent.title","empty.allClear","settings.language"]

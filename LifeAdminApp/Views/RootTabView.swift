@@ -377,6 +377,7 @@ struct SettingsView: View {
     @State private var showingShareSheet = false
     @State private var showingImporter = false
     @State private var importAlertMessage: String?
+    @State private var showingRestartNotice = false
 
     private var aiProcessingMode: AIProcessingMode {
         AIProcessingMode(rawValue: aiProcessingModeRaw) ?? .allowAutomatically
@@ -390,6 +391,13 @@ struct SettingsView: View {
                         ForEach(SupportedLanguage.allCases, id: \.rawValue) {
                             Text(displayName(for: $0)).tag($0.rawValue)
                         }
+                    }
+                    // The picker previously changed nothing: iOS decides which .lproj to load
+                    // from the system language, and nothing here ever overrode that — picking
+                    // "Hebrew" while the phone itself is in English silently did nothing at all.
+                    .onChange(of: language) { _, newValue in
+                        applyLanguageOverride(newValue)
+                        showingRestartNotice = true
                     }
                     NavigationLink(String(localized: "settings.addressChange")) {
                         AddressChangeView()
@@ -477,6 +485,26 @@ struct SettingsView: View {
                     ActivityLog.shared.clear()
                 }
             }
+            .alert(String(localized: "settings.language.restartTitle"), isPresented: $showingRestartNotice) {
+                Button(String(localized: "settings.language.restartNow"), role: .destructive) {
+                    exit(0)
+                }
+                Button(String(localized: "settings.language.later"), role: .cancel) {}
+            } message: {
+                Text(String(localized: "settings.language.restartMessage"))
+            }
+        }
+    }
+
+    /// iOS decides which .lproj to load from `AppleLanguages` in UserDefaults, which normally
+    /// just mirrors the system language — overriding that key here is the standard (if slightly
+    /// low-level) way to let a single app show a different language than the rest of the phone.
+    /// Only takes effect on the next launch, hence the restart prompt.
+    private func applyLanguageOverride(_ rawValue: String) {
+        if rawValue == "system" {
+            UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+        } else if let language = SupportedLanguage(rawValue: rawValue) {
+            UserDefaults.standard.set([language.localeIdentifier], forKey: "AppleLanguages")
         }
     }
 

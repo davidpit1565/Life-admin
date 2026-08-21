@@ -16,6 +16,9 @@ jobs:
       - name: Run LifeAdminCore package tests (swift test)
         run: swift test
 
+      - name: Check Localizable.strings consistency across all locales
+        run: swift run lifeadmin-qa
+
       - name: Install ripgrep
         run: brew install ripgrep
 

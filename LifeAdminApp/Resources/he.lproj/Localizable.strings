@@ -12,7 +12,6 @@
 "add.example.insurance" = "🚗 ביטוח רכב מתחדש ב-15 באוגוסט, 840 ש״ח";
 "add.example.subscription" = "🎬 נטפליקס מתחדש בכל 1 לחודש";
 "add.example.appointment" = "🦷 תור לרופא שיניים ביום שלישי הקרוב";
-"privacy.aiProcessing" = "עיבוד AI: שאל בכל פעם";
 "empty.allClear" = "הכל מסודר 🎉";
 "empty.noAttention" = "שום דבר לא דורש את תשומת הלב שלך כרגע.";
 "settings.language" = "שפה";
@@ -133,6 +132,10 @@
 "settings.aiConsent.declinedNotice" = "עיבוד AI כבוי. הכל מובן רק על המכשיר הזה, ושום דבר לא נשלח לשום מקום.";
 "notification.reminderBodyGeneric" = "יש משהו שדורש את תשומת הלב שלך — פתח את Life Admin לפרטים";
 "settings.language.system" = "מערכת";
+"settings.language.restartTitle" = "צריך להפעיל מחדש";
+"settings.language.restartMessage" = "יש להפעיל את Life Admin מחדש כדי לראות אותה בשפה החדשה.";
+"settings.language.restartNow" = "הפעל מחדש עכשיו";
+"settings.language.later" = "מאוחר יותר";
 "notification.digestBodyWithTopItem" = "%@ · הכי דחוף: %@";
 "items.filter" = "סינון";
 "items.filterByCategory" = "לפי קטגוריה";
