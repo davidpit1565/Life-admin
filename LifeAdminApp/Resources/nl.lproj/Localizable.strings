@@ -39,6 +39,7 @@
 "addressChange.reviewSend" = "Review & Send";
 "addressChange.mailUnavailable" = "Set up Mail on this device first to send address updates.";
 "common.ok" = "OK";
+"common.dismiss" = "Dismiss";
 "editContact.section" = "Contact";
 "editContact.name" = "Name";
 "editContact.company" = "Company";

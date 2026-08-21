@@ -110,6 +110,7 @@ struct HomeView: View {
                                     .foregroundStyle(.secondary)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel(String(localized: "common.dismiss"))
                         }
                     }
                 }

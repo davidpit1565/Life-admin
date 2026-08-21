@@ -39,6 +39,7 @@
 "addressChange.reviewSend" = "סקירה ושליחה";
 "addressChange.mailUnavailable" = "הגדר את Mail במכשיר הזה לפני שליחת עדכוני כתובת.";
 "common.ok" = "אישור";
+"common.dismiss" = "ביטול";
 "editContact.section" = "איש קשר";
 "editContact.name" = "שם";
 "editContact.company" = "חברה";
