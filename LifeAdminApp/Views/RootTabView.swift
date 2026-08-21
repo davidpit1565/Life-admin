@@ -189,9 +189,11 @@ struct InsightsView: View {
         store.items.filter { $0.priority == .critical || $0.priority == .high }.count
     }
 
+    // Reuses DigestEngine instead of re-deriving this — the hand-rolled version here compared
+    // dueDate against only the upper bound of the week, so an item overdue by months satisfied
+    // "<= horizon" too and never stopped counting as "due this week".
     private var upcomingWeekCount: Int {
-        let horizon = Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date()
-        return store.items.filter { ($0.dueDate ?? .distantFuture) <= horizon }.count
+        DigestEngine().summary(for: store.items).dueThisWeekCount
     }
 
     var body: some View {
