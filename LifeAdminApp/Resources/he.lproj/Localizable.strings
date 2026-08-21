@@ -46,6 +46,7 @@
 "itemDetail.amount" = "סכום";
 "itemDetail.currency" = "מטבע";
 "itemDetail.notes" = "הערות";
+"itemDetail.attachments" = "קבצים מצורפים";
 "itemDetail.delete" = "מחק פריט";
 "itemDetail.deleteConfirm" = "למחוק את הפריט הזה? זה יסיר גם את האירוע ביומן ואת התזכורת שלו.";
 "calendar.noItemsThisDay" = "שום דבר לא מתוכנן ליום הזה";
@@ -70,6 +71,7 @@
 "settings.aiAutonomy.askFirst.description" = "כל פריט חדש נפתח לבדיקה שלך לפני שהוא נשמר סופית.";
 "settings.aiAutonomy.off.description" = "שום דבר לא נשלח ל-AI — נעשה שימוש רק בזיהוי בסיסי על המכשיר.";
 "add.scanDocument" = "סרוק מסמך";
+"add.scannedPageFilename" = "עמוד סרוק %d";
 "aiConsent.navTitle" = "עיבוד AI";
 "aiConsent.title" = "לפני שמתחילים";
 "aiConsent.body" = "כש-Life Admin לא מבין בביטחון מספיק את מה שהקלדת בעצמו — או כשזה משהו חשוב כמו חשבון גדול או חידוש ביטוח — הוא שולח רק את הטקסט הזה ל-AI של Gemini מבית Google כדי לעזור. שום דבר אחר: לא אנשי הקשר שלך, לא היומן, ולא התמונות.";

@@ -1,5 +1,6 @@
 import SwiftUI
 import VisionKit
+import UIKit
 import LifeAdminCore
 private enum FirstRunStep: Identifiable {
     case onboarding
@@ -457,6 +458,7 @@ struct AddItemView: View {
     @State private var isSaving = false
     @State private var itemPendingReview: LifeAdminItem?
     @State private var showingScanner = false
+    @State private var pendingAttachments: [Attachment] = []
 
     var body: some View {
         NavigationStack {
@@ -474,13 +476,33 @@ struct AddItemView: View {
                             } label: {
                                 Label(String(localized: "add.scanDocument"), systemImage: "doc.viewfinder")
                             }
+                            if pendingAttachments.isEmpty == false {
+                                ScrollView(.horizontal) {
+                                    HStack {
+                                        ForEach(pendingAttachments) { attachment in
+                                            ZStack(alignment: .topTrailing) {
+                                                if let uiImage = UIImage(contentsOfFile: attachment.localPath) {
+                                                    Image(uiImage: uiImage).resizable().scaledToFill()
+                                                        .frame(width: 60, height: 60).clipShape(RoundedRectangle(cornerRadius: 8))
+                                                }
+                                                Button {
+                                                    AttachmentStore.shared.delete(attachment)
+                                                    pendingAttachments.removeAll { $0.id == attachment.id }
+                                                } label: {
+                                                    Image(systemName: "xmark.circle.fill").foregroundStyle(.white, .black.opacity(0.6))
+                                                }.offset(x: 6, y: -6)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     Section {
                         Button {
                             isSaving = true
                             Task {
-                                await store.add(text: text)
+                                await store.add(text: text, attachments: pendingAttachments)
                                 isSaving = false
                                 // "Ask every time" mode leaves the new item in place but pending
                                 // review — swap this same sheet over to editing it instead of
@@ -509,10 +531,17 @@ struct AddItemView: View {
                 }.navigationTitle(String(localized: "add.anything"))
                 .fullScreenCover(isPresented: $showingScanner) {
                     DocumentScannerView(
-                        onRecognizedText: { recognized in
+                        onScanned: { recognized, pageImages in
                             showingScanner = false
-                            guard recognized.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
-                            text = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? recognized : text + "\n" + recognized
+                            if recognized.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                                text = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? recognized : text + "\n" + recognized
+                            }
+                            for (index, image) in pageImages.enumerated() {
+                                let filename = String(format: String(localized: "add.scannedPageFilename"), pendingAttachments.count + index + 1)
+                                if let attachment = AttachmentStore.shared.saveJPEG(image, filename: filename) {
+                                    pendingAttachments.append(attachment)
+                                }
+                            }
                         },
                         onCancel: { showingScanner = false }
                     )

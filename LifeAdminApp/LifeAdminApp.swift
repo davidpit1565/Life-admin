@@ -110,7 +110,7 @@ final class ItemStore: ObservableObject {
         await refreshDigest()
     }
 
-    func add(text: String) async {
+    func add(text: String, attachments: [Attachment] = []) async {
         let mode = autonomyMode
         let decision = mode == .disabled ? aiService.extractLocalOnly(text) : await aiService.extract(text)
         let extracted = decision.item
@@ -124,6 +124,7 @@ final class ItemStore: ObservableObject {
             reminderOffsets: extracted.reminderOffsets ?? [30]
         )
         item.priority = PriorityEngine().priority(for: item)
+        item.attachments = attachments
         item.tags.append(contentsOf: LifeEventDetector().detectedTags(in: text))
         if decision.usedAI {
             ActivityLog.shared.record(String(format: String(localized: "activityLog.aiHelped"), item.title))
@@ -137,6 +138,7 @@ final class ItemStore: ObservableObject {
             merged.amount = item.amount ?? duplicate.amount
             merged.currency = item.currency ?? duplicate.currency
             merged.recurrence = item.recurrence != .none ? item.recurrence : duplicate.recurrence
+            merged.attachments += item.attachments
             merged.updatedAt = Date()
             merged.priority = PriorityEngine().priority(for: merged)
             ActivityLog.shared.record(String(format: String(localized: "activityLog.merged"), merged.title))
@@ -244,6 +246,9 @@ final class ItemStore: ObservableObject {
             modelContext.delete(persisted)
             try? modelContext.save()
         }
+        // A deleted item's scanned files have nowhere left to be shown — leaving them on disk
+        // would just accumulate orphaned files forever.
+        item.attachments.forEach(AttachmentStore.shared.delete)
         await NotificationScheduler.shared.cancel(for: item.id)
         items.removeAll { $0.id == item.id }
         await refreshDigest()

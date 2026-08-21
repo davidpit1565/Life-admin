@@ -59,4 +59,10 @@ final class LifeAdminCoreTests: XCTestCase {
      XCTAssertNil(next?.priorityOverride)
      XCTAssertNotEqual(next?.id, item.id)
  }
+ func testNextOccurrenceClearsAttachments() {
+     let a = Attachment(filename: "bill.jpg", mimeType: "image/jpeg", sizeBytes: 1, localPath: "/local/bill.jpg")
+     var item = LifeAdminItem(title: "Electric Bill", dueDate: Date(), recurrence: .monthly, attachments: [a])
+     let next = RecurrenceEngine().nextOccurrence(of: item)
+     XCTAssertEqual(next?.attachments.isEmpty, true)
+ }
 }

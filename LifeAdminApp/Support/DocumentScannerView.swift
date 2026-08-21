@@ -1,13 +1,16 @@
 import SwiftUI
 import VisionKit
 import Vision
+import UIKit
 
 /// Wraps VisionKit's document scanner and runs on-device text recognition on every scanned page,
 /// so a photographed bill or letter feeds the exact same free-text pipeline as typed input —
 /// nothing leaves the device for the scan itself, only the recognized text goes through the
-/// normal (already-gated) extraction path.
+/// normal (already-gated) extraction path. Also hands back the page images themselves (not just
+/// the OCR text) — the scanned insurance policy or warranty card is the thing worth keeping, and
+/// text extraction alone would throw it away the moment recognition finished.
 struct DocumentScannerView: UIViewControllerRepresentable {
-    var onRecognizedText: (String) -> Void
+    var onScanned: (_ recognizedText: String, _ pageImages: [UIImage]) -> Void
     var onCancel: () -> Void
 
     func makeUIViewController(context: Context) -> VNDocumentCameraViewController {
@@ -19,30 +22,28 @@ struct DocumentScannerView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: VNDocumentCameraViewController, context: Context) {}
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onRecognizedText: onRecognizedText, onCancel: onCancel)
+        Coordinator(onScanned: onScanned, onCancel: onCancel)
     }
 
     final class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
-        let onRecognizedText: (String) -> Void
+        let onScanned: (_ recognizedText: String, _ pageImages: [UIImage]) -> Void
         let onCancel: () -> Void
 
-        init(onRecognizedText: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
-            self.onRecognizedText = onRecognizedText
+        init(onScanned: @escaping (_ recognizedText: String, _ pageImages: [UIImage]) -> Void, onCancel: @escaping () -> Void) {
+            self.onScanned = onScanned
             self.onCancel = onCancel
         }
 
         func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
-            var images: [CGImage] = []
+            var images: [UIImage] = []
             for pageIndex in 0..<scan.pageCount {
-                if let cgImage = scan.imageOfPage(at: pageIndex).cgImage {
-                    images.append(cgImage)
-                }
+                images.append(scan.imageOfPage(at: pageIndex))
             }
-            let callback = onRecognizedText
+            let callback = onScanned
             DispatchQueue.global(qos: .userInitiated).async {
-                let recognizedText = images.map(Self.recognizeText).joined(separator: "\n")
+                let recognizedText = images.compactMap(\.cgImage).map(Self.recognizeText).joined(separator: "\n")
                 DispatchQueue.main.async {
-                    callback(recognizedText)
+                    callback(recognizedText, images)
                 }
             }
         }
