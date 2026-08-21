@@ -64,7 +64,7 @@ final class ItemStore: ObservableObject {
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
-        self.aiService = LifeAdminAIService(client: ProxyAIClient(endpoint: AppConfig.geminiProxyEndpoint))
+        self.aiService = LifeAdminAIService(client: ProxyAIClient(endpoint: AppConfig.geminiProxyEndpoint), reachability: NetworkPathReachability())
         load()
         observeNotificationActions()
     }
