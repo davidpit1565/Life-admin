@@ -10,7 +10,7 @@ public struct ReminderEngine {
     /// so the reminder cadence escalates automatically as the deadline gets close instead of
     /// relying on a single fixed lead time chosen when the item was created.
     public func notificationDates(for item: LifeAdminItem, calendar: Calendar = .current) -> [Date] {
-        guard let due = item.dueDate else { return [] }
+        guard item.status == .active, let due = item.dueDate else { return [] }
         var offsets = item.reminderOffsets
         if item.priority == .critical, offsets.contains(0) == false {
             offsets.append(0)

@@ -78,8 +78,11 @@ struct HomeView: View {
     @EnvironmentObject var store: ItemStore
     @State private var dismissedMovingBanner = false
 
+    // Completed items (e.g. via "Mark Done" on a notification) stay in store.items rather than
+    // being deleted, so Home must filter them out itself — otherwise a done item just sits here
+    // forever, indistinguishable from an active one, and "Mark Done" accomplishes nothing visible.
     private var upcomingItems: [LifeAdminItem] {
-        store.items.sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
+        store.items.filter { $0.status == .active }.sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
     }
 
     private var hasMovingEvent: Bool {
@@ -108,7 +111,7 @@ struct HomeView: View {
                         }
                     }
                 }
-                if store.items.isEmpty {
+                if upcomingItems.isEmpty {
                     ContentUnavailableView(
                         String(localized: "empty.allClear"),
                         systemImage: "checkmark.seal.fill",
@@ -135,17 +138,21 @@ struct ItemsView: View {
     @State private var query = ""
     @State private var selectedCategories: Set<LifeCategory> = []
     @State private var selectedPriorities: Set<Priority> = []
+    @State private var selectedStatuses: Set<ItemStatus> = []
 
     private var filteredItems: [LifeAdminItem] {
         var filter = SearchFilter()
         filter.query = query
         filter.categories = selectedCategories
         filter.priorities = selectedPriorities
+        // Default to active-only — a completed/archived item shouldn't clutter the everyday list
+        // unless the user explicitly asks to see it via the status filter.
+        filter.statuses = selectedStatuses.isEmpty ? [.active] : selectedStatuses
         return SearchEngine().search(store.items, filter: filter)
     }
 
     private var hasActiveFilters: Bool {
-        selectedCategories.isEmpty == false || selectedPriorities.isEmpty == false
+        selectedCategories.isEmpty == false || selectedPriorities.isEmpty == false || selectedStatuses.isEmpty == false
     }
 
     var body: some View {
@@ -206,10 +213,24 @@ struct ItemsView: View {
                                 }
                             }
                         }
+                        Menu(String(localized: "items.filterByStatus")) {
+                            ForEach(ItemStatus.allCases, id: \.self) { status in
+                                Button {
+                                    toggleStatus(status)
+                                } label: {
+                                    if selectedStatuses.contains(status) {
+                                        Label(status.rawValue.capitalized, systemImage: "checkmark")
+                                    } else {
+                                        Text(status.rawValue.capitalized)
+                                    }
+                                }
+                            }
+                        }
                         if hasActiveFilters {
                             Button(String(localized: "items.clearFilters"), role: .destructive) {
                                 selectedCategories = []
                                 selectedPriorities = []
+                                selectedStatuses = []
                             }
                         }
                     } label: {
@@ -234,6 +255,14 @@ struct ItemsView: View {
             selectedPriorities.remove(priority)
         } else {
             selectedPriorities.insert(priority)
+        }
+    }
+
+    private func toggleStatus(_ status: ItemStatus) {
+        if selectedStatuses.contains(status) {
+            selectedStatuses.remove(status)
+        } else {
+            selectedStatuses.insert(status)
         }
     }
 }

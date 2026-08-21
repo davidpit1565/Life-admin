@@ -97,3 +97,5 @@
 "onboarding.getStarted" = "התחל";
 "settings.deleteAIData.confirm" = "למחוק את יומן הפעילות של ה-AI? אי אפשר לשחזר את זה.";
 "activityLog.addressUpdateSent" = "עדכון כתובת נשלח עבור: %@";
+"items.filterByStatus" = "לפי סטטוס";
+"itemDetail.markDone" = "סמן כבוצע";

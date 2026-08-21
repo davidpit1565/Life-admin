@@ -87,6 +87,19 @@ struct ItemDetailView: View {
                 TextEditor(text: $notes).frame(minHeight: 80)
             }
 
+            if item.status == .active {
+                Section {
+                    Button {
+                        Task {
+                            await markDone()
+                            dismiss()
+                        }
+                    } label: {
+                        Label(String(localized: "itemDetail.markDone"), systemImage: "checkmark.circle.fill")
+                    }
+                }
+            }
+
             Section {
                 Button(String(localized: "common.save")) {
                     Task {
@@ -126,8 +139,8 @@ struct ItemDetailView: View {
         if let firstEmail = contact.emailAddresses.first?.value as String? { email = firstEmail }
     }
 
-    private func save() async {
-        var updated = item
+    private func fieldsApplied(to base: LifeAdminItem) -> LifeAdminItem {
+        var updated = base
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.title = trimmedTitle.isEmpty ? item.title : trimmedTitle
         updated.category = category
@@ -147,6 +160,18 @@ struct ItemDetailView: View {
             email: trimmedEmail.isEmpty ? nil : trimmedEmail
         )
         updated.updatedAt = Date()
+        return updated
+    }
+
+    private func save() async {
+        var updated = fieldsApplied(to: item)
+        updated.priority = PriorityEngine().priority(for: updated)
+        await store.update(updated)
+    }
+
+    private func markDone() async {
+        var updated = fieldsApplied(to: item)
+        updated.status = .completed
         updated.priority = PriorityEngine().priority(for: updated)
         await store.update(updated)
     }
