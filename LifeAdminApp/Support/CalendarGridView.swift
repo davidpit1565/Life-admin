@@ -16,8 +16,14 @@ struct CalendarGridView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UICalendarView, context: Context) {
+        // Reloading only the new markedDays leaves a stale dot on any day that WAS marked but no
+        // longer is (its last item got deleted or completed) — UICalendarView only re-queries the
+        // delegate for the days it's told to reload, so a day nobody asks about keeps showing
+        // whatever it last rendered. Reload the union of old and new so a removed day gets a
+        // chance to clear its decoration too, not just newly-added ones to gain one.
+        let daysToReload = context.coordinator.markedDays.union(markedDays)
         context.coordinator.markedDays = markedDays
-        uiView.reloadDecorations(forDateComponents: Array(markedDays), animated: false)
+        uiView.reloadDecorations(forDateComponents: Array(daysToReload), animated: false)
     }
 
     func makeCoordinator() -> Coordinator {
