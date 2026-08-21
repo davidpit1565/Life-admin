@@ -87,3 +87,11 @@
 "items.filterByPriority" = "By Priority";
 "items.clearFilters" = "Clear Filters";
 "items.noFilterMatches" = "No items match this filter";
+"onboarding.page1.title" = "Life Admin remembers for you";
+"onboarding.page1.body" = "Bills, insurance, subscriptions, and appointments — all in one place, so you don't have to hold it all in your head.";
+"onboarding.page2.title" = "Just say what's on your mind";
+"onboarding.page2.body" = "\"Car insurance renews August 15th, $240\" — and it figures out the rest.";
+"onboarding.page3.title" = "A few permissions, coming up";
+"onboarding.page3.body" = "So it can put things straight into your real Calendar and Reminders, and send you reminders. You can change any of this later in Settings.";
+"onboarding.next" = "Next";
+"onboarding.getStarted" = "Get Started";

@@ -87,3 +87,11 @@
 "items.filterByPriority" = "לפי עדיפות";
 "items.clearFilters" = "נקה סינון";
 "items.noFilterMatches" = "אין פריטים שמתאימים לסינון הזה";
+"onboarding.page1.title" = "Life Admin זוכר בשבילך";
+"onboarding.page1.body" = "חשבונות, ביטוחים, מנויים ותורים — הכל במקום אחד, כדי שלא תצטרך לזכור בעצמך.";
+"onboarding.page2.title" = "רק תגיד מה יש לך בראש";
+"onboarding.page2.body" = "\"ביטוח הרכב מתחדש ב-15 באוגוסט, 2,400 שקל\" — וזה כבר מבין את השאר בעצמו.";
+"onboarding.page3.title" = "בעוד רגע כמה אישורים";
+"onboarding.page3.body" = "כדי לשים דברים ישר ביומן ובתזכורות האמיתיות שלך, ולשלוח לך תזכורות. אפשר לשנות הכל בהגדרות בכל שלב.";
+"onboarding.next" = "הבא";
+"onboarding.getStarted" = "התחל";

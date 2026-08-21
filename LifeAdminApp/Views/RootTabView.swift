@@ -1,11 +1,18 @@
 import SwiftUI
 import VisionKit
 import LifeAdminCore
+private enum FirstRunStep: Identifiable {
+    case onboarding
+    case aiConsent
+    var id: Self { self }
+}
+
 struct RootTabView: View {
     @EnvironmentObject var store: ItemStore
     @State private var adding = false
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     @AppStorage("aiConsentDecision") private var aiConsentDecision = ""
-    @State private var showingAIConsent = false
+    @State private var firstRunStep: FirstRunStep?
 
     var body: some View {
         TabView {
@@ -34,15 +41,34 @@ struct RootTabView: View {
             AddItemView()
         }
         .task {
-            if aiConsentDecision.isEmpty {
-                showingAIConsent = true
+            if hasSeenOnboarding == false {
+                firstRunStep = .onboarding
+            } else if aiConsentDecision.isEmpty {
+                firstRunStep = .aiConsent
+            } else {
+                await store.requestAllPermissionsUpfront()
             }
-            await store.requestAllPermissionsUpfront()
         }
-        .fullScreenCover(isPresented: $showingAIConsent) {
-            AIConsentView { decision in
-                aiConsentDecision = decision
-                showingAIConsent = false
+        .fullScreenCover(item: $firstRunStep) { step in
+            Group {
+                switch step {
+                case .onboarding:
+                    OnboardingView {
+                        hasSeenOnboarding = true
+                        if aiConsentDecision.isEmpty {
+                            firstRunStep = .aiConsent
+                        } else {
+                            firstRunStep = nil
+                            Task { await store.requestAllPermissionsUpfront() }
+                        }
+                    }
+                case .aiConsent:
+                    AIConsentView { decision in
+                        aiConsentDecision = decision
+                        firstRunStep = nil
+                        Task { await store.requestAllPermissionsUpfront() }
+                    }
+                }
             }
             .interactiveDismissDisabled()
         }
