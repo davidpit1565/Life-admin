@@ -1,6 +1,7 @@
 import SwiftUI
 import VisionKit
 import UIKit
+import UniformTypeIdentifiers
 import LifeAdminCore
 private enum FirstRunStep: Identifiable {
     case onboarding
@@ -365,11 +366,16 @@ struct InsightsView: View {
     }
 }
 struct SettingsView: View {
+    @EnvironmentObject var store: ItemStore
     @AppStorage("language") var language = "system"
     @AppStorage("aiProcessingMode") var aiProcessingModeRaw = AIProcessingMode.allowAutomatically.rawValue
     @AppStorage("aiConsentDecision") private var aiConsentDecision = ""
     @State private var showingAIConsentReview = false
     @State private var showingDeleteAIDataConfirmation = false
+    @State private var exportFileURL: URL?
+    @State private var showingShareSheet = false
+    @State private var showingImporter = false
+    @State private var importAlertMessage: String?
 
     private var aiProcessingMode: AIProcessingMode {
         AIProcessingMode(rawValue: aiProcessingModeRaw) ?? .allowAutomatically
@@ -413,6 +419,21 @@ struct SettingsView: View {
                         ActivityLogView()
                     }
                 }
+                Section(String(localized: "settings.data")) {
+                    Button {
+                        if let url = Self.writeExportFile(items: store.items) {
+                            exportFileURL = url
+                            showingShareSheet = true
+                        }
+                    } label: {
+                        Label(String(localized: "settings.exportData"), systemImage: "square.and.arrow.up")
+                    }
+                    Button {
+                        showingImporter = true
+                    } label: {
+                        Label(String(localized: "settings.importData"), systemImage: "square.and.arrow.down")
+                    }
+                }
                 Section(String(localized: "settings.privacy")) {
                     Button(String(localized: "settings.deleteAIData"), role: .destructive) {
                         showingDeleteAIDataConfirmation = true
@@ -424,6 +445,27 @@ struct SettingsView: View {
                     aiConsentDecision = decision
                     showingAIConsentReview = false
                 }
+            }
+            .sheet(isPresented: $showingShareSheet) {
+                if let url = exportFileURL {
+                    ShareSheet(activityItems: [url])
+                }
+            }
+            .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.json]) { result in
+                switch result {
+                case .success(let url):
+                    Task { await importFile(at: url) }
+                case .failure:
+                    importAlertMessage = String(localized: "settings.importFailed")
+                }
+            }
+            .alert(String(localized: "settings.importResult"), isPresented: Binding(
+                get: { importAlertMessage != nil },
+                set: { if $0 == false { importAlertMessage = nil } }
+            )) {
+                Button(String(localized: "common.ok"), role: .cancel) {}
+            } message: {
+                Text(importAlertMessage ?? "")
             }
             .confirmationDialog(
                 String(localized: "settings.deleteAIData.confirm"),
@@ -449,6 +491,30 @@ struct SettingsView: View {
         case .askEveryTime: return String(localized: "settings.aiAutonomy.askFirst.description")
         case .disabled: return String(localized: "settings.aiAutonomy.off.description")
         }
+    }
+
+    /// A backup someone can hand to family, keep for themselves, or restore from on a new phone —
+    /// without this, deleting the app (or losing the device) meant losing every item for good.
+    private static func writeExportFile(items: [LifeAdminItem]) -> URL? {
+        guard let data = try? ImportExportEngine().exportJSON(items) else { return nil }
+        let url = FileManager.default.temporaryDirectory.appending(path: "LifeAdmin-Backup-\(Date().ISO8601Format()).json")
+        guard (try? data.write(to: url)) != nil else { return nil }
+        return url
+    }
+
+    private func importFile(at url: URL) async {
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url), let imported = try? ImportExportEngine().importJSON(data) else {
+            importAlertMessage = String(localized: "settings.importFailed")
+            return
+        }
+        let beforeCount = store.items.count
+        await store.importItems(imported)
+        let addedCount = store.items.count - beforeCount
+        importAlertMessage = addedCount > 0
+            ? String(format: String(localized: "settings.importSucceeded"), addedCount)
+            : String(localized: "settings.importNothingNew")
     }
 }
 struct AddItemView: View {

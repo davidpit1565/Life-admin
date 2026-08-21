@@ -16,6 +16,13 @@
 "settings.general" = "כללי";
 "settings.ai" = "AI";
 "settings.privacy" = "פרטיות";
+"settings.data" = "נתונים";
+"settings.exportData" = "ייצוא הנתונים שלי";
+"settings.importData" = "ייבוא נתונים";
+"settings.importFailed" = "לא הצלחנו לקרוא את הקובץ הזה — בדוק שזה קובץ גיבוי של Life Admin.";
+"settings.importResult" = "ייבוא";
+"settings.importSucceeded" = "יובאו %d פריטים.";
+"settings.importNothingNew" = "אין מה לייבא — כל מה שבקובץ הזה כבר קיים באפליקציה.";
 "settings.deleteAIData" = "מחק נתוני AI";
 "common.save" = "שמור";
 "item.untitled" = "פריט ללא כותרת";
@@ -63,6 +70,7 @@
 "activityLog.contactAutoFilled" = "פרטי איש קשר מולאו אוטומטית עבור: %@";
 "activityLog.markedDoneFromNotification" = "סומן כבוצע מתוך התראה: %@";
 "activityLog.snoozedFromNotification" = "נדחה ביום אחד מתוך התראה: %@";
+"activityLog.imported" = "יובאו %d פריטים מגיבוי";
 "settings.aiAutonomy" = "אוטונומיית AI";
 "settings.aiAutonomy.auto" = "פעל אוטומטית";
 "settings.aiAutonomy.askFirst" = "שאל אותי קודם";
