@@ -82,7 +82,13 @@ public struct NaturalLanguageParser: Sendable {
         let recognizedTitle: String? = match?.title
         let fallbackTitle = text.split(separator: " ").prefix(4).joined(separator: " ")
         let title = recognizedTitle ?? fallbackTitle
-        let currency = lower.contains("€") ? "EUR" : lower.contains("$") ? "USD" : nil
+        // ₪/שקל/ש"ח matter here specifically because the app's own Hebrew UI and example prompts
+        // use them — without this, typing exactly what the app itself suggested ("ביטוח רכב
+        // מתחדש ב-15 באוגוסט, 840 ש״ח") would silently fail to detect any currency at all.
+        let currency = lower.contains("€") ? "EUR"
+            : lower.contains("$") ? "USD"
+            : lower.contains("₪") || lower.contains("שקל") || lower.contains("ש\"ח") || lower.contains("ש״ח") ? "ILS"
+            : nil
         let amount = text.replacingOccurrences(of: ",", with: "").split(separator: " ").compactMap { Decimal(string: $0.filter { "0123456789.".contains($0) }) }.first
         let recurrence: Recurrence = lower.contains("every year") || lower.contains("yearly") || lower.contains("annual") || lower.contains("renews every") ? .yearly : lower.contains("every month") || lower.contains("monthly") ? .monthly : lower.contains("six months") ? .everySixMonths : .none
         let date = Self.simpleDate(in: lower, now: now)
