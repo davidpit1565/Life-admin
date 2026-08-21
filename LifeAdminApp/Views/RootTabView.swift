@@ -271,7 +271,7 @@ struct CalendarView: View {
     @State private var selectedDate = Date()
 
     private var itemsByDay: [DateComponents: [LifeAdminItem]] {
-        Dictionary(grouping: store.items.filter { $0.dueDate != nil }) { item in
+        Dictionary(grouping: store.items.filter { $0.status == .active && $0.dueDate != nil }) { item in
             Calendar.current.dateComponents([.year, .month, .day], from: item.dueDate!)
         }
     }
@@ -311,7 +311,7 @@ struct InsightsView: View {
     @EnvironmentObject var store: ItemStore
 
     private var urgentCount: Int {
-        store.items.filter { $0.priority == .critical || $0.priority == .high }.count
+        store.items.filter { $0.status == .active && ($0.priority == .critical || $0.priority == .high) }.count
     }
 
     // Reuses DigestEngine instead of re-deriving this — the hand-rolled version here compared
