@@ -92,6 +92,7 @@
 "recurrence.custom" = "Custom";
 "itemDetail.amount" = "Amount";
 "itemDetail.currency" = "Currency";
+"itemDetail.currency.none" = "None";
 "itemDetail.notes" = "Notes";
 "itemDetail.attachments" = "Attachments";
 "itemDetail.delete" = "Delete Item";

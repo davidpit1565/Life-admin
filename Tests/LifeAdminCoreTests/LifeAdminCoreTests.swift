@@ -60,6 +60,10 @@ final class LifeAdminCoreTests: XCTestCase {
      XCTAssertNotEqual(next?.id, item.id)
  }
  func testParserRecognizesShekelSymbol() { let e = NaturalLanguageParser().parse("Car insurance renews August 15th, 840 ₪"); XCTAssertEqual(e.currency, "ILS") }
+ func testAmountIsNotConfusedWithTheDayOfMonth() { let e = NaturalLanguageParser().parse("Car insurance renews August 15th, $240"); XCTAssertEqual(e.amount, 240) }
+ func testAmountIsNotConfusedWithABareDayNumberNextToARecognizedDate() { let e = NaturalLanguageParser().parse("On the 24 august I pay my rent each month"); XCTAssertNil(e.amount) }
+ func testAmountStillFoundWhenItGenuinelyMatchesTheDayNumber() { let e = NaturalLanguageParser().parse("Rent due on the 5th, $5"); XCTAssertEqual(e.amount, 5) }
+ func testAmountWithCurrencyWordAfterTheNumber() { let e = NaturalLanguageParser().parse("Electric bill 300 NIS due next week"); XCTAssertEqual(e.amount, 300) }
  func testParserRecognizesShekelWord() { let e = NaturalLanguageParser().parse("ביטוח רכב מתחדש ב-15 באוגוסט, 840 ש״ח"); XCTAssertEqual(e.currency, "ILS") }
  func testNextOccurrenceClearsAttachments() {
      let a = Attachment(filename: "bill.jpg", mimeType: "image/jpeg", sizeBytes: 1, localPath: "/local/bill.jpg")

@@ -69,9 +69,18 @@ struct ItemDetailView: View {
             Section(String(localized: "itemDetail.amount")) {
                 TextField(String(localized: "itemDetail.amount"), text: $amountText)
                     .keyboardType(.decimalPad)
-                TextField(String(localized: "itemDetail.currency"), text: $currency)
-                    .textInputAutocapitalization(.characters)
-                    .autocorrectionDisabled()
+                // A free-text currency field meant typing a typo (or the wrong case) silently
+                // dropped the whole currency on save with zero explanation — Locale.commonISOCurrencyCodes
+                // doesn't match "usd" or "dolars". A picker can't produce an invalid value at all.
+                // currencyOptions always includes whatever this item already has, even if it's
+                // outside the common four, so an AI-detected currency never disappears just from
+                // opening this screen.
+                Picker(String(localized: "itemDetail.currency"), selection: $currency) {
+                    Text(String(localized: "itemDetail.currency.none")).tag("")
+                    ForEach(currencyOptions, id: \.self) { code in
+                        Text(currencyLabel(code)).tag(code)
+                    }
+                }
             }
 
             Section {
@@ -159,6 +168,21 @@ struct ItemDetailView: View {
         }
     }
 
+    private static let commonCurrencyCodes = ["USD", "EUR", "ILS", "GBP"]
+
+    private var currencyOptions: [String] {
+        var options = Self.commonCurrencyCodes
+        if currency.isEmpty == false && options.contains(currency) == false {
+            options.append(currency)
+        }
+        return options
+    }
+
+    private func currencyLabel(_ code: String) -> String {
+        guard let name = Locale.current.localizedString(forCurrencyCode: code) else { return code }
+        return "\(code) – \(name)"
+    }
+
     private func apply(_ contact: CNContact) {
         let fullName = [contact.givenName, contact.familyName].filter { $0.isEmpty == false }.joined(separator: " ")
         if fullName.isEmpty == false { name = fullName }
@@ -177,12 +201,10 @@ struct ItemDetailView: View {
         // European locales) — parsing with Decimal(string:) alone only ever accepts ".", silently
         // dropping the amount entirely for anyone whose keyboard shows anything else.
         updated.amount = Decimal(string: amountText.trimmingCharacters(in: .whitespacesAndNewlines), locale: Locale.current)
-        // The AI-extraction path already rejects an invalid ISO currency code before it ever
-        // reaches an item (see LifeAdminAIService.validateStructuredExtraction) — this free-text
-        // field was the one place nothing checked it, so a typo here would silently save a
-        // currency code that formats wrong (or not at all) everywhere the amount is shown.
-        let trimmedCurrency = currency.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        updated.currency = Locale.commonISOCurrencyCodes.contains(trimmedCurrency) ? trimmedCurrency : nil
+        // currency is a Picker now (see currencyOptions) — it can only ever hold "" or a code
+        // that's either one of the common four or the item's own pre-existing value, so there's
+        // nothing left here to trim, uppercase, or validate.
+        updated.currency = currency.isEmpty ? nil : currency
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.notes = trimmedNotes.isEmpty ? nil : trimmedNotes
         updated.attachments = attachments
