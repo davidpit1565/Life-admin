@@ -16,6 +16,13 @@
 "settings.general" = "General";
 "settings.ai" = "AI";
 "settings.privacy" = "Privacy";
+"settings.data" = "Data";
+"settings.exportData" = "Export My Data";
+"settings.importData" = "Import Data";
+"settings.importFailed" = "Couldn’t read that file — make sure it’s a Life Admin backup.";
+"settings.importResult" = "Import";
+"settings.importSucceeded" = "Imported %d item(s).";
+"settings.importNothingNew" = "Nothing new to import — everything in that file is already here.";
 "settings.deleteAIData" = "Delete AI data";
 "common.save" = "Save";
 "item.untitled" = "Untitled item";
@@ -63,6 +70,7 @@
 "activityLog.contactAutoFilled" = "Auto-filled contact for: %@";
 "activityLog.markedDoneFromNotification" = "Marked done from a notification: %@";
 "activityLog.snoozedFromNotification" = "Snoozed by 1 day from a notification: %@";
+"activityLog.imported" = "Imported %d item(s) from a backup";
 "settings.aiAutonomy" = "AI Autonomy";
 "settings.aiAutonomy.auto" = "Act automatically";
 "settings.aiAutonomy.askFirst" = "Ask me first";

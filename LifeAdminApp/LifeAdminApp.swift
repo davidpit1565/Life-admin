@@ -254,6 +254,35 @@ final class ItemStore: ObservableObject {
         await refreshDigest()
     }
 
+    /// Restoring a backup (new phone, or handing a JSON export to someone else) should be as safe
+    /// to repeat as it is to run once — skip anything whose ID is already present instead of
+    /// duplicating every item on a second import of the same file.
+    func importItems(_ imported: [LifeAdminItem]) async {
+        let existingIDs = Set(items.map(\.id))
+        let newItems = imported.filter { existingIDs.contains($0.id) == false }
+        guard newItems.isEmpty == false else { return }
+
+        await NotificationScheduler.shared.requestAuthorizationIfNeeded()
+        await CalendarSyncService.shared.requestAuthorizationIfNeeded()
+        for var item in newItems {
+            // An attachment's `localPath` points inside this specific install's sandbox
+            // container — a backup restored on a new phone (or a fresh reinstall, which gets a
+            // new container) can never have that file. Keeping the reference would leave a
+            // permanently-broken row with no way for the user to know why it never loads.
+            item.attachments = item.attachments.filter { FileManager.default.fileExists(atPath: $0.localPath) }
+            let persisted = PersistedItem(item: item)
+            modelContext.insert(persisted)
+            items.insert(item, at: 0)
+            await NotificationScheduler.shared.schedule(for: item)
+            let sync = CalendarSyncService.shared.sync(item: item, existingEventID: nil, existingReminderID: nil)
+            persisted.calendarEventIdentifier = sync.eventIdentifier
+            persisted.reminderIdentifier = sync.reminderIdentifier
+        }
+        try? modelContext.save()
+        ActivityLog.shared.record(String(format: String(localized: "activityLog.imported"), newItems.count))
+        await refreshDigest()
+    }
+
     func markAddressSynced(_ itemID: UUID) async {
         guard let index = items.firstIndex(where: { $0.id == itemID }) else { return }
         var item = items[index]
