@@ -75,6 +75,54 @@ final class LifeAdminCoreTests: XCTestCase {
  func testDateWithNoStatedTimeStaysAtMidnight() { let e = NaturalLanguageParser().parse("Passport renewal March 18"); let components = Calendar.current.dateComponents([.hour, .minute], from: e.date!); XCTAssertEqual(components.hour, 0); XCTAssertEqual(components.minute, 0) }
  func testDrivingTestIsRecognizedAsAnAppointment() { let e = NaturalLanguageParser().parse("Driving test 4 september 11:00 am"); XCTAssertEqual(e.title, "Driving Test"); XCTAssertEqual(e.category, .appointments) }
  func testParserRecognizesShekelWord() { let e = NaturalLanguageParser().parse("ביטוח רכב מתחדש ב-15 באוגוסט, 840 ש״ח"); XCTAssertEqual(e.currency, "ILS") }
+ func testTomorrowInEnglishIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("Dentist tomorrow", now: now)
+     XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: 1, to: now)!))
+ }
+ func testTomorrowInHebrewIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("תור לרופא מחר", now: now)
+     XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: 1, to: now)!))
+ }
+ func testDayAfterTomorrowInHebrewIsTwoDaysOut() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("פגישה מחרתיים", now: now)
+     XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: 2, to: now)!))
+ }
+ func testInNDaysInEnglishIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("Passport renewal in 3 days", now: now)
+     XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: 3, to: now)!))
+ }
+ func testInNDaysInHebrewIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("חידוש דרכון בעוד 3 ימים", now: now)
+     XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: 3, to: now)!))
+ }
+ func testNextWeekInHebrewIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("שכירות בעוד שבוע", now: now)
+     XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .weekOfYear, value: 1, to: now)!))
+ }
+ func testTwoWeeksInHebrewIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("ביקור בעוד שבועיים", now: now)
+     XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .weekOfYear, value: 2, to: now)!))
+ }
+ func testRelativeDateStaysAtMidnightWithNoStatedTime() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("Dentist tomorrow", now: now)
+     let components = Calendar.current.dateComponents([.hour, .minute], from: e.date!)
+     XCTAssertEqual(components.hour, 0)
+     XCTAssertEqual(components.minute, 0)
+ }
+ func testRelativeDateCombinesWithAnExplicitTime() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("Dentist tomorrow at 3pm", now: now)
+     let components = Calendar.current.dateComponents([.hour, .minute], from: e.date!)
+     XCTAssertEqual(components.hour, 15)
+ }
  func testNextOccurrenceClearsAttachments() {
      let a = Attachment(filename: "bill.jpg", mimeType: "image/jpeg", sizeBytes: 1, localPath: "/local/bill.jpg")
      var item = LifeAdminItem(title: "Electric Bill", dueDate: Date(), recurrence: .monthly, attachments: [a])

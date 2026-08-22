@@ -35,6 +35,42 @@ public struct NaturalLanguageParser: Sendable {
         return candidate
     }
 
+    /// Users type in Hebrew and English interchangeably ("תור לרופא מחר", "rent due next week"),
+    /// and relative phrases are at least as common as absolute dates for near-term reminders —
+    /// so this is tried before `simpleDate`, whose month-name matching can't see these at all.
+    /// Always normalized to midnight, matching `simpleDate`'s "no stated time" convention; an
+    /// explicit clock time in the same text is applied afterward by `timeOfDay`.
+    static func relativeDate(in lower: String, now: Date) -> Date? {
+        let calendar = Calendar.current
+        func days(_ n: Int) -> Date? { calendar.date(byAdding: .day, value: n, to: now).map(calendar.startOfDay) }
+        func weeks(_ n: Int) -> Date? { calendar.date(byAdding: .weekOfYear, value: n, to: now).map(calendar.startOfDay) }
+        func months(_ n: Int) -> Date? { calendar.date(byAdding: .month, value: n, to: now).map(calendar.startOfDay) }
+
+        if lower.contains("day after tomorrow") || lower.contains("מחרתיים") { return days(2) }
+        if lower.contains("tomorrow") || lower.contains("מחר") { return days(1) }
+        if lower.contains("today") || lower.contains("היום") { return days(0) }
+        if lower.contains("שבועיים") { return weeks(2) }
+        if lower.contains("next week") || lower.contains("in a week") || lower.contains("בעוד שבוע") || lower.contains("בשבוע הבא") { return weeks(1) }
+        if lower.contains("next month") || lower.contains("in a month") || lower.contains("בעוד חודש") || lower.contains("בחודש הבא") { return months(1) }
+
+        let numberedPatterns: [(String, (Int) -> Date?)] = [
+            (#"in\s+(\d+)\s+days?"#, days),
+            (#"in\s+(\d+)\s+weeks?"#, weeks),
+            (#"בעוד\s+(\d+)\s+ימים?"#, days),
+            (#"בעוד\s+(\d+)\s+שבועות"#, weeks)
+        ]
+        for (pattern, apply) in numberedPatterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { continue }
+            let range = NSRange(lower.startIndex..., in: lower)
+            if let match = regex.firstMatch(in: lower, range: range),
+               let numberRange = Range(match.range(at: 1), in: lower),
+               let value = Int(lower[numberRange]) {
+                return apply(value)
+            }
+        }
+        return nil
+    }
+
     /// "Driving test 4 september 11:00 am" saved a due date of midnight — simpleDate only ever
     /// looks for month/day/year, never a clock time, so an explicitly stated time was silently
     /// thrown away and replaced with one that's likely wrong. Only matches a clear am/pm time
@@ -160,7 +196,7 @@ public struct NaturalLanguageParser: Sendable {
             : lower.contains("₪") || lower.contains("שקל") || lower.contains("ש\"ח") || lower.contains("ש״ח") ? "ILS"
             : nil
         let recurrence: Recurrence = lower.contains("every year") || lower.contains("yearly") || lower.contains("annual") || lower.contains("renews every") ? .yearly : lower.contains("every month") || lower.contains("monthly") ? .monthly : lower.contains("six months") ? .everySixMonths : .none
-        var date = Self.simpleDate(in: lower, now: now)
+        var date = Self.relativeDate(in: lower, now: now) ?? Self.simpleDate(in: lower, now: now)
         if let recognizedDate = date, let time = Self.timeOfDay(in: lower) {
             var components = Calendar.current.dateComponents([.year, .month, .day], from: recognizedDate)
             components.hour = time.hour
