@@ -244,6 +244,32 @@ final class ItemStore: ObservableObject {
         await refreshDigest()
     }
 
+    @Published var pendingUndo: LifeAdminItem?
+    private var pendingDeletions: [UUID: Task<Void, Never>] = [:]
+
+    /// Removes `item` from view immediately, so a swipe-to-delete feels instant, but defers the
+    /// destructive part — freeing attachment files, canceling notifications, removing the
+    /// SwiftData record — for a few seconds, so `undoDelete` can put it back with nothing lost.
+    func scheduleDelete(_ item: LifeAdminItem) {
+        items.removeAll { $0.id == item.id }
+        pendingUndo = item
+        pendingDeletions[item.id] = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4))
+            guard Task.isCancelled == false else { return }
+            await self?.delete(item)
+            if self?.pendingUndo?.id == item.id { self?.pendingUndo = nil }
+            self?.pendingDeletions[item.id] = nil
+        }
+    }
+
+    func undoDelete() {
+        guard let item = pendingUndo else { return }
+        pendingDeletions[item.id]?.cancel()
+        pendingDeletions[item.id] = nil
+        pendingUndo = nil
+        items.insert(item, at: 0)
+    }
+
     func delete(_ item: LifeAdminItem) async {
         // Always remove from the in-memory list and cancel notifications, even if the persisted
         // record can't be found — otherwise a lookup mismatch would make "Delete" silently do
