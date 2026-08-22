@@ -39,6 +39,8 @@
 "addressChange.mailUnavailable" = "הגדר את Mail במכשיר הזה לפני שליחת עדכוני כתובת.";
 "common.ok" = "אישור";
 "common.dismiss" = "ביטול";
+"common.undo" = "בטל";
+"items.deletedToast" = "הפריט \"%@\" נמחק";
 "editContact.section" = "איש קשר";
 "editContact.name" = "שם";
 "editContact.company" = "חברה";

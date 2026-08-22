@@ -39,6 +39,14 @@ struct RootTabView: View {
             .accessibilityLabel(String(localized: "add.anything"))
             .padding(.bottom, 58)
         }
+        .overlay(alignment: .bottom) {
+            if let pendingUndo = store.pendingUndo {
+                UndoDeleteBanner(item: pendingUndo) { store.undoDelete() }
+                    .padding(.bottom, 140)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.default, value: store.pendingUndo?.id)
         .sheet(isPresented: $adding) {
             AddItemView()
         }
@@ -147,7 +155,7 @@ private struct ItemRowLink: View {
         }
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
-                Task { await store.delete(item) }
+                store.scheduleDelete(item)
             } label: {
                 Label(String(localized: "itemDetail.delete"), systemImage: "trash")
             }
@@ -611,7 +619,7 @@ struct AddItemView: View {
                             }
                         }
                     }
-                    if VNDocumentCameraViewController.isSupported {
+                    if FeatureFlags.documentScanningEnabled && VNDocumentCameraViewController.isSupported {
                         Section {
                             Button {
                                 showingScanner = true
@@ -729,6 +737,26 @@ private struct AddConfirmationBanner: View {
                 }
             }
             Spacer()
+        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal)
+        .shadow(radius: 4)
+    }
+}
+
+private struct UndoDeleteBanner: View {
+    let item: LifeAdminItem
+    let onUndo: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(String(format: String(localized: "items.deletedToast"), item.title))
+                .font(.subheadline)
+                .lineLimit(1)
+            Spacer()
+            Button(String(localized: "common.undo"), action: onUndo)
+                .font(.subheadline.bold())
         }
         .padding()
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))

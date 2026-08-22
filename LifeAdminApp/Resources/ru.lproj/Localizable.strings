@@ -156,3 +156,5 @@
 "items.filterByStatus" = "By Status";
 "itemDetail.markDone" = "Mark as Done";
 "activityLog.recurrenceCreated" = "Created the next occurrence: %@";
+"common.undo" = "Undo";
+"items.deletedToast" = "\"%@\" deleted";

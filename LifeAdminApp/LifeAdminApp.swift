@@ -109,11 +109,13 @@ final class ItemStore: ObservableObject {
     }
 
     /// Requests every permission the app can use, all at once, right when it opens — rather
-    /// than one at a time the first time each feature is actually used.
+    /// than one at a time the first time each feature is actually used. Contacts isn't part of
+    /// this: linking a contact only ever goes through the system contact picker (`ItemDetailView`),
+    /// which needs no `CNContactStore` authorization at all — asking for it here would be an
+    /// upfront request the app has no use for.
     func requestAllPermissionsUpfront() async {
         await NotificationScheduler.shared.requestAuthorizationIfNeeded()
         await CalendarSyncService.shared.requestAuthorizationIfNeeded()
-        await ContactsAccessService.shared.requestAuthorizationIfNeeded()
         await refreshDigest()
     }
 
@@ -240,6 +242,32 @@ final class ItemStore: ObservableObject {
 
         ActivityLog.shared.record(String(format: String(localized: "activityLog.recurrenceCreated"), newItem.title))
         await refreshDigest()
+    }
+
+    @Published var pendingUndo: LifeAdminItem?
+    private var pendingDeletions: [UUID: Task<Void, Never>] = [:]
+
+    /// Removes `item` from view immediately, so a swipe-to-delete feels instant, but defers the
+    /// destructive part — freeing attachment files, canceling notifications, removing the
+    /// SwiftData record — for a few seconds, so `undoDelete` can put it back with nothing lost.
+    func scheduleDelete(_ item: LifeAdminItem) {
+        items.removeAll { $0.id == item.id }
+        pendingUndo = item
+        pendingDeletions[item.id] = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4))
+            guard Task.isCancelled == false else { return }
+            await self?.delete(item)
+            if self?.pendingUndo?.id == item.id { self?.pendingUndo = nil }
+            self?.pendingDeletions[item.id] = nil
+        }
+    }
+
+    func undoDelete() {
+        guard let item = pendingUndo else { return }
+        pendingDeletions[item.id]?.cancel()
+        pendingDeletions[item.id] = nil
+        pendingUndo = nil
+        items.insert(item, at: 0)
     }
 
     func delete(_ item: LifeAdminItem) async {
