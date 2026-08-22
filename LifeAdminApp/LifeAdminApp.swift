@@ -109,11 +109,13 @@ final class ItemStore: ObservableObject {
     }
 
     /// Requests every permission the app can use, all at once, right when it opens — rather
-    /// than one at a time the first time each feature is actually used.
+    /// than one at a time the first time each feature is actually used. Contacts isn't part of
+    /// this: linking a contact only ever goes through the system contact picker (`ItemDetailView`),
+    /// which needs no `CNContactStore` authorization at all — asking for it here would be an
+    /// upfront request the app has no use for.
     func requestAllPermissionsUpfront() async {
         await NotificationScheduler.shared.requestAuthorizationIfNeeded()
         await CalendarSyncService.shared.requestAuthorizationIfNeeded()
-        await ContactsAccessService.shared.requestAuthorizationIfNeeded()
         await refreshDigest()
     }
 

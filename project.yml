@@ -36,9 +36,6 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait"
         INFOPLIST_KEY_NSCameraUsageDescription: "Life Admin uses the camera to scan documents and receipts you choose to add."
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Life Admin uses the microphone so you can add items by speaking."
-        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Life Admin converts your speech to text so you can add items by voice."
-        INFOPLIST_KEY_NSContactsUsageDescription: "Life Admin can link a saved contact to an item you choose to connect, such as an insurance agent or landlord."
         INFOPLIST_KEY_NSCalendarsUsageDescription: "Life Admin can add reminders and due dates to your calendar."
         INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: "Life Admin can add reminders and due dates to your calendar."
         INFOPLIST_KEY_NSRemindersUsageDescription: "Life Admin can create reminders for items with due dates."

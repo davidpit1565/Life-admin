@@ -611,7 +611,7 @@ struct AddItemView: View {
                             }
                         }
                     }
-                    if VNDocumentCameraViewController.isSupported {
+                    if FeatureFlags.documentScanningEnabled && VNDocumentCameraViewController.isSupported {
                         Section {
                             Button {
                                 showingScanner = true
