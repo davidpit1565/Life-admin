@@ -58,6 +58,7 @@
 "itemDetail.dueDate" = "תאריך יעד";
 "itemDetail.hasDueDate" = "יש תאריך יעד";
 "itemDetail.recurrence" = "חזרתיות";
+"itemDetail.recurrence.preview" = "המופעים הבאים";
 "category.documents" = "מסמכים";
 "category.insurance" = "ביטוח";
 "category.money" = "כספים";

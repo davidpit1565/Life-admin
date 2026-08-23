@@ -58,6 +58,7 @@
 "itemDetail.dueDate" = "Due Date";
 "itemDetail.hasDueDate" = "Has due date";
 "itemDetail.recurrence" = "Repeat";
+"itemDetail.recurrence.preview" = "Next occurrences";
 "category.documents" = "Documents";
 "category.insurance" = "Insurance";
 "category.money" = "Money";
