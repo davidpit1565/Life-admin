@@ -9,13 +9,19 @@ public struct ReminderEngine {
     /// Critical items get a same-day reminder in addition to whatever offsets were already set,
     /// so the reminder cadence escalates automatically as the deadline gets close instead of
     /// relying on a single fixed lead time chosen when the item was created.
-    public func notificationDates(for item: LifeAdminItem, calendar: Calendar = .current) -> [Date] {
+    ///
+    /// Travel items default to offsets of [90, 30, 7, 1] days — for something due in, say, 10
+    /// days, the 90- and 30-day offsets land in the past. Scheduling a local notification with a
+    /// past trigger date fires it right away, so without filtering against `now`, adding that one
+    /// item would immediately blast out two bogus "reminders" before the app even finishes saving
+    /// it — this filters to offsets that still land in the future, not just after the Unix epoch.
+    public func notificationDates(for item: LifeAdminItem, calendar: Calendar = .current, now: Date = Date()) -> [Date] {
         guard item.status == .active, let due = item.dueDate else { return [] }
         var offsets = item.reminderOffsets
         if item.priority == .critical, offsets.contains(0) == false {
             offsets.append(0)
         }
-        return offsets.compactMap { calendar.date(byAdding: .day, value: -$0, to: due) }.filter { $0 > Date(timeIntervalSince1970: 0) }.sorted()
+        return offsets.compactMap { calendar.date(byAdding: .day, value: -$0, to: due) }.filter { $0 > now }.sorted()
     }
 }
 public struct LifeEventDetector: Sendable {

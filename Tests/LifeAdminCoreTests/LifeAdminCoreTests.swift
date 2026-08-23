@@ -4,7 +4,19 @@ final class LifeAdminCoreTests: XCTestCase {
  func testItemCreationValidation() throws { try ItemValidator().validate(LifeAdminItem(title:"Passport", currency:"EUR")) }
  func testInvalidCurrency() { XCTAssertThrowsError(try ItemValidator().validate(LifeAdminItem(title:"X", currency:"EURO"))) }
  func testPriority() { let due=Date().addingTimeInterval(3600); let i=LifeAdminItem(title:"Passport", category:.documents, dueDate:due, amount:10, currency:"USD", recurrence:.yearly); XCTAssertEqual(PriorityEngine().priority(for:i), .critical) }
- func testReminderCalculation() { let due=Date(timeIntervalSince1970: 86400*100); let i=LifeAdminItem(title:"P", dueDate:due, reminderOffsets:[90,30,7,1]); XCTAssertEqual(ReminderEngine().notificationDates(for:i).count, 4) }
+ func testReminderCalculation() { let due=Date(timeIntervalSince1970: 86400*100); let i=LifeAdminItem(title:"P", dueDate:due, reminderOffsets:[90,30,7,1]); XCTAssertEqual(ReminderEngine().notificationDates(for:i, now: Date(timeIntervalSince1970: 0)).count, 4) }
+ func testReminderOffsetsThatHaveAlreadyElapsedAreNotScheduled() {
+     // A travel item's default offsets are [90, 30, 7, 1] days — due in only 10 days, the 90-
+     // and 30-day-before offsets already landed in the past. A past-dated local notification
+     // trigger fires immediately, so without filtering against `now`, saving this item would
+     // instantly fire two bogus "reminders" for offsets that already elapsed.
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let due = now.addingTimeInterval(86400 * 10)
+     let i = LifeAdminItem(title: "Passport renewal", category: .travel, dueDate: due, reminderOffsets: [90, 30, 7, 1])
+     let dates = ReminderEngine().notificationDates(for: i, now: now)
+     XCTAssertEqual(dates.count, 2)
+     XCTAssertTrue(dates.allSatisfy { $0 > now })
+ }
  func testSearch() { let i=LifeAdminItem(title:"Car Insurance", category:.insurance, amount:840, currency:"EUR"); var f=SearchFilter(); f.query="840"; XCTAssertEqual(SearchEngine().search([i], filter:f).count, 1) }
  func testFiltering() { let i=LifeAdminItem(title:"Netflix", category:.subscriptions, amount:17, currency:"USD"); var f=SearchFilter(); f.categories=[.subscriptions]; f.hasPayment=true; XCTAssertEqual(SearchEngine().search([i], filter:f).count, 1) }
  func testDuplicateDetection() { let d=Date(); let a=LifeAdminItem(title:"Car Insurance", dueDate:d, amount:840); let b=LifeAdminItem(title:"car insurance", dueDate:d.addingTimeInterval(60), amount:840); XCTAssertTrue(DuplicateDetector().isLikelyDuplicate(a,b)) }
