@@ -675,6 +675,7 @@ struct AddItemView: View {
     @State private var showingScanner = false
     @State private var pendingAttachments: [Attachment] = []
     @State private var confirmedItem: LifeAdminItem?
+    @State private var confirmedItemWasMerged = false
     @State private var confirmedCount: Int?
 
     /// A handful of ready-made examples spanning different categories — tapping one fills the
@@ -763,12 +764,15 @@ struct AddItemView: View {
                                     // instead of dismissing, rather than silently trusting the
                                     // AI's guess.
                                     itemPendingReview = item
-                                case .added(let item):
+                                case .added(let item, let merged):
                                     // Auto mode saves instantly with no review step — without a
                                     // visible "here's what we understood" moment, tapping Save
                                     // just closes the screen with no sign anything happened at
                                     // all, which reads as broken rather than automatic.
-                                    withAnimation { confirmedItem = item }
+                                    withAnimation {
+                                        confirmedItem = item
+                                        confirmedItemWasMerged = merged
+                                    }
                                     try? await Task.sleep(for: .seconds(1.2))
                                     dismiss()
                                 case .addedMultiple(let addedItems):
@@ -794,7 +798,7 @@ struct AddItemView: View {
                 }.navigationTitle(String(localized: "add.anything"))
                 .overlay(alignment: .bottom) {
                     if let confirmedItem {
-                        AddConfirmationBanner(item: confirmedItem)
+                        AddConfirmationBanner(item: confirmedItem, wasMerged: confirmedItemWasMerged)
                             .padding(.bottom, 12)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     } else if let confirmedCount {
@@ -828,6 +832,7 @@ struct AddItemView: View {
 
 private struct AddConfirmationBanner: View {
     let item: LifeAdminItem
+    var wasMerged: Bool = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -835,7 +840,10 @@ private struct AddConfirmationBanner: View {
                 .font(.title2)
                 .foregroundStyle(.green)
             VStack(alignment: .leading, spacing: 2) {
-                Text(String(localized: "add.confirmation.label"))
+                // A merge silently updating an existing item read exactly like a brand new one —
+                // saying so here is the only place that distinction was ever visible outside the
+                // Activity Log.
+                Text(String(localized: wasMerged ? "add.confirmation.merged" : "add.confirmation.label"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text(item.title)

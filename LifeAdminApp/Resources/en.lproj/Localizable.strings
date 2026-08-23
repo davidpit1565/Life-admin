@@ -128,6 +128,7 @@
 "add.scanDocument" = "Scan a Document";
 "add.scannedPageFilename" = "Scanned Page %d";
 "add.confirmation.label" = "Added";
+"add.confirmation.merged" = "Updated existing item";
 "add.confirmation.multiple" = "%d items added";
 "add.multiLineHint" = "Tip: put each item on its own line to add several at once.";
 "aiConsent.navTitle" = "AI Processing";

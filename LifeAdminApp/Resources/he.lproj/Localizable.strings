@@ -128,6 +128,7 @@
 "add.scanDocument" = "סרוק מסמך";
 "add.scannedPageFilename" = "עמוד סרוק %d";
 "add.confirmation.label" = "נוסף";
+"add.confirmation.merged" = "עודכן פריט קיים";
 "add.confirmation.multiple" = "נוספו %d פריטים";
 "add.multiLineHint" = "טיפ: כל פריט בשורה משלו כדי להוסיף כמה בבת אחת.";
 "aiConsent.navTitle" = "עיבוד AI";
