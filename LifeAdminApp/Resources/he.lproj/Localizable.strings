@@ -21,6 +21,7 @@
 "settings.privacy" = "פרטיות";
 "settings.data" = "נתונים";
 "settings.exportData" = "ייצוא הנתונים שלי";
+"settings.exportCSV" = "ייצוא כגיליון (CSV)";
 "settings.importData" = "ייבוא נתונים";
 "settings.importFailed" = "לא הצלחנו לקרוא את הקובץ הזה — בדוק שזה קובץ גיבוי של Life Admin.";
 "settings.importResult" = "ייבוא";
@@ -49,6 +50,7 @@
 "insights.total" = "סך הפריטים";
 "insights.urgent" = "דורש תשומת לב";
 "insights.dueThisWeek" = "מתאריך השבוע";
+"insights.dueThisMonth" = "לתשלום החודש";
 "editContact.chooseFromContacts" = "בחר מאנשי הקשר";
 "itemDetail.details" = "פרטים";
 "itemDetail.title" = "כותרת";
@@ -99,6 +101,7 @@
 "itemDetail.attachments" = "קבצים מצורפים";
 "itemDetail.delete" = "מחק פריט";
 "itemDetail.deleteConfirm" = "למחוק את הפריט הזה? זה יסיר גם את האירוע ביומן ואת התזכורת שלו.";
+"items.deleteSelectedConfirm" = "למחוק %d פריטים? זה יסיר גם את האירועים ביומן והתזכורות שלהם.";
 "calendar.noItemsThisDay" = "שום דבר לא מתוכנן ליום הזה";
 "notification.digestTitle" = "העדיפויות של היום";
 "notification.digestOverdue" = "יש %d פריטים שעבר תאריכם";
@@ -124,6 +127,8 @@
 "add.scanDocument" = "סרוק מסמך";
 "add.scannedPageFilename" = "עמוד סרוק %d";
 "add.confirmation.label" = "נוסף";
+"add.confirmation.multiple" = "נוספו %d פריטים";
+"add.multiLineHint" = "טיפ: כל פריט בשורה משלו כדי להוסיף כמה בבת אחת.";
 "aiConsent.navTitle" = "עיבוד AI";
 "aiConsent.title" = "לפני שמתחילים";
 "aiConsent.body" = "כש-Life Admin לא מבין בביטחון מספיק את מה שהקלדת בעצמו — או כשזה משהו חשוב כמו חשבון גדול או חידוש ביטוח — הוא שולח רק את הטקסט הזה ל-AI של Gemini מבית Google כדי לעזור. שום דבר אחר: לא אנשי הקשר שלך, לא היומן, ולא התמונות.";
@@ -157,4 +162,8 @@
 "activityLog.addressUpdateSent" = "עדכון כתובת נשלח עבור: %@";
 "items.filterByStatus" = "לפי סטטוס";
 "itemDetail.markDone" = "סמן כבוצע";
+"itemDetail.snooze" = "הזכר לי מאוחר יותר";
+"itemDetail.snooze.1day" = "יום אחד";
+"itemDetail.snooze.3days" = "3 ימים";
+"itemDetail.snooze.1week" = "שבוע";
 "activityLog.recurrenceCreated" = "נוצרה הפעם הבאה של פריט חזרתי: %@";

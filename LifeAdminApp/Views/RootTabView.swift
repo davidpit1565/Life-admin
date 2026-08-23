@@ -176,6 +176,8 @@ struct ItemsView: View {
     @State private var selectedCategories: Set<LifeCategory> = []
     @State private var selectedPriorities: Set<Priority> = []
     @State private var selectedStatuses: Set<ItemStatus> = []
+    @State private var selection = Set<UUID>()
+    @State private var showingBulkDeleteConfirmation = false
 
     private var filteredItems: [LifeAdminItem] {
         var filter = SearchFilter()
@@ -185,7 +187,11 @@ struct ItemsView: View {
         // Default to active-only — a completed/archived item shouldn't clutter the everyday list
         // unless the user explicitly asks to see it via the status filter.
         filter.statuses = selectedStatuses.isEmpty ? [.active] : selectedStatuses
+        // SearchEngine only filters — without sorting here too, this list showed items in
+        // whatever order they were created, not by what's actually coming up next, unlike Home's
+        // own "upcoming" list right next to it.
         return SearchEngine().search(store.items, filter: filter)
+            .sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
     }
 
     private var hasActiveFilters: Bool {
@@ -194,7 +200,7 @@ struct ItemsView: View {
 
     var body: some View {
         NavigationStack {
-            List(filteredItems) { item in
+            List(filteredItems, selection: $selection) { item in
                 ItemRowLink(item: item)
             }
             .overlay {
@@ -218,6 +224,24 @@ struct ItemsView: View {
             .searchable(text: $query)
             .navigationTitle(String(localized: "tab.items"))
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    EditButton()
+                }
+                if selection.isEmpty == false {
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        Button {
+                            Task { await completeSelected() }
+                        } label: {
+                            Label(String(localized: "itemDetail.markDone"), systemImage: "checkmark.circle")
+                        }
+                        Spacer()
+                        Button(role: .destructive) {
+                            showingBulkDeleteConfirmation = true
+                        } label: {
+                            Label(String(localized: "itemDetail.delete"), systemImage: "trash")
+                        }
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Menu(String(localized: "items.filterByCategory")) {
@@ -276,6 +300,15 @@ struct ItemsView: View {
                     .accessibilityLabel(String(localized: "items.filter"))
                 }
             }
+            .confirmationDialog(
+                String(format: String(localized: "items.deleteSelectedConfirm"), selection.count),
+                isPresented: $showingBulkDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button(String(localized: "itemDetail.delete"), role: .destructive) {
+                    deleteSelected()
+                }
+            }
         }
     }
 
@@ -300,6 +333,26 @@ struct ItemsView: View {
             selectedStatuses.remove(status)
         } else {
             selectedStatuses.insert(status)
+        }
+    }
+
+    private func completeSelected() async {
+        for item in store.items where selection.contains(item.id) {
+            await store.markCompleted(item)
+        }
+        selection = []
+    }
+
+    private func deleteSelected() {
+        // A bulk delete confirms up front instead of offering Undo per item — with several
+        // items at once, store.scheduleDelete's single-item Undo banner would only ever be able
+        // to restore the last one, silently leaving the rest gone.
+        let toDelete = store.items.filter { selection.contains($0.id) }
+        selection = []
+        Task {
+            for item in toDelete {
+                await store.delete(item)
+            }
         }
     }
 }
@@ -359,6 +412,23 @@ struct InsightsView: View {
         DigestEngine().summary(for: store.items).dueThisWeekCount
     }
 
+    /// Grouped by currency, not summed together — adding a USD amount to an ILS amount would
+    /// just be a wrong number dressed up as a real one. Sorted so the display order is stable
+    /// across re-renders instead of following Dictionary's undefined iteration order.
+    private var monthlyTotals: [(currency: String, amount: Decimal)] {
+        let now = Date()
+        let monthEnd = Calendar.current.date(byAdding: .month, value: 1, to: now) ?? now
+        let totals = SpendEngine().totalsByCurrency(for: store.items, from: now, to: monthEnd)
+        return totals.sorted { $0.key < $1.key }.map { (currency: $0.key, amount: $0.value) }
+    }
+
+    private func formatted(_ amount: Decimal, currency: String) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        if currency.isEmpty == false { formatter.currencyCode = currency }
+        return formatter.string(from: amount as NSDecimalNumber) ?? "\(amount)"
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -377,6 +447,15 @@ struct InsightsView: View {
                     Text(upcomingWeekCount.formatted())
                 } label: {
                     Label(String(localized: "insights.dueThisWeek"), systemImage: "calendar.badge.clock")
+                }
+                if monthlyTotals.isEmpty == false {
+                    Section(String(localized: "insights.dueThisMonth")) {
+                        ForEach(monthlyTotals, id: \.currency) { entry in
+                            LabeledContent(entry.currency.isEmpty ? String(localized: "itemDetail.currency.none") : entry.currency) {
+                                Text(formatted(entry.amount, currency: entry.currency))
+                            }
+                        }
+                    }
                 }
             }
             .navigationTitle(String(localized: "tab.insights"))
@@ -458,6 +537,14 @@ struct SettingsView: View {
                         }
                     } label: {
                         Label(String(localized: "settings.exportData"), systemImage: "square.and.arrow.up")
+                    }
+                    Button {
+                        if let url = Self.writeCSVExportFile(items: store.items) {
+                            exportFileURL = url
+                            showingShareSheet = true
+                        }
+                    } label: {
+                        Label(String(localized: "settings.exportCSV"), systemImage: "tablecells")
                     }
                     Button {
                         showingImporter = true
@@ -553,6 +640,17 @@ struct SettingsView: View {
         return url
     }
 
+    /// A spreadsheet a user can actually open and sum in Numbers/Excel/Sheets — the JSON export
+    /// above is a backup format meant for re-import, not for glancing at what you're spending.
+    /// ImportExportEngine.exportCSV already existed but nothing in the app ever called it.
+    private static func writeCSVExportFile(items: [LifeAdminItem]) -> URL? {
+        let csv = ImportExportEngine().exportCSV(items)
+        guard let data = csv.data(using: .utf8) else { return nil }
+        let url = FileManager.default.temporaryDirectory.appending(path: "LifeAdmin-Export-\(Date().ISO8601Format()).csv")
+        guard (try? data.write(to: url)) != nil else { return nil }
+        return url
+    }
+
     private func importFile(at url: URL) async {
         let accessed = url.startAccessingSecurityScopedResource()
         defer { if accessed { url.stopAccessingSecurityScopedResource() } }
@@ -577,6 +675,7 @@ struct AddItemView: View {
     @State private var showingScanner = false
     @State private var pendingAttachments: [Attachment] = []
     @State private var confirmedItem: LifeAdminItem?
+    @State private var confirmedCount: Int?
 
     /// A handful of ready-made examples spanning different categories — tapping one fills the
     /// text box with exactly what to type, so a first-time (or simply overwhelmed) user can see
@@ -618,6 +717,9 @@ struct AddItemView: View {
                                 }
                             }
                         }
+                        Text(String(localized: "add.multiLineHint"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     if FeatureFlags.documentScanningEnabled && VNDocumentCameraViewController.isSupported {
                         Section {
@@ -631,7 +733,7 @@ struct AddItemView: View {
                                     HStack {
                                         ForEach(pendingAttachments) { attachment in
                                             ZStack(alignment: .topTrailing) {
-                                                if let uiImage = UIImage(contentsOfFile: attachment.localPath) {
+                                                if let uiImage = UIImage(contentsOfFile: AttachmentStore.shared.url(for: attachment).path) {
                                                     Image(uiImage: uiImage).resizable().scaledToFill()
                                                         .frame(width: 60, height: 60).clipShape(RoundedRectangle(cornerRadius: 8))
                                                 }
@@ -669,6 +771,10 @@ struct AddItemView: View {
                                     withAnimation { confirmedItem = item }
                                     try? await Task.sleep(for: .seconds(1.2))
                                     dismiss()
+                                case .addedMultiple(let addedItems):
+                                    withAnimation { confirmedCount = addedItems.count }
+                                    try? await Task.sleep(for: .seconds(1.2))
+                                    dismiss()
                                 }
                             }
                         } label: {
@@ -689,6 +795,10 @@ struct AddItemView: View {
                 .overlay(alignment: .bottom) {
                     if let confirmedItem {
                         AddConfirmationBanner(item: confirmedItem)
+                            .padding(.bottom, 12)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    } else if let confirmedCount {
+                        MultiAddConfirmationBanner(count: confirmedCount)
                             .padding(.bottom, 12)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
@@ -736,6 +846,25 @@ private struct AddConfirmationBanner: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            Spacer()
+        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal)
+        .shadow(radius: 4)
+    }
+}
+
+private struct MultiAddConfirmationBanner: View {
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.title2)
+                .foregroundStyle(.green)
+            Text(String(format: String(localized: "add.confirmation.multiple"), count))
+                .font(.headline)
             Spacer()
         }
         .padding()

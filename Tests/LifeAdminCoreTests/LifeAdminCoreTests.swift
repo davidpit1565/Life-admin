@@ -4,7 +4,46 @@ final class LifeAdminCoreTests: XCTestCase {
  func testItemCreationValidation() throws { try ItemValidator().validate(LifeAdminItem(title:"Passport", currency:"EUR")) }
  func testInvalidCurrency() { XCTAssertThrowsError(try ItemValidator().validate(LifeAdminItem(title:"X", currency:"EURO"))) }
  func testPriority() { let due=Date().addingTimeInterval(3600); let i=LifeAdminItem(title:"Passport", category:.documents, dueDate:due, amount:10, currency:"USD", recurrence:.yearly); XCTAssertEqual(PriorityEngine().priority(for:i), .critical) }
- func testReminderCalculation() { let due=Date(timeIntervalSince1970: 86400*100); let i=LifeAdminItem(title:"P", dueDate:due, reminderOffsets:[90,30,7,1]); XCTAssertEqual(ReminderEngine().notificationDates(for:i).count, 4) }
+ func testReminderCalculation() { let due=Date(timeIntervalSince1970: 86400*100); let i=LifeAdminItem(title:"P", dueDate:due, reminderOffsets:[90,30,7,1]); XCTAssertEqual(ReminderEngine().notificationDates(for:i, now: Date(timeIntervalSince1970: 0)).count, 4) }
+ func testSpendTotalsGroupByCurrency() {
+     let from = Date(timeIntervalSince1970: 1_700_000_000)
+     let to = from.addingTimeInterval(86400 * 30)
+     let usd = LifeAdminItem(title: "Rent", dueDate: from.addingTimeInterval(86400), amount: 1200, currency: "USD")
+     let ils = LifeAdminItem(title: "Insurance", dueDate: from.addingTimeInterval(86400 * 2), amount: 300, currency: "ILS")
+     let totals = SpendEngine().totalsByCurrency(for: [usd, ils], from: from, to: to)
+     XCTAssertEqual(totals["USD"], 1200)
+     XCTAssertEqual(totals["ILS"], 300)
+ }
+ func testSpendTotalsSumsSameCurrency() {
+     let from = Date(timeIntervalSince1970: 1_700_000_000)
+     let to = from.addingTimeInterval(86400 * 30)
+     let a = LifeAdminItem(title: "Rent", dueDate: from.addingTimeInterval(86400), amount: 1200, currency: "USD")
+     let b = LifeAdminItem(title: "Gym", dueDate: from.addingTimeInterval(86400 * 3), amount: 40, currency: "USD")
+     let totals = SpendEngine().totalsByCurrency(for: [a, b], from: from, to: to)
+     XCTAssertEqual(totals["USD"], 1240)
+ }
+ func testSpendTotalsExcludeItemsOutsideRangeOrCompletedOrWithoutAmount() {
+     let from = Date(timeIntervalSince1970: 1_700_000_000)
+     let to = from.addingTimeInterval(86400 * 30)
+     var completed = LifeAdminItem(title: "Paid", dueDate: from.addingTimeInterval(86400), amount: 50, currency: "USD")
+     completed.status = .completed
+     let tooLate = LifeAdminItem(title: "Later", dueDate: from.addingTimeInterval(86400 * 60), amount: 50, currency: "USD")
+     let noAmount = LifeAdminItem(title: "No amount", dueDate: from.addingTimeInterval(86400), currency: "USD")
+     let totals = SpendEngine().totalsByCurrency(for: [completed, tooLate, noAmount], from: from, to: to)
+     XCTAssertTrue(totals.isEmpty)
+ }
+ func testReminderOffsetsThatHaveAlreadyElapsedAreNotScheduled() {
+     // A travel item's default offsets are [90, 30, 7, 1] days — due in only 10 days, the 90-
+     // and 30-day-before offsets already landed in the past. A past-dated local notification
+     // trigger fires immediately, so without filtering against `now`, saving this item would
+     // instantly fire two bogus "reminders" for offsets that already elapsed.
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let due = now.addingTimeInterval(86400 * 10)
+     let i = LifeAdminItem(title: "Passport renewal", category: .travel, dueDate: due, reminderOffsets: [90, 30, 7, 1])
+     let dates = ReminderEngine().notificationDates(for: i, now: now)
+     XCTAssertEqual(dates.count, 2)
+     XCTAssertTrue(dates.allSatisfy { $0 > now })
+ }
  func testSearch() { let i=LifeAdminItem(title:"Car Insurance", category:.insurance, amount:840, currency:"EUR"); var f=SearchFilter(); f.query="840"; XCTAssertEqual(SearchEngine().search([i], filter:f).count, 1) }
  func testFiltering() { let i=LifeAdminItem(title:"Netflix", category:.subscriptions, amount:17, currency:"USD"); var f=SearchFilter(); f.categories=[.subscriptions]; f.hasPayment=true; XCTAssertEqual(SearchEngine().search([i], filter:f).count, 1) }
  func testDuplicateDetection() { let d=Date(); let a=LifeAdminItem(title:"Car Insurance", dueDate:d, amount:840); let b=LifeAdminItem(title:"car insurance", dueDate:d.addingTimeInterval(60), amount:840); XCTAssertTrue(DuplicateDetector().isLikelyDuplicate(a,b)) }
@@ -75,6 +114,10 @@ final class LifeAdminCoreTests: XCTestCase {
  func testDateWithNoStatedTimeStaysAtMidnight() { let e = NaturalLanguageParser().parse("Passport renewal March 18"); let components = Calendar.current.dateComponents([.hour, .minute], from: e.date!); XCTAssertEqual(components.hour, 0); XCTAssertEqual(components.minute, 0) }
  func testDrivingTestIsRecognizedAsAnAppointment() { let e = NaturalLanguageParser().parse("Driving test 4 september 11:00 am"); XCTAssertEqual(e.title, "Driving Test"); XCTAssertEqual(e.category, .appointments) }
  func testParserRecognizesShekelWord() { let e = NaturalLanguageParser().parse("ביטוח רכב מתחדש ב-15 באוגוסט, 840 ש״ח"); XCTAssertEqual(e.currency, "ILS") }
+ func testSplitEntriesSingleLineStaysOneEntry() { XCTAssertEqual(NaturalLanguageParser.splitEntries("Rent $1200"), ["Rent $1200"]) }
+ func testSplitEntriesSplitsMultipleLines() { XCTAssertEqual(NaturalLanguageParser.splitEntries("Rent $1200\nGym $40\nNetflix $17"), ["Rent $1200", "Gym $40", "Netflix $17"]) }
+ func testSplitEntriesIgnoresBlankLinesAndTrimsWhitespace() { XCTAssertEqual(NaturalLanguageParser.splitEntries("  Rent $1200  \n\n  Gym $40\n"), ["Rent $1200", "Gym $40"]) }
+ func testSplitEntriesOnEmptyTextReturnsTheTextItself() { XCTAssertEqual(NaturalLanguageParser.splitEntries(""), [""]) }
  func testTomorrowInEnglishIsRecognized() {
      let now = Date(timeIntervalSince1970: 1_700_000_000)
      let e = NaturalLanguageParser().parse("Dentist tomorrow", now: now)
