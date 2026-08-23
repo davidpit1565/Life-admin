@@ -18,9 +18,15 @@ struct NotificationScheduler {
     /// wired up in `NotificationActionHandler`. Registering categories doesn't require
     /// authorization, so this runs every launch regardless of the user's permission choice.
     private func registerActionCategories() {
-        let markDone = UNNotificationAction(identifier: NotificationActionHandler.markDoneIdentifier, title: String(localized: "notification.action.markDone"), options: [])
-        let snooze = UNNotificationAction(identifier: NotificationActionHandler.snoozeIdentifier, title: String(localized: "notification.action.snooze"), options: [])
-        let category = UNNotificationCategory(identifier: NotificationActionHandler.categoryIdentifier, actions: [markDone, snooze], intentIdentifiers: [], options: [])
+        let actions: [UNNotificationAction]
+        if FeatureFlags.notificationActionButtonsEnabled {
+            let markDone = UNNotificationAction(identifier: NotificationActionHandler.markDoneIdentifier, title: String(localized: "notification.action.markDone"), options: [])
+            let snooze = UNNotificationAction(identifier: NotificationActionHandler.snoozeIdentifier, title: String(localized: "notification.action.snooze"), options: [])
+            actions = [markDone, snooze]
+        } else {
+            actions = []
+        }
+        let category = UNNotificationCategory(identifier: NotificationActionHandler.categoryIdentifier, actions: actions, intentIdentifiers: [], options: [])
         center.setNotificationCategories([category])
     }
 
@@ -61,6 +67,7 @@ struct NotificationScheduler {
     /// never nags when there's nothing to say.
     func scheduleDailyDigest(items: [LifeAdminItem], calendar: Calendar = .current, now: Date = Date()) async {
         center.removePendingNotificationRequests(withIdentifiers: [Self.digestIdentifier])
+        guard FeatureFlags.dailyDigestEnabled else { return }
 
         let summary = DigestEngine().summary(for: items, now: now, calendar: calendar)
         guard DigestEngine().shouldNotify(summary) else { return }

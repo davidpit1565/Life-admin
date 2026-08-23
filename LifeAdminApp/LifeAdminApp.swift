@@ -135,7 +135,9 @@ final class ItemStore: ObservableObject {
         )
         item.priority = PriorityEngine().priority(for: item)
         item.attachments = attachments
-        item.tags.append(contentsOf: LifeEventDetector().detectedTags(in: text))
+        if FeatureFlags.moveDetectionEnabled {
+            item.tags.append(contentsOf: LifeEventDetector().detectedTags(in: text))
+        }
         if decision.usedAI {
             ActivityLog.shared.record(String(format: String(localized: "activityLog.aiHelped"), item.title))
         }
@@ -158,7 +160,7 @@ final class ItemStore: ObservableObject {
 
         // A recurring bill mentioned again months later rarely repeats the contact info the user
         // already gave once — carry it forward instead of leaving it blank again.
-        if item.contact == nil, let priorMatch = items.first(where: { $0.title.caseInsensitiveCompare(item.title) == .orderedSame && $0.contact != nil }) {
+        if FeatureFlags.contactContinuityAutoFillEnabled, item.contact == nil, let priorMatch = items.first(where: { $0.title.caseInsensitiveCompare(item.title) == .orderedSame && $0.contact != nil }) {
             item.contact = priorMatch.contact
             ActivityLog.shared.record(String(format: String(localized: "activityLog.contactAutoFilled"), item.title))
         }
