@@ -50,6 +50,7 @@
 "insights.total" = "Total items";
 "insights.urgent" = "Needs attention";
 "insights.dueThisWeek" = "Due this week";
+"insights.dueThisMonth" = "Due this month";
 "editContact.chooseFromContacts" = "Choose from Contacts";
 "itemDetail.details" = "Details";
 "itemDetail.title" = "Title";
@@ -160,4 +161,8 @@
 "activityLog.addressUpdateSent" = "Address update sent for: %@";
 "items.filterByStatus" = "By Status";
 "itemDetail.markDone" = "Mark as Done";
+"itemDetail.snooze" = "Snooze";
+"itemDetail.snooze.1day" = "1 day";
+"itemDetail.snooze.3days" = "3 days";
+"itemDetail.snooze.1week" = "1 week";
 "activityLog.recurrenceCreated" = "Created the next occurrence: %@";

@@ -138,6 +138,24 @@ struct ItemDetailView: View {
                     } label: {
                         Label(String(localized: "itemDetail.markDone"), systemImage: "checkmark.circle.fill")
                     }
+                    // Only meaningful with a due date to push forward — the notification banner's
+                    // own "Snooze" button always adds a fixed 1 day; this gives the same idea a
+                    // few real durations from inside the item itself.
+                    if hasDueDate {
+                        Menu {
+                            ForEach(Self.snoozeOptions) { option in
+                                Button(option.label) {
+                                    Task {
+                                        dueDate = Calendar.current.date(byAdding: .day, value: option.days, to: dueDate) ?? dueDate
+                                        await save()
+                                        dismiss()
+                                    }
+                                }
+                            }
+                        } label: {
+                            Label(String(localized: "itemDetail.snooze"), systemImage: "clock.arrow.circlepath")
+                        }
+                    }
                 }
             }
 
@@ -174,6 +192,14 @@ struct ItemDetailView: View {
     }
 
     private static let commonCurrencyCodes = ["USD", "EUR", "ILS", "GBP"]
+
+    private struct SnoozeOption: Identifiable { let days: Int; let label: String; var id: Int { days } }
+
+    private static let snoozeOptions: [SnoozeOption] = [
+        SnoozeOption(days: 1, label: String(localized: "itemDetail.snooze.1day")),
+        SnoozeOption(days: 3, label: String(localized: "itemDetail.snooze.3days")),
+        SnoozeOption(days: 7, label: String(localized: "itemDetail.snooze.1week"))
+    ]
 
     private var currencyOptions: [String] {
         var options = Self.commonCurrencyCodes

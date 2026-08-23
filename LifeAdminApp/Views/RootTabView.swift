@@ -363,6 +363,23 @@ struct InsightsView: View {
         DigestEngine().summary(for: store.items).dueThisWeekCount
     }
 
+    /// Grouped by currency, not summed together — adding a USD amount to an ILS amount would
+    /// just be a wrong number dressed up as a real one. Sorted so the display order is stable
+    /// across re-renders instead of following Dictionary's undefined iteration order.
+    private var monthlyTotals: [(currency: String, amount: Decimal)] {
+        let now = Date()
+        let monthEnd = Calendar.current.date(byAdding: .month, value: 1, to: now) ?? now
+        let totals = SpendEngine().totalsByCurrency(for: store.items, from: now, to: monthEnd)
+        return totals.sorted { $0.key < $1.key }.map { (currency: $0.key, amount: $0.value) }
+    }
+
+    private func formatted(_ amount: Decimal, currency: String) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        if currency.isEmpty == false { formatter.currencyCode = currency }
+        return formatter.string(from: amount as NSDecimalNumber) ?? "\(amount)"
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -381,6 +398,15 @@ struct InsightsView: View {
                     Text(upcomingWeekCount.formatted())
                 } label: {
                     Label(String(localized: "insights.dueThisWeek"), systemImage: "calendar.badge.clock")
+                }
+                if monthlyTotals.isEmpty == false {
+                    Section(String(localized: "insights.dueThisMonth")) {
+                        ForEach(monthlyTotals, id: \.currency) { entry in
+                            LabeledContent(entry.currency.isEmpty ? String(localized: "itemDetail.currency.none") : entry.currency) {
+                                Text(formatted(entry.amount, currency: entry.currency))
+                            }
+                        }
+                    }
                 }
             }
             .navigationTitle(String(localized: "tab.insights"))

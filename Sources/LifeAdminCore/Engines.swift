@@ -70,6 +70,23 @@ public struct DigestEngine: Sendable {
         summary.overdueCount > 0 || summary.dueTodayCount > 0
     }
 }
+public struct SpendEngine: Sendable {
+    public init() {}
+
+    /// Total amount per currency for active items due within `[from, to]` — kept as separate
+    /// per-currency totals rather than one summed number, since adding a USD amount to an ILS
+    /// amount would just be a wrong number dressed up as a real one.
+    public func totalsByCurrency(for items: [LifeAdminItem], from: Date, to: Date) -> [String: Decimal] {
+        var totals: [String: Decimal] = [:]
+        for item in items {
+            guard item.status == .active, let amount = item.amount, let due = item.dueDate else { continue }
+            guard due >= from, due <= to else { continue }
+            let currency = item.currency ?? ""
+            totals[currency, default: 0] += amount
+        }
+        return totals
+    }
+}
 public struct RecurrenceEngine: Sendable {
     public init() {}
 

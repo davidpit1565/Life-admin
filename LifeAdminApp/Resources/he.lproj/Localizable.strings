@@ -50,6 +50,7 @@
 "insights.total" = "סך הפריטים";
 "insights.urgent" = "דורש תשומת לב";
 "insights.dueThisWeek" = "מתאריך השבוע";
+"insights.dueThisMonth" = "לתשלום החודש";
 "editContact.chooseFromContacts" = "בחר מאנשי הקשר";
 "itemDetail.details" = "פרטים";
 "itemDetail.title" = "כותרת";
@@ -160,4 +161,8 @@
 "activityLog.addressUpdateSent" = "עדכון כתובת נשלח עבור: %@";
 "items.filterByStatus" = "לפי סטטוס";
 "itemDetail.markDone" = "סמן כבוצע";
+"itemDetail.snooze" = "הזכר לי מאוחר יותר";
+"itemDetail.snooze.1day" = "יום אחד";
+"itemDetail.snooze.3days" = "3 ימים";
+"itemDetail.snooze.1week" = "שבוע";
 "activityLog.recurrenceCreated" = "נוצרה הפעם הבאה של פריט חזרתי: %@";

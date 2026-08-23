@@ -5,6 +5,33 @@ final class LifeAdminCoreTests: XCTestCase {
  func testInvalidCurrency() { XCTAssertThrowsError(try ItemValidator().validate(LifeAdminItem(title:"X", currency:"EURO"))) }
  func testPriority() { let due=Date().addingTimeInterval(3600); let i=LifeAdminItem(title:"Passport", category:.documents, dueDate:due, amount:10, currency:"USD", recurrence:.yearly); XCTAssertEqual(PriorityEngine().priority(for:i), .critical) }
  func testReminderCalculation() { let due=Date(timeIntervalSince1970: 86400*100); let i=LifeAdminItem(title:"P", dueDate:due, reminderOffsets:[90,30,7,1]); XCTAssertEqual(ReminderEngine().notificationDates(for:i, now: Date(timeIntervalSince1970: 0)).count, 4) }
+ func testSpendTotalsGroupByCurrency() {
+     let from = Date(timeIntervalSince1970: 1_700_000_000)
+     let to = from.addingTimeInterval(86400 * 30)
+     let usd = LifeAdminItem(title: "Rent", dueDate: from.addingTimeInterval(86400), amount: 1200, currency: "USD")
+     let ils = LifeAdminItem(title: "Insurance", dueDate: from.addingTimeInterval(86400 * 2), amount: 300, currency: "ILS")
+     let totals = SpendEngine().totalsByCurrency(for: [usd, ils], from: from, to: to)
+     XCTAssertEqual(totals["USD"], 1200)
+     XCTAssertEqual(totals["ILS"], 300)
+ }
+ func testSpendTotalsSumsSameCurrency() {
+     let from = Date(timeIntervalSince1970: 1_700_000_000)
+     let to = from.addingTimeInterval(86400 * 30)
+     let a = LifeAdminItem(title: "Rent", dueDate: from.addingTimeInterval(86400), amount: 1200, currency: "USD")
+     let b = LifeAdminItem(title: "Gym", dueDate: from.addingTimeInterval(86400 * 3), amount: 40, currency: "USD")
+     let totals = SpendEngine().totalsByCurrency(for: [a, b], from: from, to: to)
+     XCTAssertEqual(totals["USD"], 1240)
+ }
+ func testSpendTotalsExcludeItemsOutsideRangeOrCompletedOrWithoutAmount() {
+     let from = Date(timeIntervalSince1970: 1_700_000_000)
+     let to = from.addingTimeInterval(86400 * 30)
+     var completed = LifeAdminItem(title: "Paid", dueDate: from.addingTimeInterval(86400), amount: 50, currency: "USD")
+     completed.status = .completed
+     let tooLate = LifeAdminItem(title: "Later", dueDate: from.addingTimeInterval(86400 * 60), amount: 50, currency: "USD")
+     let noAmount = LifeAdminItem(title: "No amount", dueDate: from.addingTimeInterval(86400), currency: "USD")
+     let totals = SpendEngine().totalsByCurrency(for: [completed, tooLate, noAmount], from: from, to: to)
+     XCTAssertTrue(totals.isEmpty)
+ }
  func testReminderOffsetsThatHaveAlreadyElapsedAreNotScheduled() {
      // A travel item's default offsets are [90, 30, 7, 1] days — due in only 10 days, the 90-
      // and 30-day-before offsets already landed in the past. A past-dated local notification

@@ -161,3 +161,8 @@
 "add.confirmation.multiple" = "%d items added";
 "add.multiLineHint" = "Tip: put each item on its own line to add several at once.";
 "settings.exportCSV" = "Export as Spreadsheet (CSV)";
+"insights.dueThisMonth" = "Due this month";
+"itemDetail.snooze" = "Snooze";
+"itemDetail.snooze.1day" = "1 day";
+"itemDetail.snooze.3days" = "3 days";
+"itemDetail.snooze.1week" = "1 week";
