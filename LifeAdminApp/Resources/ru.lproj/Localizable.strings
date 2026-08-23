@@ -174,3 +174,12 @@
 "items.filterByDate.thisWeek" = "Due this week";
 "items.filterByDate.thisMonth" = "Due this month";
 "add.removeAttachment" = "Remove %@";
+"insights.dueThisMonth.none" = "Nothing with an amount and a due date this month";
+"appLock.toggle" = "Require Face ID / Passcode";
+"appLock.reason" = "Unlock Life Admin";
+"appLock.title" = "Life Admin is locked";
+"appLock.unlock" = "Unlock";
+"items.sort" = "Sort";
+"items.sort.dueDate" = "Due Date";
+"items.sort.alphabetical" = "Alphabetical";
+"items.sort.amount" = "Amount";

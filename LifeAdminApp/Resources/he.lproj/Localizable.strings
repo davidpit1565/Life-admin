@@ -28,6 +28,10 @@
 "settings.importSucceeded" = "יובאו %d פריטים.";
 "settings.importNothingNew" = "אין מה לייבא — כל מה שבקובץ הזה כבר קיים באפליקציה.";
 "settings.deleteAIData" = "מחק נתוני AI";
+"appLock.toggle" = "דרוש Face ID / קוד נעילה";
+"appLock.reason" = "פתיחת Life Admin";
+"appLock.title" = "Life Admin נעולה";
+"appLock.unlock" = "פתח";
 "common.save" = "שמור";
 "item.untitled" = "פריט ללא כותרת";
 "settings.addressChange" = "שינוי כתובת";
@@ -51,6 +55,7 @@
 "insights.urgent" = "דורש תשומת לב";
 "insights.dueThisWeek" = "מתאריך השבוע";
 "insights.dueThisMonth" = "לתשלום החודש";
+"insights.dueThisMonth.none" = "אין שום דבר עם סכום ותאריך יעד החודש";
 "editContact.chooseFromContacts" = "בחר מאנשי הקשר";
 "itemDetail.details" = "פרטים";
 "itemDetail.title" = "כותרת";
@@ -149,6 +154,10 @@
 "settings.language.later" = "מאוחר יותר";
 "notification.digestBodyWithTopItem" = "%@ · הכי דחוף: %@";
 "items.filter" = "סינון";
+"items.sort" = "מיון";
+"items.sort.dueDate" = "תאריך יעד";
+"items.sort.alphabetical" = "אלפביתי";
+"items.sort.amount" = "סכום";
 "items.filterByCategory" = "לפי קטגוריה";
 "items.filterByDate" = "לפי תאריך יעד";
 "items.filterByDate.overdue" = "פג תוקף";

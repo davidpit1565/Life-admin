@@ -28,6 +28,10 @@
 "settings.importSucceeded" = "%d élément(s) importé(s).";
 "settings.importNothingNew" = "Rien de nouveau à importer — tout ce fichier est déjà présent ici.";
 "settings.deleteAIData" = "Supprimer les données d'IA";
+"appLock.toggle" = "Exiger Face ID / code d'accès";
+"appLock.reason" = "Déverrouiller Life Admin";
+"appLock.title" = "Life Admin est verrouillée";
+"appLock.unlock" = "Déverrouiller";
 "common.save" = "Enregistrer";
 "item.untitled" = "Élément sans titre";
 "settings.addressChange" = "Changement d'adresse";
@@ -51,6 +55,7 @@
 "insights.urgent" = "Nécessite une attention";
 "insights.dueThisWeek" = "À échéance cette semaine";
 "insights.dueThisMonth" = "À échéance ce mois-ci";
+"insights.dueThisMonth.none" = "Rien avec un montant et une date d'échéance ce mois-ci";
 "editContact.chooseFromContacts" = "Choisir dans Contacts";
 "itemDetail.details" = "Détails";
 "itemDetail.title" = "Titre";
@@ -149,6 +154,10 @@
 "settings.language.later" = "Plus tard";
 "notification.digestBodyWithTopItem" = "%@ · Le plus urgent : %@";
 "items.filter" = "Filtre";
+"items.sort" = "Trier";
+"items.sort.dueDate" = "Date d'échéance";
+"items.sort.alphabetical" = "Alphabétique";
+"items.sort.amount" = "Montant";
 "items.filterByCategory" = "Par catégorie";
 "items.filterByDate" = "Par date d'échéance";
 "items.filterByDate.overdue" = "En retard";

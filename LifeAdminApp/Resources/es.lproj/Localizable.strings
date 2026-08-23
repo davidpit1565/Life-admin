@@ -28,6 +28,10 @@
 "settings.importSucceeded" = "Se importaron %d elemento(s).";
 "settings.importNothingNew" = "Nada nuevo para importar — todo lo de ese archivo ya está aquí.";
 "settings.deleteAIData" = "Eliminar datos de IA";
+"appLock.toggle" = "Requerir Face ID / código de acceso";
+"appLock.reason" = "Desbloquear Life Admin";
+"appLock.title" = "Life Admin está bloqueada";
+"appLock.unlock" = "Desbloquear";
 "common.save" = "Guardar";
 "item.untitled" = "Elemento sin título";
 "settings.addressChange" = "Cambio de dirección";
@@ -51,6 +55,7 @@
 "insights.urgent" = "Requiere atención";
 "insights.dueThisWeek" = "Vence esta semana";
 "insights.dueThisMonth" = "Vence este mes";
+"insights.dueThisMonth.none" = "Nada con un importe y fecha límite este mes";
 "editContact.chooseFromContacts" = "Elegir de Contactos";
 "itemDetail.details" = "Detalles";
 "itemDetail.title" = "Título";
@@ -149,6 +154,10 @@
 "settings.language.later" = "Más tarde";
 "notification.digestBodyWithTopItem" = "%@ · Más urgente: %@";
 "items.filter" = "Filtro";
+"items.sort" = "Ordenar";
+"items.sort.dueDate" = "Fecha límite";
+"items.sort.alphabetical" = "Alfabético";
+"items.sort.amount" = "Importe";
 "items.filterByCategory" = "Por categoría";
 "items.filterByDate" = "Por fecha límite";
 "items.filterByDate.overdue" = "Vencidos";

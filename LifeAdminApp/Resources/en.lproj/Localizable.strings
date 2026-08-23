@@ -28,6 +28,10 @@
 "settings.importSucceeded" = "Imported %d item(s).";
 "settings.importNothingNew" = "Nothing new to import — everything in that file is already here.";
 "settings.deleteAIData" = "Delete AI data";
+"appLock.toggle" = "Require Face ID / Passcode";
+"appLock.reason" = "Unlock Life Admin";
+"appLock.title" = "Life Admin is locked";
+"appLock.unlock" = "Unlock";
 "common.save" = "Save";
 "item.untitled" = "Untitled item";
 "settings.addressChange" = "Change of Address";
@@ -51,6 +55,7 @@
 "insights.urgent" = "Needs attention";
 "insights.dueThisWeek" = "Due this week";
 "insights.dueThisMonth" = "Due this month";
+"insights.dueThisMonth.none" = "Nothing with an amount and a due date this month";
 "editContact.chooseFromContacts" = "Choose from Contacts";
 "itemDetail.details" = "Details";
 "itemDetail.title" = "Title";
@@ -149,6 +154,10 @@
 "settings.language.later" = "Later";
 "notification.digestBodyWithTopItem" = "%@ · Most urgent: %@";
 "items.filter" = "Filter";
+"items.sort" = "Sort";
+"items.sort.dueDate" = "Due Date";
+"items.sort.alphabetical" = "Alphabetical";
+"items.sort.amount" = "Amount";
 "items.filterByCategory" = "By Category";
 "items.filterByDate" = "By Due Date";
 "items.filterByDate.overdue" = "Overdue";
