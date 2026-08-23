@@ -15,15 +15,32 @@ struct AttachmentStore {
         return dir
     }
 
+    /// Apple's own documentation for the app's container directory warns the exact path can
+    /// change between launches — most concretely, restoring a backup to a new phone gets a new
+    /// container UUID even though the SwiftData row (and the file itself) both come along fine.
+    /// An `Attachment` saved with today's absolute path would silently point at nothing after
+    /// that, showing a generic file icon forever with the real image sitting unreachable on disk.
+    /// Resolving the URL fresh from just the filename survives that; `lastPathComponent` also
+    /// makes this tolerant of an `Attachment` saved before this fix, which does store the old
+    /// full path.
+    func url(for attachment: Attachment) -> URL {
+        directory.appending(path: (attachment.localPath as NSString).lastPathComponent)
+    }
+
+    func exists(_ attachment: Attachment) -> Bool {
+        FileManager.default.fileExists(atPath: url(for: attachment).path)
+    }
+
     func saveJPEG(_ image: UIImage, filename: String) -> Attachment? {
         guard let data = image.jpegData(compressionQuality: 0.7) else { return nil }
         let id = UUID()
-        let url = directory.appending(path: "\(id.uuidString).jpg")
+        let storedFilename = "\(id.uuidString).jpg"
+        let url = directory.appending(path: storedFilename)
         guard (try? data.write(to: url)) != nil else { return nil }
-        return Attachment(id: id, filename: filename, mimeType: "image/jpeg", sizeBytes: data.count, localPath: url.path)
+        return Attachment(id: id, filename: filename, mimeType: "image/jpeg", sizeBytes: data.count, localPath: storedFilename)
     }
 
     func delete(_ attachment: Attachment) {
-        try? FileManager.default.removeItem(atPath: attachment.localPath)
+        try? FileManager.default.removeItem(at: url(for: attachment))
     }
 }

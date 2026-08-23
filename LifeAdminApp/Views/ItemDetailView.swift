@@ -112,7 +112,7 @@ struct ItemDetailView: View {
                 Section(String(localized: "itemDetail.attachments")) {
                     ForEach(attachments) { attachment in
                         HStack {
-                            if let uiImage = UIImage(contentsOfFile: attachment.localPath) {
+                            if let uiImage = UIImage(contentsOfFile: AttachmentStore.shared.url(for: attachment).path) {
                                 Image(uiImage: uiImage).resizable().scaledToFill()
                                     .frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 6))
                             } else {

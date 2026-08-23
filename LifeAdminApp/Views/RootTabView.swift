@@ -631,7 +631,7 @@ struct AddItemView: View {
                                     HStack {
                                         ForEach(pendingAttachments) { attachment in
                                             ZStack(alignment: .topTrailing) {
-                                                if let uiImage = UIImage(contentsOfFile: attachment.localPath) {
+                                                if let uiImage = UIImage(contentsOfFile: AttachmentStore.shared.url(for: attachment).path) {
                                                     Image(uiImage: uiImage).resizable().scaledToFill()
                                                         .frame(width: 60, height: 60).clipShape(RoundedRectangle(cornerRadius: 8))
                                                 }

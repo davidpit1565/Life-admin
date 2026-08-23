@@ -302,11 +302,12 @@ final class ItemStore: ObservableObject {
         await NotificationScheduler.shared.requestAuthorizationIfNeeded()
         await CalendarSyncService.shared.requestAuthorizationIfNeeded()
         for var item in newItems {
-            // An attachment's `localPath` points inside this specific install's sandbox
-            // container — a backup restored on a new phone (or a fresh reinstall, which gets a
-            // new container) can never have that file. Keeping the reference would leave a
-            // permanently-broken row with no way for the user to know why it never loads.
-            item.attachments = item.attachments.filter { FileManager.default.fileExists(atPath: $0.localPath) }
+            // A JSON export carries only the attachment's metadata, never the file bytes — an
+            // item imported on a different install can never actually have that file (unlike an
+            // OS-level backup restore, which AttachmentStore.url(for:) already handles). Keeping
+            // the reference would leave a permanently-broken row with no way to know why it never
+            // loads.
+            item.attachments = item.attachments.filter { AttachmentStore.shared.exists($0) }
             let persisted = PersistedItem(item: item)
             modelContext.insert(persisted)
             items.insert(item, at: 0)
