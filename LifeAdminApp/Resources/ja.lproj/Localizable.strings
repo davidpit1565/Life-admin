@@ -166,3 +166,4 @@
 "itemDetail.snooze.1day" = "1 day";
 "itemDetail.snooze.3days" = "3 days";
 "itemDetail.snooze.1week" = "1 week";
+"items.deleteSelectedConfirm" = "Delete %d items? This also removes their calendar events and reminders.";

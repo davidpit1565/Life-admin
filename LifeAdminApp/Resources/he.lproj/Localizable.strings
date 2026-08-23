@@ -101,6 +101,7 @@
 "itemDetail.attachments" = "קבצים מצורפים";
 "itemDetail.delete" = "מחק פריט";
 "itemDetail.deleteConfirm" = "למחוק את הפריט הזה? זה יסיר גם את האירוע ביומן ואת התזכורת שלו.";
+"items.deleteSelectedConfirm" = "למחוק %d פריטים? זה יסיר גם את האירועים ביומן והתזכורות שלהם.";
 "calendar.noItemsThisDay" = "שום דבר לא מתוכנן ליום הזה";
 "notification.digestTitle" = "העדיפויות של היום";
 "notification.digestOverdue" = "יש %d פריטים שעבר תאריכם";

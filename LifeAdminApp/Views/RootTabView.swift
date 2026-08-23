@@ -176,6 +176,8 @@ struct ItemsView: View {
     @State private var selectedCategories: Set<LifeCategory> = []
     @State private var selectedPriorities: Set<Priority> = []
     @State private var selectedStatuses: Set<ItemStatus> = []
+    @State private var selection = Set<UUID>()
+    @State private var showingBulkDeleteConfirmation = false
 
     private var filteredItems: [LifeAdminItem] {
         var filter = SearchFilter()
@@ -198,7 +200,7 @@ struct ItemsView: View {
 
     var body: some View {
         NavigationStack {
-            List(filteredItems) { item in
+            List(filteredItems, selection: $selection) { item in
                 ItemRowLink(item: item)
             }
             .overlay {
@@ -222,6 +224,24 @@ struct ItemsView: View {
             .searchable(text: $query)
             .navigationTitle(String(localized: "tab.items"))
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    EditButton()
+                }
+                if selection.isEmpty == false {
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        Button {
+                            Task { await completeSelected() }
+                        } label: {
+                            Label(String(localized: "itemDetail.markDone"), systemImage: "checkmark.circle")
+                        }
+                        Spacer()
+                        Button(role: .destructive) {
+                            showingBulkDeleteConfirmation = true
+                        } label: {
+                            Label(String(localized: "itemDetail.delete"), systemImage: "trash")
+                        }
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Menu(String(localized: "items.filterByCategory")) {
@@ -280,6 +300,15 @@ struct ItemsView: View {
                     .accessibilityLabel(String(localized: "items.filter"))
                 }
             }
+            .confirmationDialog(
+                String(format: String(localized: "items.deleteSelectedConfirm"), selection.count),
+                isPresented: $showingBulkDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button(String(localized: "itemDetail.delete"), role: .destructive) {
+                    deleteSelected()
+                }
+            }
         }
     }
 
@@ -304,6 +333,26 @@ struct ItemsView: View {
             selectedStatuses.remove(status)
         } else {
             selectedStatuses.insert(status)
+        }
+    }
+
+    private func completeSelected() async {
+        for item in store.items where selection.contains(item.id) {
+            await store.markCompleted(item)
+        }
+        selection = []
+    }
+
+    private func deleteSelected() {
+        // A bulk delete confirms up front instead of offering Undo per item — with several
+        // items at once, store.scheduleDelete's single-item Undo banner would only ever be able
+        // to restore the last one, silently leaving the rest gone.
+        let toDelete = store.items.filter { selection.contains($0.id) }
+        selection = []
+        Task {
+            for item in toDelete {
+                await store.delete(item)
+            }
         }
     }
 }

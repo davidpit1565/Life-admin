@@ -101,6 +101,7 @@
 "itemDetail.attachments" = "Attachments";
 "itemDetail.delete" = "Delete Item";
 "itemDetail.deleteConfirm" = "Delete this item? This also removes its calendar event and reminder.";
+"items.deleteSelectedConfirm" = "Delete %d items? This also removes their calendar events and reminders.";
 "calendar.noItemsThisDay" = "Nothing due on this day";
 "notification.digestTitle" = "Today's priorities";
 "notification.digestOverdue" = "%d item(s) are overdue";
