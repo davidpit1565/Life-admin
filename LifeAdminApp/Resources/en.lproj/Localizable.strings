@@ -149,6 +149,10 @@
 "notification.digestBodyWithTopItem" = "%@ · Most urgent: %@";
 "items.filter" = "Filter";
 "items.filterByCategory" = "By Category";
+"items.filterByDate" = "By Due Date";
+"items.filterByDate.overdue" = "Overdue";
+"items.filterByDate.thisWeek" = "Due this week";
+"items.filterByDate.thisMonth" = "Due this month";
 "items.filterByPriority" = "By Priority";
 "items.clearFilters" = "Clear Filters";
 "items.noFilterMatches" = "No items match this filter";

@@ -46,6 +46,23 @@ final class LifeAdminCoreTests: XCTestCase {
  }
  func testSearch() { let i=LifeAdminItem(title:"Car Insurance", category:.insurance, amount:840, currency:"EUR"); var f=SearchFilter(); f.query="840"; XCTAssertEqual(SearchEngine().search([i], filter:f).count, 1) }
  func testFiltering() { let i=LifeAdminItem(title:"Netflix", category:.subscriptions, amount:17, currency:"USD"); var f=SearchFilter(); f.categories=[.subscriptions]; f.hasPayment=true; XCTAssertEqual(SearchEngine().search([i], filter:f).count, 1) }
+ func testFilteringByDueDateRangeIncludesItemsInRange() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let inRange = LifeAdminItem(title: "Rent", dueDate: now.addingTimeInterval(86400 * 3))
+     var f = SearchFilter()
+     f.dueFrom = now
+     f.dueTo = now.addingTimeInterval(86400 * 7)
+     XCTAssertEqual(SearchEngine().search([inRange], filter: f).count, 1)
+ }
+ func testFilteringByDueDateRangeExcludesItemsOutsideRangeOrWithNoDueDate() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let tooLate = LifeAdminItem(title: "Later", dueDate: now.addingTimeInterval(86400 * 30))
+     let noDueDate = LifeAdminItem(title: "No date")
+     var f = SearchFilter()
+     f.dueFrom = now
+     f.dueTo = now.addingTimeInterval(86400 * 7)
+     XCTAssertTrue(SearchEngine().search([tooLate, noDueDate], filter: f).isEmpty)
+ }
  func testDuplicateDetection() { let d=Date(); let a=LifeAdminItem(title:"Car Insurance", dueDate:d, amount:840); let b=LifeAdminItem(title:"car insurance", dueDate:d.addingTimeInterval(60), amount:840); XCTAssertTrue(DuplicateDetector().isLikelyDuplicate(a,b)) }
  func testImportExport() throws { let e=ImportExportEngine(); let data=try e.exportJSON([LifeAdminItem(title:"Gym")]); XCTAssertEqual(try e.importJSON(data).first?.title, "Gym") }
  func testCSVExport() { XCTAssertTrue(ImportExportEngine().exportCSV([LifeAdminItem(title:"Gym")]).contains("Title")) }

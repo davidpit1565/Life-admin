@@ -149,6 +149,10 @@
 "notification.digestBodyWithTopItem" = "%@ · הכי דחוף: %@";
 "items.filter" = "סינון";
 "items.filterByCategory" = "לפי קטגוריה";
+"items.filterByDate" = "לפי תאריך יעד";
+"items.filterByDate.overdue" = "פג תוקף";
+"items.filterByDate.thisWeek" = "לתשלום השבוע";
+"items.filterByDate.thisMonth" = "לתשלום החודש";
 "items.filterByPriority" = "לפי עדיפות";
 "items.clearFilters" = "נקה סינון";
 "items.noFilterMatches" = "אין פריטים שמתאימים לסינון הזה";

@@ -170,12 +170,35 @@ private struct ItemRowLink: View {
         }
     }
 }
+private enum DateRangeFilter: String, CaseIterable {
+    case overdue, thisWeek, thisMonth
+
+    var localizedLabel: String {
+        switch self {
+        case .overdue: return String(localized: "items.filterByDate.overdue")
+        case .thisWeek: return String(localized: "items.filterByDate.thisWeek")
+        case .thisMonth: return String(localized: "items.filterByDate.thisMonth")
+        }
+    }
+
+    /// `nil` bounds are deliberately open-ended: "overdue" has no lower bound (anything, no
+    /// matter how old), and none of these need an upper bound below distantFuture.
+    func bounds(now: Date, calendar: Calendar) -> (from: Date?, to: Date?) {
+        switch self {
+        case .overdue: return (nil, calendar.startOfDay(for: now))
+        case .thisWeek: return (now, calendar.date(byAdding: .day, value: 7, to: now))
+        case .thisMonth: return (now, calendar.date(byAdding: .month, value: 1, to: now))
+        }
+    }
+}
+
 struct ItemsView: View {
     @EnvironmentObject var store: ItemStore
     @State private var query = ""
     @State private var selectedCategories: Set<LifeCategory> = []
     @State private var selectedPriorities: Set<Priority> = []
     @State private var selectedStatuses: Set<ItemStatus> = []
+    @State private var dateRangeFilter: DateRangeFilter?
     @State private var selection = Set<UUID>()
     @State private var showingBulkDeleteConfirmation = false
 
@@ -187,6 +210,11 @@ struct ItemsView: View {
         // Default to active-only — a completed/archived item shouldn't clutter the everyday list
         // unless the user explicitly asks to see it via the status filter.
         filter.statuses = selectedStatuses.isEmpty ? [.active] : selectedStatuses
+        if let dateRangeFilter {
+            let bounds = dateRangeFilter.bounds(now: Date(), calendar: .current)
+            filter.dueFrom = bounds.from
+            filter.dueTo = bounds.to
+        }
         // SearchEngine only filters — without sorting here too, this list showed items in
         // whatever order they were created, not by what's actually coming up next, unlike Home's
         // own "upcoming" list right next to it.
@@ -195,7 +223,7 @@ struct ItemsView: View {
     }
 
     private var hasActiveFilters: Bool {
-        selectedCategories.isEmpty == false || selectedPriorities.isEmpty == false || selectedStatuses.isEmpty == false
+        selectedCategories.isEmpty == false || selectedPriorities.isEmpty == false || selectedStatuses.isEmpty == false || dateRangeFilter != nil
     }
 
     var body: some View {
@@ -257,6 +285,19 @@ struct ItemsView: View {
                                 }
                             }
                         }
+                        Menu(String(localized: "items.filterByDate")) {
+                            ForEach(DateRangeFilter.allCases, id: \.self) { range in
+                                Button {
+                                    dateRangeFilter = dateRangeFilter == range ? nil : range
+                                } label: {
+                                    if dateRangeFilter == range {
+                                        Label(range.localizedLabel, systemImage: "checkmark")
+                                    } else {
+                                        Text(range.localizedLabel)
+                                    }
+                                }
+                            }
+                        }
                         Menu(String(localized: "items.filterByPriority")) {
                             ForEach(Priority.allCases, id: \.self) { priority in
                                 Button {
@@ -292,6 +333,7 @@ struct ItemsView: View {
                                 selectedCategories = []
                                 selectedPriorities = []
                                 selectedStatuses = []
+                                dateRangeFilter = nil
                             }
                         }
                     } label: {

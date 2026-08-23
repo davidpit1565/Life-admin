@@ -169,3 +169,7 @@
 "items.deleteSelectedConfirm" = "Delete %d items? This also removes their calendar events and reminders.";
 "itemDetail.recurrence.preview" = "Next occurrences";
 "add.confirmation.merged" = "Updated existing item";
+"items.filterByDate" = "By Due Date";
+"items.filterByDate.overdue" = "Overdue";
+"items.filterByDate.thisWeek" = "Due this week";
+"items.filterByDate.thisMonth" = "Due this month";
