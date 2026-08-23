@@ -173,3 +173,4 @@
 "items.filterByDate.overdue" = "Overdue";
 "items.filterByDate.thisWeek" = "Due this week";
 "items.filterByDate.thisMonth" = "Due this month";
+"add.removeAttachment" = "Remove %@";

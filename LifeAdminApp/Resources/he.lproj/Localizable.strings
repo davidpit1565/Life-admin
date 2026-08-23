@@ -127,6 +127,7 @@
 "settings.aiAutonomy.off.description" = "שום דבר לא נשלח ל-AI — נעשה שימוש רק בזיהוי בסיסי על המכשיר.";
 "add.scanDocument" = "סרוק מסמך";
 "add.scannedPageFilename" = "עמוד סרוק %d";
+"add.removeAttachment" = "הסר %@";
 "add.confirmation.label" = "נוסף";
 "add.confirmation.merged" = "עודכן פריט קיים";
 "add.confirmation.multiple" = "נוספו %d פריטים";

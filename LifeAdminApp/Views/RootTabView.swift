@@ -785,7 +785,9 @@ struct AddItemView: View {
                                                     pendingAttachments.removeAll { $0.id == attachment.id }
                                                 } label: {
                                                     Image(systemName: "xmark.circle.fill").foregroundStyle(.white, .black.opacity(0.6))
-                                                }.offset(x: 6, y: -6)
+                                                }
+                                                .accessibilityLabel(String(format: String(localized: "add.removeAttachment"), attachment.filename))
+                                                .offset(x: 6, y: -6)
                                             }
                                         }
                                     }

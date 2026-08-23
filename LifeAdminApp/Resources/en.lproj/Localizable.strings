@@ -127,6 +127,7 @@
 "settings.aiAutonomy.off.description" = "Nothing is ever sent to AI — only basic on-device recognition is used.";
 "add.scanDocument" = "Scan a Document";
 "add.scannedPageFilename" = "Scanned Page %d";
+"add.removeAttachment" = "Remove %@";
 "add.confirmation.label" = "Added";
 "add.confirmation.merged" = "Updated existing item";
 "add.confirmation.multiple" = "%d items added";
