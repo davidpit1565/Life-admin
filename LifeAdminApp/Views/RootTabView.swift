@@ -526,12 +526,12 @@ struct SettingsView: View {
             Form {
                 Section(String(localized: "settings.general")) {
                     // Offering all 14 SupportedLanguage cases here would be worse than offering
-                    // none: only .en, .he, and .es have real translations, the other 10 locale
-                    // files are English-placeholder copies (lower priority, no clear audience yet)
-                    // — picking "Français" and landing on English text now that switching
-                    // actually works (see below) would read as broken, not just untranslated.
+                    // none: only .en, .he, .es, and .fr have real translations, the other 9
+                    // locale files are English-placeholder copies (lower priority, no clear
+                    // audience yet) — picking a language that lands on English text now that
+                    // switching actually works (see below) would read as broken, not untranslated.
                     Picker(String(localized: "settings.language"), selection: $language) {
-                        ForEach([SupportedLanguage.system, .en, .he, .es], id: \.rawValue) {
+                        ForEach([SupportedLanguage.system, .en, .he, .es, .fr], id: \.rawValue) {
                             Text(displayName(for: $0)).tag($0.rawValue)
                         }
                     }
