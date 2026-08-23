@@ -51,6 +51,7 @@
 "insights.urgent" = "Nécessite une attention";
 "insights.dueThisWeek" = "À échéance cette semaine";
 "insights.dueThisMonth" = "À échéance ce mois-ci";
+"insights.dueThisMonth.none" = "Rien avec un montant et une date d'échéance ce mois-ci";
 "editContact.chooseFromContacts" = "Choisir dans Contacts";
 "itemDetail.details" = "Détails";
 "itemDetail.title" = "Titre";

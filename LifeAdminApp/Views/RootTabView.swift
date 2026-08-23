@@ -137,6 +137,12 @@ struct HomeView: View {
                 }
             }
             .navigationTitle(String(localized: "app.name"))
+            // The floating "+" button lives in an .overlay on the shared TabView, positioned by
+            // padding alone — it has no idea how tall this List's own content is, so without this
+            // the last row (or, worse, empty-state text) can render right behind it. Reserving
+            // real bottom space in the scroll content, rather than just visually floating the
+            // button on top, is what actually guarantees no overlap on any device.
+            .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 80) }
         }
     }
 }
@@ -251,6 +257,10 @@ struct ItemsView: View {
             }
             .searchable(text: $query)
             .navigationTitle(String(localized: "tab.items"))
+            // See HomeView's identical modifier — reserves real space so the floating "+" button
+            // (positioned by an .overlay on the shared TabView) can't render on top of this list's
+            // own last row or empty-state text.
+            .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 80) }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     EditButton()
@@ -435,6 +445,10 @@ struct CalendarView: View {
                         }
                     }
                 }
+                // See HomeView's identical modifier — without it, the floating "+" button (an
+                // .overlay on the shared TabView, unaware of this List's own content) rendered
+                // directly on top of "Nothing due on this day", confirmed on-device.
+                .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 80) }
             }
             .navigationTitle(String(localized: "tab.calendar"))
         }
@@ -490,8 +504,15 @@ struct InsightsView: View {
                 } label: {
                     Label(String(localized: "insights.dueThisWeek"), systemImage: "calendar.badge.clock")
                 }
-                if monthlyTotals.isEmpty == false {
-                    Section(String(localized: "insights.dueThisMonth")) {
+                // Hiding this section entirely whenever nothing has both an amount and a due
+                // date this month looked exactly like the feature didn't exist at all, rather
+                // than like it correctly found nothing to total — showing it with an explicit
+                // zero removes that ambiguity.
+                Section(String(localized: "insights.dueThisMonth")) {
+                    if monthlyTotals.isEmpty {
+                        Text(String(localized: "insights.dueThisMonth.none"))
+                            .foregroundStyle(.secondary)
+                    } else {
                         ForEach(monthlyTotals, id: \.currency) { entry in
                             LabeledContent(entry.currency.isEmpty ? String(localized: "itemDetail.currency.none") : entry.currency) {
                                 Text(formatted(entry.amount, currency: entry.currency))
@@ -501,6 +522,7 @@ struct InsightsView: View {
                 }
             }
             .navigationTitle(String(localized: "tab.insights"))
+            .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 80) }
         }
     }
 }

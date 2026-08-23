@@ -51,6 +51,7 @@
 "insights.urgent" = "דורש תשומת לב";
 "insights.dueThisWeek" = "מתאריך השבוע";
 "insights.dueThisMonth" = "לתשלום החודש";
+"insights.dueThisMonth.none" = "אין שום דבר עם סכום ותאריך יעד החודש";
 "editContact.chooseFromContacts" = "בחר מאנשי הקשר";
 "itemDetail.details" = "פרטים";
 "itemDetail.title" = "כותרת";

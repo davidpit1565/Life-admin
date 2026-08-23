@@ -51,6 +51,7 @@
 "insights.urgent" = "Needs attention";
 "insights.dueThisWeek" = "Due this week";
 "insights.dueThisMonth" = "Due this month";
+"insights.dueThisMonth.none" = "Nothing with an amount and a due date this month";
 "editContact.chooseFromContacts" = "Choose from Contacts";
 "itemDetail.details" = "Details";
 "itemDetail.title" = "Title";

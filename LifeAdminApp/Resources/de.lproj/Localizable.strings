@@ -174,3 +174,4 @@
 "items.filterByDate.thisWeek" = "Due this week";
 "items.filterByDate.thisMonth" = "Due this month";
 "add.removeAttachment" = "Remove %@";
+"insights.dueThisMonth.none" = "Nothing with an amount and a due date this month";
