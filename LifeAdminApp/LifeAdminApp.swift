@@ -50,7 +50,10 @@ struct LifeAdminApp: App {
 /// or a brief "here's what we understood" confirmation before closing.
 enum AddOutcome {
     case pendingReview(LifeAdminItem)
-    case added(LifeAdminItem)
+    /// `merged` is true when this text matched an existing active item closely enough to update
+    /// it in place instead of creating a near-duplicate — the confirmation banner says so instead
+    /// of looking indistinguishable from a brand new item.
+    case added(LifeAdminItem, merged: Bool)
     /// A multi-line paste ("Rent $1200\nGym $40\nNetflix $17") became more than one item — each
     /// one goes straight in rather than pending review, since a per-item confirmation step for
     /// every line in a pasted list would be more friction than the paste was meant to save.
@@ -128,8 +131,8 @@ final class ItemStore: ObservableObject {
         let mode = autonomyMode
         let entries = NaturalLanguageParser.splitEntries(text)
         guard entries.count > 1 else {
-            let item = await addOneEntry(text: text, attachments: attachments, mode: mode)
-            return mode == .askEveryTime ? .pendingReview(item) : .added(item)
+            let result = await addOneEntry(text: text, attachments: attachments, mode: mode)
+            return mode == .askEveryTime ? .pendingReview(result.item) : .added(result.item, merged: result.wasMerged)
         }
         // A pasted list ("Rent $1200\nGym $40\nNetflix $17") always saves every line directly,
         // regardless of "ask every time" — reviewing N pasted items one at a time would be more
@@ -138,12 +141,17 @@ final class ItemStore: ObservableObject {
         var addedItems: [LifeAdminItem] = []
         for (index, entry) in entries.enumerated() {
             let entryAttachments = index == 0 ? attachments : []
-            addedItems.append(await addOneEntry(text: entry, attachments: entryAttachments, mode: mode))
+            addedItems.append(await addOneEntry(text: entry, attachments: entryAttachments, mode: mode).item)
         }
         return .addedMultiple(addedItems)
     }
 
-    private func addOneEntry(text: String, attachments: [Attachment], mode: AIProcessingMode) async -> LifeAdminItem {
+    private struct AddOneEntryResult {
+        let item: LifeAdminItem
+        let wasMerged: Bool
+    }
+
+    private func addOneEntry(text: String, attachments: [Attachment], mode: AIProcessingMode) async -> AddOneEntryResult {
         let decision = mode == .disabled ? aiService.extractLocalOnly(text) : await aiService.extract(text)
         let extracted = decision.item
         var item = LifeAdminItem(
@@ -177,7 +185,7 @@ final class ItemStore: ObservableObject {
             merged.priority = PriorityEngine().priority(for: merged)
             ActivityLog.shared.record(String(format: String(localized: "activityLog.merged"), merged.title))
             await update(merged)
-            return merged
+            return AddOneEntryResult(item: merged, wasMerged: true)
         }
 
         // A recurring bill mentioned again months later rarely repeats the contact info the user
@@ -202,7 +210,7 @@ final class ItemStore: ObservableObject {
         try? modelContext.save()
 
         await refreshDigest()
-        return item
+        return AddOneEntryResult(item: item, wasMerged: false)
     }
 
     private func refreshDigest() async {

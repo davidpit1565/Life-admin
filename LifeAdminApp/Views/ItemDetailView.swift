@@ -68,6 +68,18 @@ struct ItemDetailView: View {
                             Text(r.displayName).tag(r)
                         }
                     }
+                    // Committing to "every month" sight-unseen is a leap of faith — showing where
+                    // it actually lands lets someone catch a wrong choice (e.g. weekly instead of
+                    // biweekly) before saving, instead of discovering it three occurrences later.
+                    if recurrence != .none, upcomingOccurrences.isEmpty == false {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(String(localized: "itemDetail.recurrence.preview"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(upcomingOccurrences.map { $0.formatted(date: .abbreviated, time: .omitted) }.joined(separator: "  •  "))
+                                .font(.caption)
+                        }
+                    }
                 }
             }
 
@@ -200,6 +212,20 @@ struct ItemDetailView: View {
         SnoozeOption(days: 3, label: String(localized: "itemDetail.snooze.3days")),
         SnoozeOption(days: 7, label: String(localized: "itemDetail.snooze.1week"))
     ]
+
+    /// The next 3 dates this recurrence would actually land on, chained from the current due
+    /// date — reuses RecurrenceEngine.nextDueDate directly rather than a second implementation
+    /// of the same schedule math that could quietly drift out of sync with it.
+    private var upcomingOccurrences: [Date] {
+        var dates: [Date] = []
+        var current = dueDate
+        for _ in 0..<3 {
+            guard let next = RecurrenceEngine().nextDueDate(after: current, recurrence: recurrence) else { break }
+            dates.append(next)
+            current = next
+        }
+        return dates
+    }
 
     private var currencyOptions: [String] {
         var options = Self.commonCurrencyCodes

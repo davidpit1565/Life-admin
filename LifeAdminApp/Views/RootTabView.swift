@@ -170,12 +170,35 @@ private struct ItemRowLink: View {
         }
     }
 }
+private enum DateRangeFilter: String, CaseIterable {
+    case overdue, thisWeek, thisMonth
+
+    var localizedLabel: String {
+        switch self {
+        case .overdue: return String(localized: "items.filterByDate.overdue")
+        case .thisWeek: return String(localized: "items.filterByDate.thisWeek")
+        case .thisMonth: return String(localized: "items.filterByDate.thisMonth")
+        }
+    }
+
+    /// `nil` bounds are deliberately open-ended: "overdue" has no lower bound (anything, no
+    /// matter how old), and none of these need an upper bound below distantFuture.
+    func bounds(now: Date, calendar: Calendar) -> (from: Date?, to: Date?) {
+        switch self {
+        case .overdue: return (nil, calendar.startOfDay(for: now))
+        case .thisWeek: return (now, calendar.date(byAdding: .day, value: 7, to: now))
+        case .thisMonth: return (now, calendar.date(byAdding: .month, value: 1, to: now))
+        }
+    }
+}
+
 struct ItemsView: View {
     @EnvironmentObject var store: ItemStore
     @State private var query = ""
     @State private var selectedCategories: Set<LifeCategory> = []
     @State private var selectedPriorities: Set<Priority> = []
     @State private var selectedStatuses: Set<ItemStatus> = []
+    @State private var dateRangeFilter: DateRangeFilter?
     @State private var selection = Set<UUID>()
     @State private var showingBulkDeleteConfirmation = false
 
@@ -187,6 +210,11 @@ struct ItemsView: View {
         // Default to active-only — a completed/archived item shouldn't clutter the everyday list
         // unless the user explicitly asks to see it via the status filter.
         filter.statuses = selectedStatuses.isEmpty ? [.active] : selectedStatuses
+        if let dateRangeFilter {
+            let bounds = dateRangeFilter.bounds(now: Date(), calendar: .current)
+            filter.dueFrom = bounds.from
+            filter.dueTo = bounds.to
+        }
         // SearchEngine only filters — without sorting here too, this list showed items in
         // whatever order they were created, not by what's actually coming up next, unlike Home's
         // own "upcoming" list right next to it.
@@ -195,7 +223,7 @@ struct ItemsView: View {
     }
 
     private var hasActiveFilters: Bool {
-        selectedCategories.isEmpty == false || selectedPriorities.isEmpty == false || selectedStatuses.isEmpty == false
+        selectedCategories.isEmpty == false || selectedPriorities.isEmpty == false || selectedStatuses.isEmpty == false || dateRangeFilter != nil
     }
 
     var body: some View {
@@ -257,6 +285,19 @@ struct ItemsView: View {
                                 }
                             }
                         }
+                        Menu(String(localized: "items.filterByDate")) {
+                            ForEach(DateRangeFilter.allCases, id: \.self) { range in
+                                Button {
+                                    dateRangeFilter = dateRangeFilter == range ? nil : range
+                                } label: {
+                                    if dateRangeFilter == range {
+                                        Label(range.localizedLabel, systemImage: "checkmark")
+                                    } else {
+                                        Text(range.localizedLabel)
+                                    }
+                                }
+                            }
+                        }
                         Menu(String(localized: "items.filterByPriority")) {
                             ForEach(Priority.allCases, id: \.self) { priority in
                                 Button {
@@ -292,6 +333,7 @@ struct ItemsView: View {
                                 selectedCategories = []
                                 selectedPriorities = []
                                 selectedStatuses = []
+                                dateRangeFilter = nil
                             }
                         }
                     } label: {
@@ -484,12 +526,12 @@ struct SettingsView: View {
             Form {
                 Section(String(localized: "settings.general")) {
                     // Offering all 14 SupportedLanguage cases here would be worse than offering
-                    // none: only .en and .he have real translations, the other 11 locale files
-                    // are English-placeholder copies (lower priority, no clear audience yet) —
-                    // picking "Français" and landing on English text now that switching actually
-                    // works (see below) would read as broken, not just untranslated.
+                    // none: only .en, .he, and .es have real translations, the other 10 locale
+                    // files are English-placeholder copies (lower priority, no clear audience yet)
+                    // — picking "Français" and landing on English text now that switching
+                    // actually works (see below) would read as broken, not just untranslated.
                     Picker(String(localized: "settings.language"), selection: $language) {
-                        ForEach([SupportedLanguage.system, .en, .he], id: \.rawValue) {
+                        ForEach([SupportedLanguage.system, .en, .he, .es], id: \.rawValue) {
                             Text(displayName(for: $0)).tag($0.rawValue)
                         }
                     }
@@ -675,6 +717,7 @@ struct AddItemView: View {
     @State private var showingScanner = false
     @State private var pendingAttachments: [Attachment] = []
     @State private var confirmedItem: LifeAdminItem?
+    @State private var confirmedItemWasMerged = false
     @State private var confirmedCount: Int?
 
     /// A handful of ready-made examples spanning different categories — tapping one fills the
@@ -742,7 +785,9 @@ struct AddItemView: View {
                                                     pendingAttachments.removeAll { $0.id == attachment.id }
                                                 } label: {
                                                     Image(systemName: "xmark.circle.fill").foregroundStyle(.white, .black.opacity(0.6))
-                                                }.offset(x: 6, y: -6)
+                                                }
+                                                .accessibilityLabel(String(format: String(localized: "add.removeAttachment"), attachment.filename))
+                                                .offset(x: 6, y: -6)
                                             }
                                         }
                                     }
@@ -763,12 +808,15 @@ struct AddItemView: View {
                                     // instead of dismissing, rather than silently trusting the
                                     // AI's guess.
                                     itemPendingReview = item
-                                case .added(let item):
+                                case .added(let item, let merged):
                                     // Auto mode saves instantly with no review step — without a
                                     // visible "here's what we understood" moment, tapping Save
                                     // just closes the screen with no sign anything happened at
                                     // all, which reads as broken rather than automatic.
-                                    withAnimation { confirmedItem = item }
+                                    withAnimation {
+                                        confirmedItem = item
+                                        confirmedItemWasMerged = merged
+                                    }
                                     try? await Task.sleep(for: .seconds(1.2))
                                     dismiss()
                                 case .addedMultiple(let addedItems):
@@ -794,7 +842,7 @@ struct AddItemView: View {
                 }.navigationTitle(String(localized: "add.anything"))
                 .overlay(alignment: .bottom) {
                     if let confirmedItem {
-                        AddConfirmationBanner(item: confirmedItem)
+                        AddConfirmationBanner(item: confirmedItem, wasMerged: confirmedItemWasMerged)
                             .padding(.bottom, 12)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     } else if let confirmedCount {
@@ -828,6 +876,7 @@ struct AddItemView: View {
 
 private struct AddConfirmationBanner: View {
     let item: LifeAdminItem
+    var wasMerged: Bool = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -835,7 +884,10 @@ private struct AddConfirmationBanner: View {
                 .font(.title2)
                 .foregroundStyle(.green)
             VStack(alignment: .leading, spacing: 2) {
-                Text(String(localized: "add.confirmation.label"))
+                // A merge silently updating an existing item read exactly like a brand new one —
+                // saying so here is the only place that distinction was ever visible outside the
+                // Activity Log.
+                Text(String(localized: wasMerged ? "add.confirmation.merged" : "add.confirmation.label"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text(item.title)

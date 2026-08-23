@@ -45,6 +45,10 @@ struct AddressChangeView: View {
                             }
                         }
                         .buttonStyle(.plain)
+                        // The checkmark/circle swap conveys selection visually but says nothing
+                        // to VoiceOver on its own — the row's title is still the accessible label,
+                        // this just adds the state that a sighted user gets from the icon alone.
+                        .accessibilityAddTraits(selectedItemIDs.contains(item.id) ? .isSelected : [])
                     }
                 }
             }

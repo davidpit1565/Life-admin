@@ -58,6 +58,7 @@
 "itemDetail.dueDate" = "תאריך יעד";
 "itemDetail.hasDueDate" = "יש תאריך יעד";
 "itemDetail.recurrence" = "חזרתיות";
+"itemDetail.recurrence.preview" = "המופעים הבאים";
 "category.documents" = "מסמכים";
 "category.insurance" = "ביטוח";
 "category.money" = "כספים";
@@ -126,7 +127,9 @@
 "settings.aiAutonomy.off.description" = "שום דבר לא נשלח ל-AI — נעשה שימוש רק בזיהוי בסיסי על המכשיר.";
 "add.scanDocument" = "סרוק מסמך";
 "add.scannedPageFilename" = "עמוד סרוק %d";
+"add.removeAttachment" = "הסר %@";
 "add.confirmation.label" = "נוסף";
+"add.confirmation.merged" = "עודכן פריט קיים";
 "add.confirmation.multiple" = "נוספו %d פריטים";
 "add.multiLineHint" = "טיפ: כל פריט בשורה משלו כדי להוסיף כמה בבת אחת.";
 "aiConsent.navTitle" = "עיבוד AI";
@@ -147,6 +150,10 @@
 "notification.digestBodyWithTopItem" = "%@ · הכי דחוף: %@";
 "items.filter" = "סינון";
 "items.filterByCategory" = "לפי קטגוריה";
+"items.filterByDate" = "לפי תאריך יעד";
+"items.filterByDate.overdue" = "פג תוקף";
+"items.filterByDate.thisWeek" = "לתשלום השבוע";
+"items.filterByDate.thisMonth" = "לתשלום החודש";
 "items.filterByPriority" = "לפי עדיפות";
 "items.clearFilters" = "נקה סינון";
 "items.noFilterMatches" = "אין פריטים שמתאימים לסינון הזה";
