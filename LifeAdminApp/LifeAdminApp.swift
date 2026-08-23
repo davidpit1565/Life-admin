@@ -51,6 +51,10 @@ struct LifeAdminApp: App {
 enum AddOutcome {
     case pendingReview(LifeAdminItem)
     case added(LifeAdminItem)
+    /// A multi-line paste ("Rent $1200\nGym $40\nNetflix $17") became more than one item — each
+    /// one goes straight in rather than pending review, since a per-item confirmation step for
+    /// every line in a pasted list would be more friction than the paste was meant to save.
+    case addedMultiple([LifeAdminItem])
 }
 
 @MainActor
@@ -122,6 +126,24 @@ final class ItemStore: ObservableObject {
     @discardableResult
     func add(text: String, attachments: [Attachment] = []) async -> AddOutcome {
         let mode = autonomyMode
+        let entries = NaturalLanguageParser.splitEntries(text)
+        guard entries.count > 1 else {
+            let item = await addOneEntry(text: text, attachments: attachments, mode: mode)
+            return mode == .askEveryTime ? .pendingReview(item) : .added(item)
+        }
+        // A pasted list ("Rent $1200\nGym $40\nNetflix $17") always saves every line directly,
+        // regardless of "ask every time" — reviewing N pasted items one at a time would be more
+        // friction than the paste was meant to save. Only the first line keeps any attachment
+        // (a scan), so it doesn't silently duplicate onto every split line.
+        var addedItems: [LifeAdminItem] = []
+        for (index, entry) in entries.enumerated() {
+            let entryAttachments = index == 0 ? attachments : []
+            addedItems.append(await addOneEntry(text: entry, attachments: entryAttachments, mode: mode))
+        }
+        return .addedMultiple(addedItems)
+    }
+
+    private func addOneEntry(text: String, attachments: [Attachment], mode: AIProcessingMode) async -> LifeAdminItem {
         let decision = mode == .disabled ? aiService.extractLocalOnly(text) : await aiService.extract(text)
         let extracted = decision.item
         var item = LifeAdminItem(
@@ -155,7 +177,7 @@ final class ItemStore: ObservableObject {
             merged.priority = PriorityEngine().priority(for: merged)
             ActivityLog.shared.record(String(format: String(localized: "activityLog.merged"), merged.title))
             await update(merged)
-            return mode == .askEveryTime ? .pendingReview(merged) : .added(merged)
+            return merged
         }
 
         // A recurring bill mentioned again months later rarely repeats the contact info the user
@@ -180,7 +202,7 @@ final class ItemStore: ObservableObject {
         try? modelContext.save()
 
         await refreshDigest()
-        return mode == .askEveryTime ? .pendingReview(item) : .added(item)
+        return item
     }
 
     private func refreshDigest() async {

@@ -185,7 +185,11 @@ struct ItemsView: View {
         // Default to active-only — a completed/archived item shouldn't clutter the everyday list
         // unless the user explicitly asks to see it via the status filter.
         filter.statuses = selectedStatuses.isEmpty ? [.active] : selectedStatuses
+        // SearchEngine only filters — without sorting here too, this list showed items in
+        // whatever order they were created, not by what's actually coming up next, unlike Home's
+        // own "upcoming" list right next to it.
         return SearchEngine().search(store.items, filter: filter)
+            .sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
     }
 
     private var hasActiveFilters: Bool {
@@ -460,6 +464,14 @@ struct SettingsView: View {
                         Label(String(localized: "settings.exportData"), systemImage: "square.and.arrow.up")
                     }
                     Button {
+                        if let url = Self.writeCSVExportFile(items: store.items) {
+                            exportFileURL = url
+                            showingShareSheet = true
+                        }
+                    } label: {
+                        Label(String(localized: "settings.exportCSV"), systemImage: "tablecells")
+                    }
+                    Button {
                         showingImporter = true
                     } label: {
                         Label(String(localized: "settings.importData"), systemImage: "square.and.arrow.down")
@@ -553,6 +565,17 @@ struct SettingsView: View {
         return url
     }
 
+    /// A spreadsheet a user can actually open and sum in Numbers/Excel/Sheets — the JSON export
+    /// above is a backup format meant for re-import, not for glancing at what you're spending.
+    /// ImportExportEngine.exportCSV already existed but nothing in the app ever called it.
+    private static func writeCSVExportFile(items: [LifeAdminItem]) -> URL? {
+        let csv = ImportExportEngine().exportCSV(items)
+        guard let data = csv.data(using: .utf8) else { return nil }
+        let url = FileManager.default.temporaryDirectory.appending(path: "LifeAdmin-Export-\(Date().ISO8601Format()).csv")
+        guard (try? data.write(to: url)) != nil else { return nil }
+        return url
+    }
+
     private func importFile(at url: URL) async {
         let accessed = url.startAccessingSecurityScopedResource()
         defer { if accessed { url.stopAccessingSecurityScopedResource() } }
@@ -577,6 +600,7 @@ struct AddItemView: View {
     @State private var showingScanner = false
     @State private var pendingAttachments: [Attachment] = []
     @State private var confirmedItem: LifeAdminItem?
+    @State private var confirmedCount: Int?
 
     /// A handful of ready-made examples spanning different categories — tapping one fills the
     /// text box with exactly what to type, so a first-time (or simply overwhelmed) user can see
@@ -618,6 +642,9 @@ struct AddItemView: View {
                                 }
                             }
                         }
+                        Text(String(localized: "add.multiLineHint"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     if FeatureFlags.documentScanningEnabled && VNDocumentCameraViewController.isSupported {
                         Section {
@@ -669,6 +696,10 @@ struct AddItemView: View {
                                     withAnimation { confirmedItem = item }
                                     try? await Task.sleep(for: .seconds(1.2))
                                     dismiss()
+                                case .addedMultiple(let addedItems):
+                                    withAnimation { confirmedCount = addedItems.count }
+                                    try? await Task.sleep(for: .seconds(1.2))
+                                    dismiss()
                                 }
                             }
                         } label: {
@@ -689,6 +720,10 @@ struct AddItemView: View {
                 .overlay(alignment: .bottom) {
                     if let confirmedItem {
                         AddConfirmationBanner(item: confirmedItem)
+                            .padding(.bottom, 12)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    } else if let confirmedCount {
+                        MultiAddConfirmationBanner(count: confirmedCount)
                             .padding(.bottom, 12)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
@@ -736,6 +771,25 @@ private struct AddConfirmationBanner: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            Spacer()
+        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal)
+        .shadow(radius: 4)
+    }
+}
+
+private struct MultiAddConfirmationBanner: View {
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.title2)
+                .foregroundStyle(.green)
+            Text(String(format: String(localized: "add.confirmation.multiple"), count))
+                .font(.headline)
             Spacer()
         }
         .padding()

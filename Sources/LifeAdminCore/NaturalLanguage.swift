@@ -175,6 +175,19 @@ public struct NaturalLanguageParser: Sendable {
         return nil
     }
 
+    /// Splits a multi-line paste into one entry per line — "Rent $1200\nGym $40\nNetflix $17" is
+    /// three items, not one. Without this, pasting a list of bills silently kept only whatever a
+    /// single `parse()` call happened to find in the whole blob and dropped the rest. A single
+    /// line (by far the common case) always comes back as a one-element array, so nothing about
+    /// existing single-item behavior changes.
+    public static func splitEntries(_ text: String) -> [String] {
+        let lines = text
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.isEmpty == false }
+        return lines.isEmpty ? [text] : lines
+    }
+
     public func parse(_ text: String, now: Date = Date()) -> ExtractedItem {
         let lower = text.lowercased()
         let words = Set(lower.split { $0.isLetter == false }.map(String.init))

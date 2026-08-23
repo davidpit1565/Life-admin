@@ -21,6 +21,7 @@
 "settings.privacy" = "Privacy";
 "settings.data" = "Data";
 "settings.exportData" = "Export My Data";
+"settings.exportCSV" = "Export as Spreadsheet (CSV)";
 "settings.importData" = "Import Data";
 "settings.importFailed" = "Couldn’t read that file — make sure it’s a Life Admin backup.";
 "settings.importResult" = "Import";
@@ -124,6 +125,8 @@
 "add.scanDocument" = "Scan a Document";
 "add.scannedPageFilename" = "Scanned Page %d";
 "add.confirmation.label" = "Added";
+"add.confirmation.multiple" = "%d items added";
+"add.multiLineHint" = "Tip: put each item on its own line to add several at once.";
 "aiConsent.navTitle" = "AI Processing";
 "aiConsent.title" = "Before we start";
 "aiConsent.body" = "When Life Admin can't confidently understand what you typed on its own — or when it's something important like a large bill or insurance renewal — it sends just that text to Google's Gemini AI to help. Nothing else: not your contacts, calendar, or photos.";

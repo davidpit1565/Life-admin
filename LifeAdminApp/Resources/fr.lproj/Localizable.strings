@@ -158,3 +158,6 @@
 "activityLog.recurrenceCreated" = "Created the next occurrence: %@";
 "common.undo" = "Undo";
 "items.deletedToast" = "\"%@\" deleted";
+"add.confirmation.multiple" = "%d items added";
+"add.multiLineHint" = "Tip: put each item on its own line to add several at once.";
+"settings.exportCSV" = "Export as Spreadsheet (CSV)";

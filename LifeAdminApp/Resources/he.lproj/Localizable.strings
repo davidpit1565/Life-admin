@@ -21,6 +21,7 @@
 "settings.privacy" = "פרטיות";
 "settings.data" = "נתונים";
 "settings.exportData" = "ייצוא הנתונים שלי";
+"settings.exportCSV" = "ייצוא כגיליון (CSV)";
 "settings.importData" = "ייבוא נתונים";
 "settings.importFailed" = "לא הצלחנו לקרוא את הקובץ הזה — בדוק שזה קובץ גיבוי של Life Admin.";
 "settings.importResult" = "ייבוא";
@@ -124,6 +125,8 @@
 "add.scanDocument" = "סרוק מסמך";
 "add.scannedPageFilename" = "עמוד סרוק %d";
 "add.confirmation.label" = "נוסף";
+"add.confirmation.multiple" = "נוספו %d פריטים";
+"add.multiLineHint" = "טיפ: כל פריט בשורה משלו כדי להוסיף כמה בבת אחת.";
 "aiConsent.navTitle" = "עיבוד AI";
 "aiConsent.title" = "לפני שמתחילים";
 "aiConsent.body" = "כש-Life Admin לא מבין בביטחון מספיק את מה שהקלדת בעצמו — או כשזה משהו חשוב כמו חשבון גדול או חידוש ביטוח — הוא שולח רק את הטקסט הזה ל-AI של Gemini מבית Google כדי לעזור. שום דבר אחר: לא אנשי הקשר שלך, לא היומן, ולא התמונות.";

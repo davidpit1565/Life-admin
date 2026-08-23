@@ -87,6 +87,10 @@ final class LifeAdminCoreTests: XCTestCase {
  func testDateWithNoStatedTimeStaysAtMidnight() { let e = NaturalLanguageParser().parse("Passport renewal March 18"); let components = Calendar.current.dateComponents([.hour, .minute], from: e.date!); XCTAssertEqual(components.hour, 0); XCTAssertEqual(components.minute, 0) }
  func testDrivingTestIsRecognizedAsAnAppointment() { let e = NaturalLanguageParser().parse("Driving test 4 september 11:00 am"); XCTAssertEqual(e.title, "Driving Test"); XCTAssertEqual(e.category, .appointments) }
  func testParserRecognizesShekelWord() { let e = NaturalLanguageParser().parse("ביטוח רכב מתחדש ב-15 באוגוסט, 840 ש״ח"); XCTAssertEqual(e.currency, "ILS") }
+ func testSplitEntriesSingleLineStaysOneEntry() { XCTAssertEqual(NaturalLanguageParser.splitEntries("Rent $1200"), ["Rent $1200"]) }
+ func testSplitEntriesSplitsMultipleLines() { XCTAssertEqual(NaturalLanguageParser.splitEntries("Rent $1200\nGym $40\nNetflix $17"), ["Rent $1200", "Gym $40", "Netflix $17"]) }
+ func testSplitEntriesIgnoresBlankLinesAndTrimsWhitespace() { XCTAssertEqual(NaturalLanguageParser.splitEntries("  Rent $1200  \n\n  Gym $40\n"), ["Rent $1200", "Gym $40"]) }
+ func testSplitEntriesOnEmptyTextReturnsTheTextItself() { XCTAssertEqual(NaturalLanguageParser.splitEntries(""), [""]) }
  func testTomorrowInEnglishIsRecognized() {
      let now = Date(timeIntervalSince1970: 1_700_000_000)
      let e = NaturalLanguageParser().parse("Dentist tomorrow", now: now)
