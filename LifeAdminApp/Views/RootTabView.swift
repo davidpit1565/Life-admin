@@ -14,7 +14,10 @@ struct RootTabView: View {
     @State private var adding = false
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     @AppStorage("aiConsentDecision") private var aiConsentDecision = ""
+    @AppStorage("appLockEnabled") private var appLockEnabled = false
     @State private var firstRunStep: FirstRunStep?
+    @State private var isLocked = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         TabView {
@@ -82,6 +85,49 @@ struct RootTabView: View {
             }
             .interactiveDismissDisabled()
         }
+        // A bill/insurance tracker is exactly the kind of app where "someone else picks up my
+        // unlocked phone" matters, so this is opt-in in Settings — locking on by default with no
+        // way to check first would be its own kind of broken. Locks going to the background (not
+        // just quitting) so a quick app-switch away and back still re-prompts.
+        .task {
+            if appLockEnabled {
+                isLocked = true
+                if await AppLockService.shared.authenticate() { isLocked = false }
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard appLockEnabled else { return }
+            if newPhase == .background {
+                isLocked = true
+            } else if newPhase == .active && isLocked {
+                Task { if await AppLockService.shared.authenticate() { isLocked = false } }
+            }
+        }
+        .fullScreenCover(isPresented: $isLocked) {
+            LockScreenView {
+                Task { if await AppLockService.shared.authenticate() { isLocked = false } }
+            }
+            .interactiveDismissDisabled()
+        }
+    }
+}
+
+private struct LockScreenView: View {
+    let onRetry: () -> Void
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            Text(String(localized: "appLock.title"))
+                .font(.title2.bold())
+            Button(String(localized: "appLock.unlock"), action: onRetry)
+                .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.background)
+        .onAppear(perform: onRetry)
     }
 }
 struct HomeView: View {
@@ -174,6 +220,23 @@ private struct ItemRowLink: View {
                 .tint(.green)
             }
         }
+        // The same three actions as the swipe gesture, for anyone who didn't know to swipe (or
+        // is holding the phone in a way that makes swiping awkward) — a long press is the other
+        // standard iOS discovery path for row actions.
+        .contextMenu {
+            if item.status == .active {
+                Button {
+                    Task { await store.markCompleted(item) }
+                } label: {
+                    Label(String(localized: "itemDetail.markDone"), systemImage: "checkmark.circle.fill")
+                }
+            }
+            Button(role: .destructive) {
+                store.scheduleDelete(item)
+            } label: {
+                Label(String(localized: "itemDetail.delete"), systemImage: "trash")
+            }
+        }
     }
 }
 private enum DateRangeFilter: String, CaseIterable {
@@ -198,6 +261,28 @@ private enum DateRangeFilter: String, CaseIterable {
     }
 }
 
+private enum ItemSortOrder: String, CaseIterable {
+    case dueDate, alphabetical, amount
+
+    var localizedLabel: String {
+        switch self {
+        case .dueDate: return String(localized: "items.sort.dueDate")
+        case .alphabetical: return String(localized: "items.sort.alphabetical")
+        case .amount: return String(localized: "items.sort.amount")
+        }
+    }
+
+    /// Items with no due date/amount sort last rather than first — they're not "most urgent",
+    /// they're simply unset, and burying real deadlines under unset ones would defeat the sort.
+    func sorted(_ items: [LifeAdminItem]) -> [LifeAdminItem] {
+        switch self {
+        case .dueDate: return items.sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
+        case .alphabetical: return items.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        case .amount: return items.sorted { ($0.amount ?? -1) > ($1.amount ?? -1) }
+        }
+    }
+}
+
 struct ItemsView: View {
     @EnvironmentObject var store: ItemStore
     @State private var query = ""
@@ -205,6 +290,7 @@ struct ItemsView: View {
     @State private var selectedPriorities: Set<Priority> = []
     @State private var selectedStatuses: Set<ItemStatus> = []
     @State private var dateRangeFilter: DateRangeFilter?
+    @State private var sortOrder: ItemSortOrder = .dueDate
     @State private var selection = Set<UUID>()
     @State private var showingBulkDeleteConfirmation = false
 
@@ -224,8 +310,7 @@ struct ItemsView: View {
         // SearchEngine only filters — without sorting here too, this list showed items in
         // whatever order they were created, not by what's actually coming up next, unlike Home's
         // own "upcoming" list right next to it.
-        return SearchEngine().search(store.items, filter: filter)
-            .sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
+        return sortOrder.sorted(SearchEngine().search(store.items, filter: filter))
     }
 
     private var hasActiveFilters: Bool {
@@ -279,6 +364,24 @@ struct ItemsView: View {
                             Label(String(localized: "itemDetail.delete"), systemImage: "trash")
                         }
                     }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        ForEach(ItemSortOrder.allCases, id: \.self) { order in
+                            Button {
+                                sortOrder = order
+                            } label: {
+                                if sortOrder == order {
+                                    Label(order.localizedLabel, systemImage: "checkmark")
+                                } else {
+                                    Text(order.localizedLabel)
+                                }
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down")
+                    }
+                    .accessibilityLabel(String(localized: "items.sort"))
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -531,6 +634,7 @@ struct SettingsView: View {
     @AppStorage("language") var language = "system"
     @AppStorage("aiProcessingMode") var aiProcessingModeRaw = AIProcessingMode.allowAutomatically.rawValue
     @AppStorage("aiConsentDecision") private var aiConsentDecision = ""
+    @AppStorage("appLockEnabled") private var appLockEnabled = false
     @State private var showingAIConsentReview = false
     @State private var showingDeleteAIDataConfirmation = false
     @State private var exportFileURL: URL?
@@ -617,6 +721,12 @@ struct SettingsView: View {
                     }
                 }
                 Section(String(localized: "settings.privacy")) {
+                    // Only offered when the device can actually back it up (Face ID, Touch ID,
+                    // or at least a passcode) — a toggle that turns on and then never actually
+                    // locks anything would be worse than not offering it at all.
+                    if AppLockService.shared.canUseBiometrics() {
+                        Toggle(String(localized: "appLock.toggle"), isOn: $appLockEnabled)
+                    }
                     Button(String(localized: "settings.deleteAIData"), role: .destructive) {
                         showingDeleteAIDataConfirmation = true
                     }

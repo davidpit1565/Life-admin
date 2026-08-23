@@ -36,6 +36,7 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait"
         INFOPLIST_KEY_NSCameraUsageDescription: "Life Admin uses the camera to scan documents and receipts you choose to add."
+        INFOPLIST_KEY_NSFaceIDUsageDescription: "Life Admin can use Face ID to keep your bills and insurance details private if someone else picks up your phone."
         INFOPLIST_KEY_NSCalendarsUsageDescription: "Life Admin can add reminders and due dates to your calendar."
         INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: "Life Admin can add reminders and due dates to your calendar."
         INFOPLIST_KEY_NSRemindersUsageDescription: "Life Admin can create reminders for items with due dates."
