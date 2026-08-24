@@ -89,19 +89,16 @@ struct RootTabView: View {
         // unlocked phone" matters, so this is opt-in in Settings — locking on by default with no
         // way to check first would be its own kind of broken. Locks going to the background (not
         // just quitting) so a quick app-switch away and back still re-prompts.
+        // Only ever triggered from the one spot below (LockScreenView's own appearance) — having
+        // this .task and the scenePhase handler each also fire their own authenticate() call
+        // raced multiple concurrent LAContext evaluations against each other, which is exactly
+        // the kind of thing that silently no-ops and leaves nothing but an inert-looking screen.
         .task {
-            if appLockEnabled {
-                isLocked = true
-                if await AppLockService.shared.authenticate() { isLocked = false }
-            }
+            if appLockEnabled { isLocked = true }
         }
         .onChange(of: scenePhase) { _, newPhase in
-            guard appLockEnabled else { return }
-            if newPhase == .background {
-                isLocked = true
-            } else if newPhase == .active && isLocked {
-                Task { if await AppLockService.shared.authenticate() { isLocked = false } }
-            }
+            guard appLockEnabled, newPhase == .background else { return }
+            isLocked = true
         }
         .fullScreenCover(isPresented: $isLocked) {
             LockScreenView {
