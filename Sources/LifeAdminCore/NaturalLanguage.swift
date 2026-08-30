@@ -96,12 +96,17 @@ public struct NaturalLanguageParser: Sendable {
         if lower.contains("day after tomorrow") || lower.contains("מחרתיים") { return days(2) }
         if lower.contains("tomorrow") || lower.contains("מחר") { return days(1) }
         if lower.contains("today") || lower.contains("היום") { return days(0) }
-        // Hebrew's dual grammatical form for exactly two ("שבועיים"/"חודשיים"/"שנתיים") is a
-        // single word, not "two weeks/months/years" as separate tokens, so it can't be caught by
-        // the number-word scan below at all — it needs its own direct check.
-        if lower.contains("שבועיים") { return weeks(2) }
-        if lower.contains("חודשיים") { return months(2) }
-        if lower.contains("שנתיים") { return years(2) }
+        // Hebrew's dual grammatical form for exactly two ("יומיים"/"שבועיים"/"חודשיים"/"שנתיים")
+        // is a single word, not "two days/weeks/months/years" as separate tokens, so it can't be
+        // caught by the number-word scan below at all — it needs its own direct check. But "כל
+        // שבועיים"/"כל חודשיים" ("every two weeks"/"every two months") is a recurrence with no
+        // specific date at all, not a one-time date two weeks/months from now — recognized
+        // separately as biweekly/everyTwoMonths recurrence in parse() — so it must be excluded
+        // here or a recurring item would wrongly also get a fabricated due date.
+        if lower.contains("יומיים") && !lower.contains("כל יומיים") { return days(2) }
+        if lower.contains("שבועיים") && !lower.contains("כל שבועיים") { return weeks(2) }
+        if lower.contains("חודשיים") && !lower.contains("כל חודשיים") { return months(2) }
+        if lower.contains("שנתיים") && !lower.contains("כל שנתיים") { return years(2) }
         if lower.contains("next week") || lower.contains("in a week") || lower.contains("בעוד שבוע") || lower.contains("בשבוע הבא") { return weeks(1) }
         if lower.contains("next month") || lower.contains("in a month") || lower.contains("בעוד חודש") || lower.contains("בחודש הבא") { return months(1) }
         if lower.contains("next year") || lower.contains("in a year") || lower.contains("בעוד שנה") || lower.contains("בשנה הבאה") { return years(1) }
@@ -358,20 +363,39 @@ public struct NaturalLanguageParser: Sendable {
         // it must never win against an actual "month"/"six months" match sitting right next to it.
         // "$45/month" and "לחודש" ("per month") are just as common a way to state a recurring
         // price as "monthly" spelled out, so they get the same weight here.
-        // "חודשיים"/"שנתיים" are Hebrew's dual form for exactly two months/years — a single word,
-        // not "month"/"year" plus a count — and each one contains "חודשי"/"שנתי" as a plain
-        // substring, which falsely fired the monthly/yearly check below on a one-time "expires in
-        // two months" sentence that has no recurrence in it at all. Stripping the dual words out
-        // before matching removes the false substring without touching any of the real
-        // "חודשי"/"שנתי"/"כל חודש"/"כל שנה" phrasing this block is actually meant to catch.
-        let lowerForRecurrence = lower.replacingOccurrences(of: "חודשיים", with: "").replacingOccurrences(of: "שנתיים", with: "")
+        // "יומיים"/"שבועיים"/"חודשיים"/"שנתיים" are Hebrew's dual form for exactly two
+        // days/weeks/months/years — a single word, not "day/week/month/year" plus a count — and
+        // each one contains "יומי"/"שבועי"/"חודשי"/"שנתי" as a plain substring, which falsely
+        // fired the daily/weekly/monthly/yearly checks below on a one-time "expires in two months"
+        // sentence that has no recurrence in it at all. Stripping the dual words out before
+        // matching removes the false substring without touching any of the real
+        // "יומי"/"שבועי"/"חודשי"/"שנתי"/"כל חודש"/"כל שנה" phrasing this block is meant to catch.
+        // The explicit "every two X" / "כל Xיים" phrases (biweekly, everyTwoMonths) are matched
+        // separately against the un-stripped text before falling through to this generic pass, so
+        // stripping the dual word here never loses that case — it only stops it from being
+        // mis-read as a plain weekly/monthly signal.
+        let lowerForRecurrence = lower
+            .replacingOccurrences(of: "יומיים", with: "")
+            .replacingOccurrences(of: "שבועיים", with: "")
+            .replacingOccurrences(of: "חודשיים", with: "")
+            .replacingOccurrences(of: "שנתיים", with: "")
         let recurrence: Recurrence
         // " a month"/" a year" (no leading "in") is as common a way to state a recurring price as
         // "monthly" spelled out ("45 dollars a month") — but "in a month"/"in a year" is the
         // one-time relative-date phrase already handled above, and always contains " a month"/" a
         // year" as a substring, so it must be excluded here to avoid double-tagging a one-time
         // date as also recurring.
-        if lowerForRecurrence.contains("every month") || lowerForRecurrence.contains("monthly") || lowerForRecurrence.contains("/month") || lowerForRecurrence.contains("per month") || lowerForRecurrence.contains("כל חודש") || lowerForRecurrence.contains("מדי חודש") || lowerForRecurrence.contains("חודשי") || lowerForRecurrence.contains("לחודש") || (lowerForRecurrence.contains(" a month") && !lowerForRecurrence.contains("in a month")) {
+        if lowerForRecurrence.contains("daily") || lowerForRecurrence.contains("every day") || lowerForRecurrence.contains("כל יום") || lowerForRecurrence.contains("יומי") {
+            recurrence = .daily
+        } else if lower.contains("biweekly") || lower.contains("every two weeks") || lower.contains("every other week") || lower.contains("כל שבועיים") {
+            recurrence = .biweekly
+        } else if lower.contains("every two months") || lower.contains("every other month") || lower.contains("כל חודשיים") {
+            recurrence = .everyTwoMonths
+        } else if lowerForRecurrence.contains("quarterly") || lowerForRecurrence.contains("every quarter") || lowerForRecurrence.contains("every 3 months") || lowerForRecurrence.contains("every three months") || lowerForRecurrence.contains("רבעוני") || lowerForRecurrence.contains("כל רבעון") || lowerForRecurrence.contains("כל 3 חודשים") || lowerForRecurrence.contains("כל שלושה חודשים") {
+            recurrence = .quarterly
+        } else if lowerForRecurrence.contains("weekly") || lowerForRecurrence.contains("every week") || lowerForRecurrence.contains("שבועי") || lowerForRecurrence.contains("כל שבוע") || lowerForRecurrence.contains("לשבוע") {
+            recurrence = .weekly
+        } else if lowerForRecurrence.contains("every month") || lowerForRecurrence.contains("monthly") || lowerForRecurrence.contains("/month") || lowerForRecurrence.contains("per month") || lowerForRecurrence.contains("כל חודש") || lowerForRecurrence.contains("מדי חודש") || lowerForRecurrence.contains("חודשי") || lowerForRecurrence.contains("לחודש") || (lowerForRecurrence.contains(" a month") && !lowerForRecurrence.contains("in a month")) {
             recurrence = .monthly
         } else if lowerForRecurrence.contains("six months") || (lowerForRecurrence.contains("6 months") && !lowerForRecurrence.contains("in 6 months")) || lowerForRecurrence.contains("כל שישה חודשים") || lowerForRecurrence.contains("כל 6 חודשים") || lowerForRecurrence.contains("חצי שנה") {
             recurrence = .everySixMonths

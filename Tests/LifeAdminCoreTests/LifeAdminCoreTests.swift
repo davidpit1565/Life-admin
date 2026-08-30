@@ -329,4 +329,52 @@ final class LifeAdminCoreTests: XCTestCase {
      let e = NaturalLanguageParser().parse("housing loan installment 3800 nis due the 28th of every month")
      XCTAssertEqual(e.title, "housing loan installment")
  }
+ // Recurrence coverage: daily/biweekly/everyTwoMonths/quarterly/weekly were part of the
+ // Recurrence model but could never actually be produced by the natural-language parser before
+ // this — any real sentence using them silently fell through to .none or the wrong bucket.
+ func testDailyIsRecognized() {
+     XCTAssertEqual(NaturalLanguageParser().parse("Take vitamins daily").recurring, Recurrence.daily)
+     XCTAssertEqual(NaturalLanguageParser().parse("תרופה יומית בבוקר").recurring, Recurrence.daily)
+ }
+ func testWeeklyIsRecognized() {
+     XCTAssertEqual(NaturalLanguageParser().parse("Trash pickup is weekly").recurring, Recurrence.weekly)
+     XCTAssertEqual(NaturalLanguageParser().parse("אשפה נאספת כל שבוע").recurring, Recurrence.weekly)
+ }
+ func testBiweeklyIsRecognized() {
+     XCTAssertEqual(NaturalLanguageParser().parse("Payroll deduction is biweekly, $200").recurring, Recurrence.biweekly)
+     XCTAssertEqual(NaturalLanguageParser().parse("warranty check every other week").recurring, Recurrence.biweekly)
+ }
+ func testHebrewBiweeklyDoesNotAlsoFabricateADueDate() {
+     // "כל שבועיים" ("every two weeks") is a recurrence with no specific date at all — it must
+     // not also trigger the unrelated "שבועיים" (dual "two weeks") one-time relative-date match.
+     let e = NaturalLanguageParser().parse("משכורת מתקבלת כל שבועיים")
+     XCTAssertEqual(e.recurring, Recurrence.biweekly)
+     XCTAssertNil(e.date)
+ }
+ func testEveryTwoMonthsIsRecognized() {
+     XCTAssertEqual(NaturalLanguageParser().parse("Car wash every two months").recurring, Recurrence.everyTwoMonths)
+     XCTAssertEqual(NaturalLanguageParser().parse("insurance renews every other month").recurring, Recurrence.everyTwoMonths)
+ }
+ func testHebrewEveryTwoMonthsDoesNotAlsoFabricateADueDate() {
+     let e = NaturalLanguageParser().parse("שטיפת רכב כל חודשיים, 60 שח")
+     XCTAssertEqual(e.recurring, Recurrence.everyTwoMonths)
+     XCTAssertNil(e.date)
+ }
+ func testQuarterlyIsRecognized() {
+     XCTAssertEqual(NaturalLanguageParser().parse("Gym fee charged quarterly, $150").recurring, Recurrence.quarterly)
+     XCTAssertEqual(NaturalLanguageParser().parse("תשלום רבעוני לביטוח, 900 שקל").recurring, Recurrence.quarterly)
+     XCTAssertEqual(NaturalLanguageParser().parse("Cleaning service every three months").recurring, Recurrence.quarterly)
+ }
+ func testOneTimeInTwoMonthsIsNotMisreadAsRecurring() {
+     // "due in two months" is a one-time date, not a recurrence — must not be swept up by the
+     // new everyTwoMonths detection just because it mentions "two months".
+     let e = NaturalLanguageParser().parse("car wash due in two months")
+     XCTAssertEqual(e.recurring, Recurrence.none)
+     XCTAssertNotNil(e.date)
+ }
+ func testHebrewTwoDaysIsRecognizedAsADate() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("פגישה בעוד יומיים", now: now)
+     XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: 2, to: now)!))
+ }
 }
