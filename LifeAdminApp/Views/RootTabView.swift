@@ -116,16 +116,17 @@ struct RootTabView: View {
         .fullScreenCover(isPresented: $isLocked) {
             LockScreenView {
                 Task {
-                    switch await AppLockService.shared.authenticate() {
-                    case true: isLocked = false
-                    case false: break // failed or cancelled — stay locked, the button retries
-                    case nil:
+                    let authenticated = await AppLockService.shared.authenticate()
+                    if authenticated == true {
+                        isLocked = false
+                    } else if authenticated == nil {
                         // Device can no longer verify identity at all (e.g. its passcode was
                         // removed after App Lock was turned on) — don't stand between the user
                         // and their own data with a lock that can never open again.
                         appLockEnabled = false
                         isLocked = false
                     }
+                    // authenticated == false: failed or cancelled — stay locked, the button retries.
                 }
             }
             .interactiveDismissDisabled()
