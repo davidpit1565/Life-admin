@@ -22,7 +22,10 @@ struct ItemRow: View {
                 if let subtitle = subtitleText {
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        // An item overdue by a day and one due next month otherwise look
+                        // identical here save for an 8pt dot — the one signal that actually
+                        // needs to grab attention shouldn't be that easy to miss.
+                        .foregroundStyle(isOverdue ? .red : .secondary)
                 }
             }
 
@@ -31,9 +34,15 @@ struct ItemRow: View {
             Circle()
                 .fill(item.priority.indicatorColor)
                 .frame(width: 8, height: 8)
+                .accessibilityLabel(item.priority.displayName)
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .combine)
+    }
+
+    private var isOverdue: Bool {
+        guard let dueDate = item.dueDate, item.status == .active else { return false }
+        return dueDate < Date()
     }
 
     private var subtitleText: String? {

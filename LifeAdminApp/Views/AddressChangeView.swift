@@ -9,6 +9,8 @@ struct AddressChangeView: View {
     @State private var queue: [AddressChangeMessage] = []
     @State private var currentMessage: AddressChangeMessage?
     @State private var showMailUnavailableAlert = false
+    @State private var failedItemTitles: [String] = []
+    @State private var showingSendSummary = false
 
     private var affectedItems: [LifeAdminItem] {
         AddressChangeEngine().affectedItems(in: store.items)
@@ -72,6 +74,14 @@ struct AddressChangeView: View {
         .alert(String(localized: "addressChange.mailUnavailable"), isPresented: $showMailUnavailableAlert) {
             Button(String(localized: "common.ok"), role: .cancel) {}
         }
+        // A failed send was otherwise indistinguishable from the user simply cancelling that
+        // one draft — silently advancing to the next item left no way to tell "I chose to skip
+        // this one" from "this one actually didn't go through".
+        .alert(String(localized: "addressChange.sendFailedTitle"), isPresented: $showingSendSummary) {
+            Button(String(localized: "common.ok"), role: .cancel) {}
+        } message: {
+            Text(String(format: String(localized: "addressChange.sendFailedMessage"), failedItemTitles.joined(separator: ", ")))
+        }
     }
 
     private func toggle(_ id: UUID) {
@@ -87,6 +97,7 @@ struct AddressChangeView: View {
             showMailUnavailableAlert = true
             return
         }
+        failedItemTitles = []
         let selected = affectedItems.filter { selectedItemIDs.contains($0.id) }
         queue = AddressChangeDraftBuilder().drafts(for: selected, newAddress: newAddress)
         advanceQueue()
@@ -94,11 +105,18 @@ struct AddressChangeView: View {
 
     private func advanceQueue() {
         currentMessage = queue.first
+        if currentMessage == nil && failedItemTitles.isEmpty == false {
+            showingSendSummary = true
+        }
     }
 
     private func handleResult(_ result: MFMailComposeResult, for message: AddressChangeMessage) {
         queue.removeAll { $0.itemID == message.itemID }
         currentMessage = nil
+        if result == .failed {
+            let title = affectedItems.first { $0.id == message.itemID }?.title ?? message.subject
+            failedItemTitles.append(title)
+        }
         Task {
             if result == .sent {
                 await store.markAddressSynced(message.itemID)

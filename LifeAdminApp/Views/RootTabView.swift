@@ -9,6 +9,19 @@ private enum FirstRunStep: Identifiable {
     var id: Self { self }
 }
 
+/// Shared geometry for the floating "+" button: its own size/position, the clearance every
+/// scrollable list reserves at its bottom so the button can never sit over the last row or an
+/// empty-state message, and how far above it the undo banner sits. These previously lived as
+/// four separate magic numbers repeated across this file — the exact way the button once ended
+/// up visually overlapping "Nothing due on this day" was one of those numbers drifting out of
+/// sync with the others.
+private enum FABLayout {
+    static let buttonDiameter: CGFloat = 60
+    static let bottomPadding: CGFloat = 58
+    static let listClearance: CGFloat = 80
+    static let undoBannerBottomPadding: CGFloat = 140
+}
+
 struct RootTabView: View {
     @EnvironmentObject var store: ItemStore
     @State private var adding = false
@@ -33,19 +46,19 @@ struct RootTabView: View {
             } label: {
                 Image(systemName: "plus")
                     .font(.title2.bold())
-                    .frame(width: 60, height: 60)
+                    .frame(width: FABLayout.buttonDiameter, height: FABLayout.buttonDiameter)
                     .background(.tint)
                     .foregroundStyle(.white)
                     .clipShape(Circle())
                     .shadow(radius: 8)
             }
             .accessibilityLabel(String(localized: "add.anything"))
-            .padding(.bottom, 58)
+            .padding(.bottom, FABLayout.bottomPadding)
         }
         .overlay(alignment: .bottom) {
             if let pendingUndo = store.pendingUndo {
                 UndoDeleteBanner(item: pendingUndo) { store.undoDelete() }
-                    .padding(.bottom, 140)
+                    .padding(.bottom, FABLayout.undoBannerBottomPadding)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -102,7 +115,18 @@ struct RootTabView: View {
         }
         .fullScreenCover(isPresented: $isLocked) {
             LockScreenView {
-                Task { if await AppLockService.shared.authenticate() { isLocked = false } }
+                Task {
+                    switch await AppLockService.shared.authenticate() {
+                    case true: isLocked = false
+                    case false: break // failed or cancelled — stay locked, the button retries
+                    case nil:
+                        // Device can no longer verify identity at all (e.g. its passcode was
+                        // removed after App Lock was turned on) — don't stand between the user
+                        // and their own data with a lock that can never open again.
+                        appLockEnabled = false
+                        isLocked = false
+                    }
+                }
             }
             .interactiveDismissDisabled()
         }
@@ -159,6 +183,11 @@ struct HomeView: View {
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .foregroundStyle(.secondary)
+                                    // The icon itself is well under the ~44pt tap target Apple's
+                                    // HIG calls for — this expands the tappable area without
+                                    // changing how it looks.
+                                    .frame(width: 44, height: 44)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(String(localized: "common.dismiss"))
@@ -185,7 +214,7 @@ struct HomeView: View {
             // the last row (or, worse, empty-state text) can render right behind it. Reserving
             // real bottom space in the scroll content, rather than just visually floating the
             // button on top, is what actually guarantees no overlap on any device.
-            .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 80) }
+            .safeAreaInset(edge: .bottom) { Color.clear.frame(height: FABLayout.listClearance) }
         }
     }
 }
@@ -342,7 +371,7 @@ struct ItemsView: View {
             // See HomeView's identical modifier — reserves real space so the floating "+" button
             // (positioned by an .overlay on the shared TabView) can't render on top of this list's
             // own last row or empty-state text.
-            .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 80) }
+            .safeAreaInset(edge: .bottom) { Color.clear.frame(height: FABLayout.listClearance) }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     EditButton()
@@ -548,7 +577,7 @@ struct CalendarView: View {
                 // See HomeView's identical modifier — without it, the floating "+" button (an
                 // .overlay on the shared TabView, unaware of this List's own content) rendered
                 // directly on top of "Nothing due on this day", confirmed on-device.
-                .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 80) }
+                .safeAreaInset(edge: .bottom) { Color.clear.frame(height: FABLayout.listClearance) }
             }
             .navigationTitle(String(localized: "tab.calendar"))
         }
@@ -622,7 +651,7 @@ struct InsightsView: View {
                 }
             }
             .navigationTitle(String(localized: "tab.insights"))
-            .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 80) }
+            .safeAreaInset(edge: .bottom) { Color.clear.frame(height: FABLayout.listClearance) }
         }
     }
 }
@@ -914,6 +943,13 @@ struct AddItemView: View {
                                                     pendingAttachments.removeAll { $0.id == attachment.id }
                                                 } label: {
                                                     Image(systemName: "xmark.circle.fill").foregroundStyle(.white, .black.opacity(0.6))
+                                                        // Full 44pt HIG sizing here would start
+                                                        // overlapping the next thumbnail in this
+                                                        // tightly packed row — 32pt meaningfully
+                                                        // grows the glyph's own tiny hit area
+                                                        // without that collision risk.
+                                                        .frame(width: 32, height: 32)
+                                                        .contentShape(Rectangle())
                                                 }
                                                 .accessibilityLabel(String(format: String(localized: "add.removeAttachment"), attachment.filename))
                                                 .offset(x: 6, y: -6)

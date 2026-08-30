@@ -42,6 +42,8 @@
 "addressChange.noAffectedItems" = "לאף פריט אין עדיין אימייל של איש קשר. הוסף אחד ממסך הפריט קודם.";
 "addressChange.reviewSend" = "סקירה ושליחה";
 "addressChange.mailUnavailable" = "הגדר את Mail במכשיר הזה לפני שליחת עדכוני כתובת.";
+"addressChange.sendFailedTitle" = "חלק מהמיילים לא נשלחו";
+"addressChange.sendFailedMessage" = "%@ לא נשלחו. אפשר לנסות שוב מעמוד הפריט.";
 "common.ok" = "אישור";
 "common.dismiss" = "ביטול";
 "common.undo" = "בטל";

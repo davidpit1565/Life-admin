@@ -66,6 +66,8 @@ final class LifeAdminCoreTests: XCTestCase {
  func testDuplicateDetection() { let d=Date(); let a=LifeAdminItem(title:"Car Insurance", dueDate:d, amount:840); let b=LifeAdminItem(title:"car insurance", dueDate:d.addingTimeInterval(60), amount:840); XCTAssertTrue(DuplicateDetector().isLikelyDuplicate(a,b)) }
  func testImportExport() throws { let e=ImportExportEngine(); let data=try e.exportJSON([LifeAdminItem(title:"Gym")]); XCTAssertEqual(try e.importJSON(data).first?.title, "Gym") }
  func testCSVExport() { XCTAssertTrue(ImportExportEngine().exportCSV([LifeAdminItem(title:"Gym")]).contains("Title")) }
+ func testCSVExportEscapesCommaInTitle() { let csv=ImportExportEngine().exportCSV([LifeAdminItem(title:"Insurance, Inc.")]); XCTAssertTrue(csv.contains("\"Insurance, Inc.\"")) }
+ func testCSVExportNeutralizesFormulaInjection() { let csv=ImportExportEngine().exportCSV([LifeAdminItem(title:"=HYPERLINK(\"http://evil.example\")")]); XCTAssertTrue(csv.contains("\"'=HYPERLINK(\"\"http://evil.example\"\")\"")) }
  func testNaturalLanguageCurrency() { let e=NaturalLanguageParser().parse("My car insurance costs €840 and renews every March 18."); XCTAssertEqual(e.category, .insurance); XCTAssertEqual(e.currency, "EUR"); XCTAssertEqual(e.recurring, .yearly) }
  func testAIJSONParsing() throws { let json=#"{"title":"Passport","category":"travel","currency":"EUR","confidence":0.8}"#.data(using:.utf8)!; XCTAssertEqual(try AIJSONValidator().decode(json).title, "Passport") }
  func testAIJSONFailure() { let json=#"{"confidence":2}"#.data(using:.utf8)!; XCTAssertThrowsError(try AIJSONValidator().decode(json)) }

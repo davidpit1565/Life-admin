@@ -42,6 +42,8 @@
 "addressChange.noAffectedItems" = "Ningún elemento tiene aún un correo de contacto. Añade uno desde la página de un elemento primero.";
 "addressChange.reviewSend" = "Revisar y enviar";
 "addressChange.mailUnavailable" = "Configura Mail en este dispositivo antes de enviar actualizaciones de dirección.";
+"addressChange.sendFailedTitle" = "Algunos correos no se enviaron";
+"addressChange.sendFailedMessage" = "%@ no se enviaron. Puedes intentarlo de nuevo desde la página del elemento.";
 "common.ok" = "Aceptar";
 "common.dismiss" = "Cerrar";
 "common.undo" = "Deshacer";

@@ -15,9 +15,16 @@ struct AppLockService {
     /// `.deviceOwnerAuthentication` (not the biometrics-only variant) so a passcode still unlocks
     /// the app on a device with Face ID temporarily unavailable (a mask, a bandage, Face ID
     /// disabled) — falling back to "no way in at all" would be worse than falling back to passcode.
-    func authenticate() async -> Bool {
+    ///
+    /// Returns nil when the device cannot verify identity at all (typically: no device passcode
+    /// is set, so there's nothing to fall back to). That case must never map to `true` — this
+    /// toggle exists so a stranger who picks up the phone can't read someone's bills and medical
+    /// appointments, and treating "can't check" as "passed" would defeat that outright. Callers
+    /// should turn App Lock off on nil rather than strand the user behind a lock that can never
+    /// open.
+    func authenticate() async -> Bool? {
         let context = LAContext()
-        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil) else { return true }
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil) else { return nil }
         do {
             return try await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: String(localized: "appLock.reason"))
         } catch {

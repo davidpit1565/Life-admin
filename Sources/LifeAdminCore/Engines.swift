@@ -125,4 +125,57 @@ public struct RecurrenceEngine: Sendable {
         return nextItem
     }
 }
-public struct ImportExportEngine { let encoder=JSONEncoder(); let decoder=JSONDecoder(); public init() { encoder.dateEncodingStrategy = .iso8601; decoder.dateDecodingStrategy = .iso8601 }; public func exportJSON(_ items: [LifeAdminItem]) throws -> Data { try encoder.encode(items) }; public func importJSON(_ data: Data) throws -> [LifeAdminItem] { let items = try decoder.decode([LifeAdminItem].self, from: data); try items.forEach { try ItemValidator().validate($0) }; return items }; public func exportCSV(_ items: [LifeAdminItem]) -> String { (["Title,Category,Status,Priority,DueDate,Amount,Currency"] + items.map { "\($0.title),\($0.category.rawValue),\($0.status.rawValue),\($0.priority.rawValue),\($0.dueDate?.ISO8601Format() ?? ""),\($0.amount.map(String.init(describing:)) ?? ""),\($0.currency ?? "")" }).joined(separator:"\n") } }
+public struct ImportExportEngine {
+    let encoder = JSONEncoder()
+    let decoder = JSONDecoder()
+    public init() {
+        encoder.dateEncodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .iso8601
+    }
+
+    public func exportJSON(_ items: [LifeAdminItem]) throws -> Data { try encoder.encode(items) }
+
+    /// No real user backs up more than a few thousand life-admin items; a file claiming far more
+    /// is either corrupt or was crafted to make the app decode and validate an unbounded array
+    /// (a backup is picked via the system file picker, so this can only ever be self-inflicted,
+    /// but it's a one-line guard against a bad file wedging the import).
+    static let maxImportItemCount = 20_000
+
+    public func importJSON(_ data: Data) throws -> [LifeAdminItem] {
+        let items = try decoder.decode([LifeAdminItem].self, from: data)
+        guard items.count <= Self.maxImportItemCount else { throw LifeAdminError.invalidJSON }
+        try items.forEach { try ItemValidator().validate($0) }
+        return items
+    }
+
+    /// A title can be user-typed, OCR'd off a scanned document, or AI-extracted — none of those
+    /// are trustworthy input. Without escaping, a comma in the title would silently misalign every
+    /// column after it; without the leading-character guard, a title like `=HYPERLINK(...)` opens
+    /// straight into formula injection the moment the exported file is opened in Excel/Numbers/
+    /// Sheets. Every field gets both treatments regardless of content, since none of these fields
+    /// are ever safe to trust as-is.
+    private func csvField(_ raw: String) -> String {
+        var value = raw
+        if let first = value.unicodeScalars.first, "=+-@\t\r".unicodeScalars.contains(first) {
+            value = "'" + value
+        }
+        let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
+        return "\"\(escaped)\""
+    }
+
+    public func exportCSV(_ items: [LifeAdminItem]) -> String {
+        let header = "Title,Category,Status,Priority,DueDate,Amount,Currency"
+        let rows = items.map { item in
+            [
+                csvField(item.title),
+                csvField(item.category.rawValue),
+                csvField(item.status.rawValue),
+                csvField(item.priority.rawValue),
+                csvField(item.dueDate?.ISO8601Format() ?? ""),
+                csvField(item.amount.map(String.init(describing:)) ?? ""),
+                csvField(item.currency ?? "")
+            ].joined(separator: ",")
+        }
+        return ([header] + rows).joined(separator: "\n")
+    }
+}

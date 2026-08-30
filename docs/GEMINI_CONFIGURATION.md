@@ -14,6 +14,24 @@ periodically retires older model IDs; if the proxy starts returning
 `"Gemini API returned a non-ok response"` entry — Google's 404 error message names
 the exact replacement model ID to switch to.
 
+## Abuse protection
+
+`/v1/extract` is a public endpoint (its URL ships inside the app binary, trivially recoverable),
+and it forwards every request to a paid Gemini API key. Two independent, best-effort protections
+are built in:
+
+- **Per-IP rate limit** — always on, no configuration needed. In-memory, so it resets on every
+  cold start; this blunts a sustained scripted attacker but is not a hard guarantee.
+- **Shared-secret header** — off by default. Set `APP_SHARED_SECRET` to a long random value in
+  the Vercel project's environment variables, and set the identical value as
+  `geminiProxySharedSecret` in `LifeAdminApp/AppConfig.swift`, then rebuild the app. This is not a
+  real secret (anything shipped in the app binary can be extracted with `strings`), but it stops
+  the endpoint from answering requests that were never sent by this app at all.
+
+Neither measure replaces watching actual spend: set a budget alert on the Gemini API key itself
+in Google AI Studio / Cloud Console so a determined abuser can't run up an unbounded bill even if
+both of the above are bypassed.
+
 ## Local verification
 
 Run:

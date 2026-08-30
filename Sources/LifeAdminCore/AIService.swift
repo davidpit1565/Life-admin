@@ -113,11 +113,18 @@ public struct LifeAdminAIService: Sendable {
 public struct ProxyAIClient: AIExtracting, Sendable {
     public let endpoint: URL
     public let timeoutSeconds: TimeInterval
+    public let sharedSecret: String?
     private let session: URLSession
 
-    public init(endpoint: URL, timeoutSeconds: TimeInterval = 12, session: URLSession = .shared) {
+    /// `sharedSecret`, when non-nil, is sent as `X-App-Secret` — not a cryptographic secret (it
+    /// ships inside the app binary and can be extracted), but it lets the proxy reject requests
+    /// that never came from this app at all, which blunts casual scripted abuse of a public,
+    /// unauthenticated endpoint that forwards to a paid API key. Defaults to nil so existing
+    /// callers/tests are unaffected until a value is actually configured.
+    public init(endpoint: URL, timeoutSeconds: TimeInterval = 12, sharedSecret: String? = nil, session: URLSession = .shared) {
         self.endpoint = endpoint
         self.timeoutSeconds = timeoutSeconds
+        self.sharedSecret = sharedSecret
         self.session = session
     }
 
@@ -126,6 +133,9 @@ public struct ProxyAIClient: AIExtracting, Sendable {
         request.httpMethod = "POST"
         request.timeoutInterval = timeoutSeconds
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let sharedSecret, sharedSecret.isEmpty == false {
+            request.addValue(sharedSecret, forHTTPHeaderField: "X-App-Secret")
+        }
         request.httpBody = try JSONEncoder().encode(["text": String(text.prefix(4000))])
         do {
             let (data, response) = try await session.data(for: request)
