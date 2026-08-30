@@ -5,6 +5,42 @@ const model = 'gemini-3.5-flash-lite';
 const apiVersion = 'v1beta';
 const port = Number(process.env.PORT || 8787);
 const key = process.env.GEMINI_API_KEY;
+const sharedSecret = process.env.APP_SHARED_SECRET;
+
+// This endpoint is public (its URL ships inside the iOS app binary, trivially recoverable with
+// `strings`), forwards every request to a paid Gemini API key, and otherwise had no limit on who
+// could call it or how often — anyone who found the URL could run up the owner's AI bill or exhaust
+// their quota. Neither check below is a real secret boundary (a shared value baked into the app can
+// always be extracted from the binary; the rate limiter is in-memory and resets on every cold
+// start), but together they block casual/scripted abuse, which is the realistic threat here.
+const rateLimitWindowMs = 60_000;
+const rateLimitMaxPerWindow = 20;
+const requestTimestampsByIP = new Map();
+
+function checkSharedSecret(headerValue) {
+  if (!sharedSecret) return true; // not configured yet: opt-in, so this can't break existing deployments
+  return headerValue === sharedSecret;
+}
+
+function checkRateLimit(ip) {
+  const key = ip || 'unknown';
+  const now = Date.now();
+  const recent = (requestTimestampsByIP.get(key) || []).filter((t) => now - t < rateLimitWindowMs);
+  if (recent.length >= rateLimitMaxPerWindow) {
+    requestTimestampsByIP.set(key, recent);
+    return false;
+  }
+  recent.push(now);
+  requestTimestampsByIP.set(key, recent);
+  if (requestTimestampsByIP.size > 5000) requestTimestampsByIP.clear(); // bound memory on a long-lived warm instance
+  return true;
+}
+
+function clientIP(headers, socketAddress) {
+  const forwarded = headers['x-forwarded-for'];
+  const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+  return first?.split(',')[0]?.trim() || socketAddress || 'unknown';
+}
 
 function safeLog(message, meta = {}) {
   const clean = { ...meta };
@@ -74,8 +110,11 @@ async function callGemini(text) {
       })
     });
     if (!response.ok) {
+      // Google's error body can quote back part of the request on a validation-style 4xx, which
+      // itself embeds the user's original free text (amounts, insurance/medical details, per
+      // buildPrompt above) — so only its length is logged, never its content.
       const errorBody = await response.text().catch(() => '');
-      safeLog('Gemini API returned a non-ok response', { geminiStatus: response.status, geminiBody: errorBody.slice(0, 500) });
+      safeLog('Gemini API returned a non-ok response', { geminiStatus: response.status, geminiBodyLength: errorBody.length });
       if (response.status === 429) return { status: 429, body: { error: 'rate_limited' } };
       if (response.status === 401 || response.status === 403) return { status: 401, body: { error: 'authentication_failed' } };
       if (response.status >= 500) return { status: 503, body: { error: 'service_unavailable' } };
@@ -98,6 +137,8 @@ async function callGemini(text) {
 
 const server = http.createServer(async (req, res) => {
   if (req.method !== 'POST' || req.url !== '/v1/extract') return send(res, 404, { error: 'not_found' });
+  if (!checkSharedSecret(req.headers['x-app-secret'])) return send(res, 401, { error: 'authentication_failed' });
+  if (!checkRateLimit(clientIP(req.headers, req.socket?.remoteAddress))) return send(res, 429, { error: 'rate_limited' });
   let body = '';
   req.on('data', (chunk) => { body += chunk; if (body.length > 12000) req.destroy(); });
   req.on('end', async () => {
@@ -116,4 +157,4 @@ if (require.main === module) {
   server.listen(port, () => safeLog('Life Admin Gemini proxy listening', { port, model, apiVersion, keyConfigured: Boolean(key) }));
 }
 
-module.exports = { buildPrompt, toExtraction, normalizeDate, callGemini, buildGeminiUrl, model, apiVersion };
+module.exports = { buildPrompt, toExtraction, normalizeDate, callGemini, buildGeminiUrl, model, apiVersion, checkSharedSecret, checkRateLimit, clientIP };

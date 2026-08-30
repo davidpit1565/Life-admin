@@ -6,6 +6,14 @@ on:
   pull_request:
     branches: ["**"]
 
+# A push to a branch with an open PR fires both a "push" and a "pull_request" event for the same
+# commit, each starting its own full macOS/Xcode run — twice the CI minutes for identical results.
+# Grouping by the commit itself (falling back to the ref for a push with no PR) makes the second
+# event to arrive cancel whichever run from the first is still going, instead of both finishing.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: macos-14
@@ -50,3 +58,43 @@ jobs:
             -scheme LifeAdminApp \
             -destination "generic/platform=iOS Simulator" \
             CODE_SIGNING_ALLOWED=NO
+
+      # A compile that succeeds doesn't prove the app actually launches — a crash-on-start or a
+      # blank first screen would still show green here otherwise. This boots a real Simulator,
+      # installs and launches the built app, and screenshots it, so a human (or Claude) can see
+      # what actually rendered instead of only trusting that xcodebuild exited 0.
+      - name: Launch on a booted Simulator and screenshot the result
+        run: |
+          set -euo pipefail
+          # PRODUCT_NAME is "Life Admin" (with a space) in project.yml, so that's the built
+          # product's actual name — not the LifeAdminApp scheme/target name.
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "Life Admin.app" -path "*iphonesimulator*" | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Could not find built Life Admin.app under DerivedData"
+            exit 1
+          fi
+          echo "Found app at $APP_PATH"
+
+          DEVICE_UDID=$(xcrun simctl list devices available -j | jq -r '.devices | to_entries[] | select(.key | contains("iOS")) | .value[] | select(.name | contains("iPhone")) | .udid' | head -1)
+          if [ -z "$DEVICE_UDID" ]; then
+            echo "No available iOS/iPhone simulator found"
+            exit 1
+          fi
+          echo "Using simulator $DEVICE_UDID"
+
+          xcrun simctl bootstatus "$DEVICE_UDID" -b
+          xcrun simctl install "$DEVICE_UDID" "$APP_PATH"
+          xcrun simctl launch "$DEVICE_UDID" com.lifeadmin.app
+          sleep 6
+          mkdir -p ci-artifacts
+          xcrun simctl io "$DEVICE_UDID" screenshot ci-artifacts/launch-screenshot.png
+          xcrun simctl spawn "$DEVICE_UDID" log show --predicate 'process == "Life Admin"' --last 1m > ci-artifacts/app-log.txt || true
+          xcrun simctl shutdown "$DEVICE_UDID" || true
+
+      - name: Upload launch screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-launch
+          path: ci-artifacts/
+          if-no-files-found: warn

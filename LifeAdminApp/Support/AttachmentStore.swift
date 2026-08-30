@@ -36,7 +36,11 @@ struct AttachmentStore {
         let id = UUID()
         let storedFilename = "\(id.uuidString).jpg"
         let url = directory.appending(path: storedFilename)
-        guard (try? data.write(to: url)) != nil else { return nil }
+        // These files can be photographed IDs, insurance cards, or medical documents — the
+        // default protection class stays readable once the device has been unlocked even once
+        // since boot, so this matches the app's own opt-in Face ID lock semantics instead:
+        // unreadable whenever the device itself is locked.
+        guard (try? data.write(to: url, options: .completeFileProtection)) != nil else { return nil }
         return Attachment(id: id, filename: filename, mimeType: "image/jpeg", sizeBytes: data.count, localPath: storedFilename)
     }
 

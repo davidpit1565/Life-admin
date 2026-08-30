@@ -22,6 +22,7 @@ struct ItemDetailView: View {
     @State private var attachments: [Attachment]
     @State private var showingContactPicker = false
     @State private var showingDeleteConfirmation = false
+    @State private var isSaving = false
 
     init(item: LifeAdminItem) {
         self.item = item
@@ -143,6 +144,7 @@ struct ItemDetailView: View {
             if item.status == .active {
                 Section {
                     Button {
+                        isSaving = true
                         Task {
                             await markDone()
                             dismiss()
@@ -150,6 +152,7 @@ struct ItemDetailView: View {
                     } label: {
                         Label(String(localized: "itemDetail.markDone"), systemImage: "checkmark.circle.fill")
                     }
+                    .disabled(isSaving)
                     // Only meaningful with a due date to push forward — the notification banner's
                     // own "Snooze" button always adds a fixed 1 day; this gives the same idea a
                     // few real durations from inside the item itself.
@@ -157,8 +160,14 @@ struct ItemDetailView: View {
                         Menu {
                             ForEach(Self.snoozeOptions) { option in
                                 Button(option.label) {
+                                    isSaving = true
                                     Task {
-                                        dueDate = Calendar.current.date(byAdding: .day, value: option.days, to: dueDate) ?? dueDate
+                                        // Snoozing an already-overdue item from its own stale due
+                                        // date can still land in the past (e.g. 10 days overdue,
+                                        // +1 day snooze = 9 days overdue) — snoozing from "now"
+                                        // guarantees a real future date the reminder can fire on.
+                                        let base = max(dueDate, Date())
+                                        dueDate = Calendar.current.date(byAdding: .day, value: option.days, to: base) ?? dueDate
                                         await save()
                                         dismiss()
                                     }
@@ -167,20 +176,37 @@ struct ItemDetailView: View {
                         } label: {
                             Label(String(localized: "itemDetail.snooze"), systemImage: "clock.arrow.circlepath")
                         }
+                        .disabled(isSaving)
                     }
                 }
             }
 
             Section {
-                Button(String(localized: "common.save")) {
+                Button {
+                    isSaving = true
                     Task {
                         await save()
                         dismiss()
                     }
+                } label: {
+                    // Save/Mark Done/Snooze all call the same async store methods as AddItemView's
+                    // Save button, which already learned this lesson: with nothing disabled and no
+                    // feedback, a second tap before the first finishes fires a second concurrent
+                    // write, and a slow save just looks like the tap did nothing at all.
+                    if isSaving {
+                        HStack {
+                            ProgressView().controlSize(.small)
+                            Text(String(localized: "common.save"))
+                        }
+                    } else {
+                        Text(String(localized: "common.save"))
+                    }
                 }
+                .disabled(isSaving)
                 Button(String(localized: "itemDetail.delete"), role: .destructive) {
                     showingDeleteConfirmation = true
                 }
+                .disabled(isSaving)
             }
         }
         .navigationTitle(title.isEmpty ? item.title : title)
@@ -237,7 +263,12 @@ struct ItemDetailView: View {
 
     private func currencyLabel(_ code: String) -> String {
         guard let name = Locale.current.localizedString(forCurrencyCode: code) else { return code }
-        return "\(code) – \(name)"
+        // A Latin currency code stitched to a Hebrew/Arabic name with a plain dash is exactly the
+        // mixed-direction case that makes the dash (and whatever follows it) jump to the wrong
+        // side — wrapping the code in explicit directional isolates keeps it as a self-contained
+        // LTR run no matter which way the rest of the string flows.
+        let isolatedCode = "\u{2066}\(code)\u{2069}"
+        return "\(isolatedCode) – \(name)"
     }
 
     private func apply(_ contact: CNContact) {

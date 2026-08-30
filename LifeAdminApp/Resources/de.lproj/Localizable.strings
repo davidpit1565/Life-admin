@@ -37,6 +37,8 @@
 "addressChange.noAffectedItems" = "No items have a contact email yet. Add one from an item's page first.";
 "addressChange.reviewSend" = "Review & Send";
 "addressChange.mailUnavailable" = "Set up Mail on this device first to send address updates.";
+"addressChange.sendFailedTitle" = "Some emails didn't send";
+"addressChange.sendFailedMessage" = "%@ didn't send. You can try again from the item's page.";
 "common.ok" = "OK";
 "common.dismiss" = "Dismiss";
 "editContact.section" = "Contact";
