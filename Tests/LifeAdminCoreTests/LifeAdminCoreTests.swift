@@ -264,4 +264,69 @@ final class LifeAdminCoreTests: XCTestCase {
      let next = RecurrenceEngine().nextOccurrence(of: item)
      XCTAssertEqual(next?.attachments.isEmpty, true)
  }
+ // Bugs found by a 50-sentence hands-on test battery run through the real parser (not written to
+ // match pre-decided expected outputs) — each one below reproduces a sentence that came back wrong.
+ func testTwoMonthsInHebrewIsRecognizedAsADateNotMonthlyRecurrence() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("ביטוח נסיעות פג תוקף בעוד חודשיים", now: now)
+     XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .month, value: 2, to: now)!))
+     XCTAssertEqual(e.recurring, Recurrence.none)
+ }
+ func testTwoYearsInHebrewIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("הרישיון פג בעוד שנתיים", now: now)
+     XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .year, value: 2, to: now)!))
+ }
+ func testSpelledOutNumberInEnglishIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("Dentist appointment in three weeks", now: now)
+     XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .weekOfYear, value: 3, to: now)!))
+ }
+ func testSpelledOutNumberInHebrewIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("תור לרופא שיניים בעוד שלושה שבועות", now: now)
+     XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .weekOfYear, value: 3, to: now)!))
+ }
+ func testInNMonthsIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("car service due in 6 months", now: now)
+     XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .month, value: 6, to: now)!))
+     XCTAssertEqual(e.recurring, Recurrence.none)
+ }
+ func testNextMonthNameInEnglishIsRecognized() {
+     let e = NaturalLanguageParser().parse("renew passport before it expires next December")
+     XCTAssertNotNil(e.date)
+     XCTAssertEqual(Calendar.current.component(.month, from: e.date!), 12)
+ }
+ func testNextMonthNameInHebrewIsRecognized() {
+     let e = NaturalLanguageParser().parse("לחדש דרכון לפני שהוא פג בדצמבר הקרוב")
+     XCTAssertNotNil(e.date)
+     XCTAssertEqual(Calendar.current.component(.month, from: e.date!), 12)
+ }
+ func testAbbreviatedMonthNameIsRecognized() {
+     let e = NaturalLanguageParser().parse("credit card payment $85 every month starting sep 1")
+     XCTAssertNotNil(e.date)
+     XCTAssertEqual(Calendar.current.component(.month, from: e.date!), 9)
+ }
+ func testClockTimeGluedToAmPmIsNotMisreadAsAnAmount() {
+     let e = NaturalLanguageParser().parse("meeting with the accountant tomorrow at 9am")
+     XCTAssertNil(e.amount)
+ }
+ func testSpelledOutDollarsIsRecognizedAsUSD() {
+     let e = NaturalLanguageParser().parse("pet insurance 45 dollars a month, renews on the 10th")
+     XCTAssertEqual(e.currency, "USD")
+     XCTAssertEqual(e.recurring, .monthly)
+ }
+ func testEveryNMonthsIsRecognizedAsEverySixMonthsNotYearly() {
+     let e = NaturalLanguageParser().parse("streaming bundle renews every 6 months for $89.99")
+     XCTAssertEqual(e.recurring, .everySixMonths)
+ }
+ func testHebrewHalfYearIsRecognizedAsEverySixMonths() {
+     let e = NaturalLanguageParser().parse("מנוי טלוויזיה מתחדש כל חצי שנה ב-350 שקל")
+     XCTAssertEqual(e.recurring, .everySixMonths)
+ }
+ func testFallbackTitleStopsBeforeABareAmount() {
+     let e = NaturalLanguageParser().parse("housing loan installment 3800 nis due the 28th of every month")
+     XCTAssertEqual(e.title, "housing loan installment")
+ }
 }

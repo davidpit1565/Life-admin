@@ -7,13 +7,17 @@ public struct NaturalLanguageParser: Sendable {
     /// everyday order outside the US, and the confirmed on-device bug report that motivated the
     /// garbled-title fix elsewhere in this file used exactly that order ("On the 24 august").
     private static let hebrewMonths = ["ינואר": 1, "פברואר": 2, "מרץ": 3, "אפריל": 4, "מאי": 5, "יוני": 6, "יולי": 7, "אוגוסט": 8, "ספטמבר": 9, "אוקטובר": 10, "נובמבר": 11, "דצמבר": 12]
+    private static let englishMonths = ["january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6, "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12]
+    /// "starting sep 1" is at least as common as "starting september 1" in casual writing — a
+    /// real test sentence used exactly this abbreviated form and was silently unrecognized before
+    /// this was added. "may" needs no separate entry: its abbreviation is already its full name.
+    private static let englishMonthAbbreviations = ["jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12]
     /// Hebrew glues single-letter prepositions directly onto the following word with no space or
     /// hyphen — "in August" is "באוגוסט" (ב + אוגוסט), not two tokens — so a month name is only
     /// ever found by also trying the token with one of these leading letters stripped.
     private static let hebrewPrefixLetters: Set<Character> = ["ב", "ה", "ו", "ל", "מ", "כ", "ש"]
 
     static func simpleDate(in lower: String, now: Date) -> Date? {
-        let englishMonths = ["january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6, "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12]
         let parts = lower.split { !$0.isLetter && !$0.isNumber }.map(String.init)
         // A written-out date is far more likely to carry an ordinal suffix ("August 15th", "the
         // 1st") than not — Int("15th") fails outright, which silently dropped a clearly-stated
@@ -26,6 +30,7 @@ public struct NaturalLanguageParser: Sendable {
         }
         func monthNumber(_ token: String) -> Int? {
             if let m = englishMonths[token] { return m }
+            if let m = englishMonthAbbreviations[token] { return m }
             if let m = hebrewMonths[token] { return m }
             if let first = token.first, hebrewPrefixLetters.contains(first), let m = hebrewMonths[String(token.dropFirst())] { return m }
             return nil
@@ -73,6 +78,14 @@ public struct NaturalLanguageParser: Sendable {
         return calendar.date(byAdding: .day, value: delta, to: now).map(calendar.startOfDay)
     }
 
+    /// Spelled-out counts ("in three weeks", "בעוד שלושה שבועות") are at least as common in
+    /// natural writing as digits, and understanding what was actually typed — not just the
+    /// digit form — is the whole point; a real test sentence using "three" instead of "3" was
+    /// silently unrecognized before this was added. Hebrew carries grammatical gender, so both
+    /// forms of each number are listed.
+    private static let englishNumberWords: [String: Int] = ["one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12]
+    private static let hebrewNumberWords: [String: Int] = ["אחד": 1, "אחת": 1, "שניים": 2, "שתיים": 2, "שני": 2, "שתי": 2, "שלושה": 3, "שלוש": 3, "ארבעה": 4, "ארבע": 4, "חמישה": 5, "חמש": 5, "שישה": 6, "שש": 6, "שבעה": 7, "שבע": 7, "שמונה": 8, "תשעה": 9, "תשע": 9, "עשרה": 10, "עשר": 10]
+
     static func relativeDate(in lower: String, now: Date) -> Date? {
         let calendar = Calendar.current
         func days(_ n: Int) -> Date? { calendar.date(byAdding: .day, value: n, to: now).map(calendar.startOfDay) }
@@ -83,7 +96,12 @@ public struct NaturalLanguageParser: Sendable {
         if lower.contains("day after tomorrow") || lower.contains("מחרתיים") { return days(2) }
         if lower.contains("tomorrow") || lower.contains("מחר") { return days(1) }
         if lower.contains("today") || lower.contains("היום") { return days(0) }
+        // Hebrew's dual grammatical form for exactly two ("שבועיים"/"חודשיים"/"שנתיים") is a
+        // single word, not "two weeks/months/years" as separate tokens, so it can't be caught by
+        // the number-word scan below at all — it needs its own direct check.
         if lower.contains("שבועיים") { return weeks(2) }
+        if lower.contains("חודשיים") { return months(2) }
+        if lower.contains("שנתיים") { return years(2) }
         if lower.contains("next week") || lower.contains("in a week") || lower.contains("בעוד שבוע") || lower.contains("בשבוע הבא") { return weeks(1) }
         if lower.contains("next month") || lower.contains("in a month") || lower.contains("בעוד חודש") || lower.contains("בחודש הבא") { return months(1) }
         if lower.contains("next year") || lower.contains("in a year") || lower.contains("בעוד שנה") || lower.contains("בשנה הבאה") { return years(1) }
@@ -97,21 +115,39 @@ public struct NaturalLanguageParser: Sendable {
         for (name, number) in hebrewWeekdayNumbers where lower.contains("יום \(name) הבא") || lower.contains("ביום \(name) הבא") {
             return nextWeekday(number, from: now, calendar: calendar)
         }
+        // "next December" / "בדצמבר הקרוב" — a bare month name is only a relative-date signal
+        // paired with "next"/"הקרוב"; with no day stated, the 1st of that month is the only
+        // reasonable convention (matches simpleDate's own next-occurrence rule for month+day).
+        for (name, number) in englishMonths where lower.contains("next \(name)") {
+            return Self.nextOccurrence(month: number, day: 1, now: now)
+        }
+        for (name, number) in hebrewMonths where lower.contains("ב\(name) הקרוב") || lower.contains("ל\(name) הקרוב") {
+            return Self.nextOccurrence(month: number, day: 1, now: now)
+        }
 
+        func numberToken(_ s: String) -> Int? {
+            if let n = Int(s) { return n }
+            if let n = englishNumberWords[s.lowercased()] { return n }
+            if let n = hebrewNumberWords[s] { return n }
+            return nil
+        }
+        let numberAlternation = (["\\d+"] + englishNumberWords.keys + hebrewNumberWords.keys).joined(separator: "|")
         let numberedPatterns: [(String, (Int) -> Date?)] = [
-            (#"in\s+(\d+)\s+days?"#, days),
-            (#"in\s+(\d+)\s+weeks?"#, weeks),
-            (#"in\s+(\d+)\s+years?"#, years),
-            (#"בעוד\s+(\d+)\s+ימים?"#, days),
-            (#"בעוד\s+(\d+)\s+שבועות"#, weeks),
-            (#"בעוד\s+(\d+)\s+שנים?"#, years)
+            ("in\\s+(\(numberAlternation))\\s+days?", days),
+            ("in\\s+(\(numberAlternation))\\s+weeks?", weeks),
+            ("in\\s+(\(numberAlternation))\\s+months?", months),
+            ("in\\s+(\(numberAlternation))\\s+years?", years),
+            ("בעוד\\s+(\(numberAlternation))\\s+ימים?", days),
+            ("בעוד\\s+(\(numberAlternation))\\s+שבועות", weeks),
+            ("בעוד\\s+(\(numberAlternation))\\s+חודשים?", months),
+            ("בעוד\\s+(\(numberAlternation))\\s+שנים?", years)
         ]
         for (pattern, apply) in numberedPatterns {
             guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { continue }
             let range = NSRange(lower.startIndex..., in: lower)
             if let match = regex.firstMatch(in: lower, range: range),
                let numberRange = Range(match.range(at: 1), in: lower),
-               let value = Int(lower[numberRange]) {
+               let value = numberToken(String(lower[numberRange])) {
                 return apply(value)
             }
         }
@@ -251,6 +287,11 @@ public struct NaturalLanguageParser: Sendable {
             }
         }
         let ordinalDatePattern = try! NSRegularExpression(pattern: #"^\d{1,2}(st|nd|rd|th)$"#, options: .caseInsensitive)
+        // "meeting at 9am" isn't a $9 charge — a clock hour glued to am/pm (or standing right
+        // next to it as its own token) is a time, not an amount. Found on a real test sentence
+        // that had no currency in it at all, so nothing else here was catching it.
+        let timeTokenPattern = try! NSRegularExpression(pattern: #"^\d{1,2}\s*(am|pm)$"#, options: .caseInsensitive)
+        let timeMarkers: Set<String> = ["am", "pm"]
         // "expires in 2 years" isn't a 2-dollar bill — a bare number immediately followed by a
         // span-of-time word is a duration, not an amount, the same reasoning that already
         // excludes an ordinal day-of-month here.
@@ -258,8 +299,10 @@ public struct NaturalLanguageParser: Sendable {
         for (index, token) in tokens.enumerated() {
             let range = NSRange(token.startIndex..., in: token)
             if ordinalDatePattern.firstMatch(in: token, range: range) != nil { continue }
+            if timeTokenPattern.firstMatch(in: token, range: range) != nil { continue }
             if let dayOfMonth, Int(token) == dayOfMonth { continue }
             if index + 1 < tokens.count, durationWords.contains(tokens[index + 1].lowercased()) { continue }
+            if index + 1 < tokens.count, timeMarkers.contains(tokens[index + 1].lowercased()) { continue }
             if let value = decimalValue(token) { return value }
         }
         return nil
@@ -289,7 +332,14 @@ public struct NaturalLanguageParser: Sendable {
         // or LifeAdminAIService.isCompleteEnough will treat it as good enough and never ask Gemini
         // for a real title.
         let recognizedTitle: String? = match?.title
-        let fallbackTitle = text.split(separator: " ").prefix(4).joined(separator: " ")
+        // A fallback title should never end up literally showing the amount ("credit card
+        // payment $85"): stopping at the first token that carries a digit keeps the amount out of
+        // the title text while still using up to 4 words, same as before, whenever the first
+        // words happen to be digit-free (the overwhelmingly common case).
+        let leadingWords = text.split(separator: " ").map(String.init)
+        let wordsBeforeFirstDigit = leadingWords.prefix { $0.contains { $0.isNumber } == false }
+        let fallbackWords = wordsBeforeFirstDigit.isEmpty ? leadingWords : Array(wordsBeforeFirstDigit)
+        let fallbackTitle = fallbackWords.prefix(4).joined(separator: " ")
         let title = recognizedTitle ?? fallbackTitle
         // ₪/שקל/ש"ח matter here specifically because the app's own Hebrew UI and example prompts
         // use them — without this, typing exactly what the app itself suggested ("ביטוח רכב
@@ -298,7 +348,7 @@ public struct NaturalLanguageParser: Sendable {
         // contains "שקל"); spelled-out currency words ("nis", "shekels", "usd") are only ever
         // whole tokens, so those need the word set, not another `.contains` on the raw string.
         let currency = lower.contains("€") || words.contains("eur") || lower.contains("יורו") ? "EUR"
-            : lower.contains("$") || words.contains("usd") || lower.contains("דולר") ? "USD"
+            : lower.contains("$") || words.contains("usd") || words.contains("dollar") || words.contains("dollars") || lower.contains("דולר") ? "USD"
             : lower.contains("₪") || lower.contains("שקל") || lower.contains("ש\"ח") || lower.contains("ש״ח") || words.contains("שח") || words.contains("nis") || words.contains("ils") || words.contains("shekel") || words.contains("shekels") ? "ILS"
             : nil
         // Checked most-specific-period-first: "renews every month" contains "renews every" as a
@@ -308,12 +358,24 @@ public struct NaturalLanguageParser: Sendable {
         // it must never win against an actual "month"/"six months" match sitting right next to it.
         // "$45/month" and "לחודש" ("per month") are just as common a way to state a recurring
         // price as "monthly" spelled out, so they get the same weight here.
+        // "חודשיים"/"שנתיים" are Hebrew's dual form for exactly two months/years — a single word,
+        // not "month"/"year" plus a count — and each one contains "חודשי"/"שנתי" as a plain
+        // substring, which falsely fired the monthly/yearly check below on a one-time "expires in
+        // two months" sentence that has no recurrence in it at all. Stripping the dual words out
+        // before matching removes the false substring without touching any of the real
+        // "חודשי"/"שנתי"/"כל חודש"/"כל שנה" phrasing this block is actually meant to catch.
+        let lowerForRecurrence = lower.replacingOccurrences(of: "חודשיים", with: "").replacingOccurrences(of: "שנתיים", with: "")
         let recurrence: Recurrence
-        if lower.contains("every month") || lower.contains("monthly") || lower.contains("/month") || lower.contains("per month") || lower.contains("כל חודש") || lower.contains("מדי חודש") || lower.contains("חודשי") || lower.contains("לחודש") {
+        // " a month"/" a year" (no leading "in") is as common a way to state a recurring price as
+        // "monthly" spelled out ("45 dollars a month") — but "in a month"/"in a year" is the
+        // one-time relative-date phrase already handled above, and always contains " a month"/" a
+        // year" as a substring, so it must be excluded here to avoid double-tagging a one-time
+        // date as also recurring.
+        if lowerForRecurrence.contains("every month") || lowerForRecurrence.contains("monthly") || lowerForRecurrence.contains("/month") || lowerForRecurrence.contains("per month") || lowerForRecurrence.contains("כל חודש") || lowerForRecurrence.contains("מדי חודש") || lowerForRecurrence.contains("חודשי") || lowerForRecurrence.contains("לחודש") || (lowerForRecurrence.contains(" a month") && !lowerForRecurrence.contains("in a month")) {
             recurrence = .monthly
-        } else if lower.contains("six months") || lower.contains("כל שישה חודשים") || lower.contains("כל 6 חודשים") {
+        } else if lowerForRecurrence.contains("six months") || (lowerForRecurrence.contains("6 months") && !lowerForRecurrence.contains("in 6 months")) || lowerForRecurrence.contains("כל שישה חודשים") || lowerForRecurrence.contains("כל 6 חודשים") || lowerForRecurrence.contains("חצי שנה") {
             recurrence = .everySixMonths
-        } else if lower.contains("every year") || lower.contains("yearly") || lower.contains("annual") || lower.contains("renews every") || lower.contains("/year") || lower.contains("per year") || lower.contains("כל שנה") || lower.contains("מדי שנה") || lower.contains("שנתי") || lower.contains("לשנה") {
+        } else if lowerForRecurrence.contains("every year") || lowerForRecurrence.contains("yearly") || lowerForRecurrence.contains("annual") || lowerForRecurrence.contains("renews every") || lowerForRecurrence.contains("/year") || lowerForRecurrence.contains("per year") || lowerForRecurrence.contains("כל שנה") || lowerForRecurrence.contains("מדי שנה") || lowerForRecurrence.contains("שנתי") || lowerForRecurrence.contains("לשנה") || (lowerForRecurrence.contains(" a year") && !lowerForRecurrence.contains("in a year")) {
             recurrence = .yearly
         } else {
             recurrence = .none
