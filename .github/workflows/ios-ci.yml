@@ -6,6 +6,14 @@ on:
   pull_request:
     branches: ["**"]
 
+# A push to a branch with an open PR fires both a "push" and a "pull_request" event for the same
+# commit, each starting its own full macOS/Xcode run — twice the CI minutes for identical results.
+# Grouping by the commit itself (falling back to the ref for a push with no PR) makes the second
+# event to arrive cancel whichever run from the first is still going, instead of both finishing.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: macos-14
