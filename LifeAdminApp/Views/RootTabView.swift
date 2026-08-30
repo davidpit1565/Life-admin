@@ -1049,6 +1049,10 @@ private struct AddConfirmationBanner: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.title2)
                 .foregroundStyle(.green)
+                // Purely decorative next to text that already says the same thing — without
+                // this, VoiceOver announces "Checkmark, circle, fill, image" before ever getting
+                // to the actual confirmation message.
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 // A merge silently updating an existing item read exactly like a brand new one —
                 // saying so here is the only place that distinction was ever visible outside the
@@ -1081,6 +1085,7 @@ private struct MultiAddConfirmationBanner: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.title2)
                 .foregroundStyle(.green)
+                .accessibilityHidden(true)
             Text(String(format: String(localized: "add.confirmation.multiple"), count))
                 .font(.headline)
             Spacer()
