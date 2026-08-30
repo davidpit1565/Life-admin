@@ -9,11 +9,20 @@ public struct NaturalLanguageParser: Sendable {
     static func simpleDate(in lower: String, now: Date) -> Date? {
         let months = ["january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6, "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12]
         let parts = lower.split { !$0.isLetter && !$0.isNumber }.map(String.init)
+        // A written-out date is far more likely to carry an ordinal suffix ("August 15th", "the
+        // 1st") than not — Int("15th") fails outright, which silently dropped a clearly-stated
+        // date entirely rather than just losing the suffix. Taking the leading digits handles
+        // every English ordinal ("1st", "2nd", "3rd", "15th", "21st", ...) the same way it
+        // already handles a bare "15".
+        func dayNumber(_ token: String) -> Int? {
+            let digits = token.prefix { $0.isNumber }
+            return digits.isEmpty ? nil : Int(digits)
+        }
         for (i, p) in parts.enumerated() {
-            if let m = months[p], i + 1 < parts.count, let day = Int(parts[i + 1]), (1...31).contains(day) {
+            if let m = months[p], i + 1 < parts.count, let day = dayNumber(parts[i + 1]), (1...31).contains(day) {
                 return Self.nextOccurrence(month: m, day: day, now: now)
             }
-            if let day = Int(p), (1...31).contains(day), i + 1 < parts.count, let m = months[parts[i + 1]] {
+            if let day = dayNumber(p), (1...31).contains(day), i + 1 < parts.count, let m = months[parts[i + 1]] {
                 return Self.nextOccurrence(month: m, day: day, now: now)
             }
             if let y = Int(p), y > 1900, y < 2200 {
