@@ -207,6 +207,27 @@ public struct NaturalLanguageParser: Sendable {
         KeywordMatch(keywords: ["dentist"], title: "Dentist Appointment", category: .appointments),
         KeywordMatch(keywords: ["doctor"], title: "Doctor Appointment", category: .appointments),
         KeywordMatch(keywords: ["driving test"], title: "Driving Test", category: .appointments),
+        // car/money/health/work/education/documents/family were real LifeCategory cases the
+        // parser could never actually reach — every sentence naming one of them (a car service,
+        // a loan, a prescription, a paycheck, tuition, an ID renewal, a birthday) silently landed
+        // in .other instead. Kept deliberately narrow to safe, unambiguous keywords rather than
+        // broad single words like "home"/"shopping" that would false-positive too easily (e.g. a
+        // bare "home" also appears in "home from work").
+        KeywordMatch(keywords: ["car service"], title: "Car Service", category: .car),
+        KeywordMatch(keywords: ["car wash"], title: "Car Wash", category: .car),
+        KeywordMatch(keywords: ["car registration"], title: "Car Registration", category: .car),
+        KeywordMatch(keywords: ["car maintenance"], title: "Car Maintenance", category: .car),
+        KeywordMatch(keywords: ["credit card"], title: "Credit Card", category: .money),
+        KeywordMatch(keywords: ["savings"], title: "Savings", category: .money),
+        KeywordMatch(keywords: ["loan"], title: "Loan", category: .money),
+        KeywordMatch(keywords: ["prescription"], title: "Prescription", category: .health),
+        KeywordMatch(keywords: ["medication"], title: "Medication", category: .health),
+        KeywordMatch(keywords: ["vitamins"], title: "Vitamins", category: .health),
+        KeywordMatch(keywords: ["salary", "paycheck", "payroll"], title: "Salary", category: .work),
+        KeywordMatch(keywords: ["tuition", "school fee"], title: "Tuition", category: .education),
+        KeywordMatch(keywords: ["driver's license", "drivers license", "id card", "birth certificate"], title: "Document Renewal", category: .documents),
+        KeywordMatch(keywords: ["birthday"], title: "Birthday", category: .family),
+        KeywordMatch(keywords: ["anniversary"], title: "Anniversary", category: .family),
         // Hebrew mirror of the English list above. Kept as a separate block (rather than adding
         // a second keyword language to each existing entry) so the title stays in whichever
         // language the user actually typed in, instead of a Hebrew sentence silently producing
@@ -230,7 +251,20 @@ public struct NaturalLanguageParser: Sendable {
         KeywordMatch(keywords: ["חשבון טלפון"], title: "חשבון טלפון", category: .bills),
         KeywordMatch(keywords: ["רופא שיניים"], title: "תור לרופא שיניים", category: .appointments),
         KeywordMatch(keywords: ["רופא"], title: "תור לרופא", category: .appointments),
-        KeywordMatch(keywords: ["טסט רכב", "מבחן נהיגה"], title: "טסט רכב", category: .appointments)
+        KeywordMatch(keywords: ["טסט רכב", "מבחן נהיגה"], title: "טסט רכב", category: .appointments),
+        KeywordMatch(keywords: ["טיפול לרכב"], title: "טיפול לרכב", category: .car),
+        KeywordMatch(keywords: ["שטיפת רכב"], title: "שטיפת רכב", category: .car),
+        KeywordMatch(keywords: ["רישוי רכב"], title: "רישוי רכב", category: .car),
+        KeywordMatch(keywords: ["כרטיס אשראי"], title: "כרטיס אשראי", category: .money),
+        KeywordMatch(keywords: ["חיסכון"], title: "חיסכון", category: .money),
+        KeywordMatch(keywords: ["הלוואה"], title: "הלוואה", category: .money),
+        KeywordMatch(keywords: ["מרשם"], title: "מרשם", category: .health),
+        KeywordMatch(keywords: ["תרופה"], title: "תרופה", category: .health),
+        KeywordMatch(keywords: ["משכורת"], title: "משכורת", category: .work),
+        KeywordMatch(keywords: ["שכר לימוד", "אגרת לימוד"], title: "שכר לימוד", category: .education),
+        KeywordMatch(keywords: ["רישיון נהיגה", "תעודת זהות", "תעודת לידה"], title: "חידוש מסמך", category: .documents),
+        KeywordMatch(keywords: ["יום הולדת"], title: "יום הולדת", category: .family),
+        KeywordMatch(keywords: ["יום נישואין"], title: "יום נישואין", category: .family)
     ]
 
     /// A bare-word keyword like "רופא" almost never appears bare in real Hebrew — "to the doctor"
@@ -246,11 +280,26 @@ public struct NaturalLanguageParser: Sendable {
         }
     }
 
+    /// Hebrew inserts its definite article directly onto the second word of a two-word phrase
+    /// when the phrase is definite — "פרעתי את כרטיס האשראי" ("I paid off the credit card") says
+    /// "כרטיס האשראי", not the bare "כרטיס אשראי" a keyword phrase is written as — so a plain
+    /// substring check alone misses an entire, completely ordinary way of phrasing it. Trying the
+    /// same phrase with "ה" inserted right after its first space catches that form too, for every
+    /// two-word keyword in the list at once instead of special-casing each one.
+    private static func withDefiniteArticle(_ keyword: String) -> String? {
+        guard let spaceIndex = keyword.firstIndex(of: " ") else { return nil }
+        let afterSpace = keyword.index(after: spaceIndex)
+        return keyword[..<spaceIndex] + " ה" + keyword[afterSpace...]
+    }
+
     private static func firstMatch(in lower: String, words: Set<String>) -> KeywordMatch? {
         let expandedWords = destemmed(words)
         return knownMatches.first { match in
             match.keywords.contains { keyword in
-                keyword.contains(" ") ? lower.contains(keyword) : expandedWords.contains(keyword)
+                guard keyword.contains(" ") else { return expandedWords.contains(keyword) }
+                if lower.contains(keyword) { return true }
+                if let withArticle = withDefiniteArticle(keyword), lower.contains(withArticle) { return true }
+                return false
             }
         }
     }

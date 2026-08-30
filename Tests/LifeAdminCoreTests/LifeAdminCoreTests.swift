@@ -326,8 +326,13 @@ final class LifeAdminCoreTests: XCTestCase {
      XCTAssertEqual(e.recurring, .everySixMonths)
  }
  func testFallbackTitleStopsBeforeABareAmount() {
+     let e = NaturalLanguageParser().parse("annual subscription fee 3800 nis due the 28th of every month")
+     XCTAssertEqual(e.title, "annual subscription fee")
+ }
+ func testLoanIsRecognizedAsMoneyCategory() {
      let e = NaturalLanguageParser().parse("housing loan installment 3800 nis due the 28th of every month")
-     XCTAssertEqual(e.title, "housing loan installment")
+     XCTAssertEqual(e.title, "Loan")
+     XCTAssertEqual(e.category, LifeCategory.money)
  }
  // Recurrence coverage: daily/biweekly/everyTwoMonths/quarterly/weekly were part of the
  // Recurrence model but could never actually be produced by the natural-language parser before
@@ -376,5 +381,41 @@ final class LifeAdminCoreTests: XCTestCase {
      let now = Date(timeIntervalSince1970: 1_700_000_000)
      let e = NaturalLanguageParser().parse("פגישה בעוד יומיים", now: now)
      XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: 2, to: now)!))
+ }
+ // LifeCategory has car/money/health/work/education/documents/family cases that the parser could
+ // never actually produce before — every sentence naming one of them silently landed in .other.
+ func testCarServiceIsRecognizedAsCarCategory() {
+     XCTAssertEqual(NaturalLanguageParser().parse("Car wash this weekend, 60 nis").category, LifeCategory.car)
+     XCTAssertEqual(NaturalLanguageParser().parse("טיפול לרכב בעוד שבוע").category, LifeCategory.car)
+ }
+ func testPrescriptionIsRecognizedAsHealthCategory() {
+     XCTAssertEqual(NaturalLanguageParser().parse("Pick up my prescription tomorrow").category, LifeCategory.health)
+     XCTAssertEqual(NaturalLanguageParser().parse("לקחת מרשם ממחר").category, LifeCategory.health)
+ }
+ func testSalaryIsRecognizedAsWorkCategory() {
+     XCTAssertEqual(NaturalLanguageParser().parse("Payroll runs on the 1st").category, LifeCategory.work)
+     XCTAssertEqual(NaturalLanguageParser().parse("המשכורת נכנסת ב-1 לחודש").category, LifeCategory.work)
+ }
+ func testTuitionIsRecognizedAsEducationCategory() {
+     XCTAssertEqual(NaturalLanguageParser().parse("Tuition payment due September 1st, $4,200").category, LifeCategory.education)
+ }
+ func testBirthdayIsRecognizedAsFamilyCategory() {
+     XCTAssertEqual(NaturalLanguageParser().parse("Mom's birthday is next month").category, LifeCategory.family)
+ }
+ func testHebrewDefiniteArticleInsertedMidPhraseStillMatches() {
+     // "כרטיס האשראי" ("the credit card") inserts Hebrew's definite article "ה" onto the second
+     // word — a completely ordinary way to phrase it that a bare "כרטיס אשראי" substring check
+     // would otherwise miss entirely.
+     let e = NaturalLanguageParser().parse("פרעתי את כרטיס האשראי, 340 שח")
+     XCTAssertEqual(e.category, LifeCategory.money)
+     let insurance = NaturalLanguageParser().parse("ביטוח הרכב מתחדש בקרוב")
+     XCTAssertEqual(insurance.category, LifeCategory.insurance)
+ }
+ func testUnrelatedHomeAndSchoolMentionsDoNotFalsePositive() {
+     // Guards against ever adding an overly broad bare keyword like "home"/"school" for the
+     // .home/.education categories — these ordinary sentences must stay uncategorized (.other)
+     // rather than being swept up by too-eager matching.
+     XCTAssertEqual(NaturalLanguageParser().parse("working from home today").category, LifeCategory.other)
+     XCTAssertEqual(NaturalLanguageParser().parse("school starts next week").category, LifeCategory.other)
  }
 }
