@@ -162,7 +162,12 @@ struct ItemDetailView: View {
                                 Button(option.label) {
                                     isSaving = true
                                     Task {
-                                        dueDate = Calendar.current.date(byAdding: .day, value: option.days, to: dueDate) ?? dueDate
+                                        // Snoozing an already-overdue item from its own stale due
+                                        // date can still land in the past (e.g. 10 days overdue,
+                                        // +1 day snooze = 9 days overdue) — snoozing from "now"
+                                        // guarantees a real future date the reminder can fire on.
+                                        let base = max(dueDate, Date())
+                                        dueDate = Calendar.current.date(byAdding: .day, value: option.days, to: base) ?? dueDate
                                         await save()
                                         dismiss()
                                     }

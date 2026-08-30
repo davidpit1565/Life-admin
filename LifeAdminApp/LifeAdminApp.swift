@@ -107,7 +107,11 @@ final class ItemStore: ObservableObject {
             ActivityLog.shared.record(String(format: String(localized: "activityLog.markedDoneFromNotification"), item.title))
             await markCompleted(item)
         case NotificationActionHandler.snoozeIdentifier:
-            item.dueDate = Calendar.current.date(byAdding: .day, value: 1, to: item.dueDate ?? Date())
+            // An item already well overdue (say, 10 days) snoozed from its own stale due date
+            // would land 9 days in the past — still overdue, and ReminderEngine won't schedule a
+            // notification for a past date, so the button would appear to work but silently do
+            // nothing. Snoozing from "now" instead always produces a real future reminder.
+            item.dueDate = Calendar.current.date(byAdding: .day, value: 1, to: max(item.dueDate ?? Date(), Date()))
             ActivityLog.shared.record(String(format: String(localized: "activityLog.snoozedFromNotification"), item.title))
             await update(item)
         default:
@@ -255,6 +259,11 @@ final class ItemStore: ObservableObject {
     /// coming back — actually happens, instead of only ever firing once before the reminder is
     /// gone for good.
     func markCompleted(_ item: LifeAdminItem) async {
+        // A stale already-delivered notification tapped after the item was already completed
+        // elsewhere (or any other double "Mark Done") would otherwise create a second "next
+        // occurrence" below for a recurring item — a duplicate bill/reminder that isn't actually
+        // due yet.
+        guard item.status == .active else { return }
         var completed = item
         completed.status = .completed
         await update(completed)
@@ -288,6 +297,11 @@ final class ItemStore: ObservableObject {
     /// destructive part — freeing attachment files, canceling notifications, removing the
     /// SwiftData record — for a few seconds, so `undoDelete` can put it back with nothing lost.
     func scheduleDelete(_ item: LifeAdminItem) {
+        // Guards against a second scheduleDelete call for the same id ever orphaning the first
+        // Task — without cancelling it here, an earlier still-running deletion would carry out
+        // its own delete(item) after its 4s regardless of anything this second call or a later
+        // undo does.
+        pendingDeletions[item.id]?.cancel()
         items.removeAll { $0.id == item.id }
         pendingUndo = item
         pendingDeletions[item.id] = Task { [weak self] in
@@ -330,7 +344,12 @@ final class ItemStore: ObservableObject {
     /// to repeat as it is to run once — skip anything whose ID is already present instead of
     /// duplicating every item on a second import of the same file.
     func importItems(_ imported: [LifeAdminItem]) async {
-        let existingIDs = Set(items.map(\.id))
+        // scheduleDelete removes an item from `items` immediately but leaves its PersistedItem
+        // row on disk for a few seconds (so undo can restore it) — without also excluding those
+        // IDs here, importing a backup containing that same item during that window would insert
+        // a second row with the same @Attribute(.unique) id, and the delayed deletion would then
+        // go on to remove the row (and its attachments) the import had just recreated.
+        let existingIDs = Set(items.map(\.id)).union(pendingDeletions.keys)
         let newItems = imported.filter { existingIDs.contains($0.id) == false }
         guard newItems.isEmpty == false else { return }
 

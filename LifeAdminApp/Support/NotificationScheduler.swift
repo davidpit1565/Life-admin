@@ -54,11 +54,21 @@ struct NotificationScheduler {
     }
 
     func cancel(for itemID: UUID) async {
-        let pending = await center.pendingNotificationRequests()
         let prefix = Self.identifierPrefix(itemID: itemID)
-        let idsToRemove = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
-        guard idsToRemove.isEmpty == false else { return }
-        center.removePendingNotificationRequests(withIdentifiers: idsToRemove)
+        let pending = await center.pendingNotificationRequests()
+        let pendingIDsToRemove = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
+        if pendingIDsToRemove.isEmpty == false {
+            center.removePendingNotificationRequests(withIdentifiers: pendingIDsToRemove)
+        }
+        // A reminder already showing in the Notification Center or on the lock screen isn't
+        // touched by removePendingNotificationRequests above (that only stops *future* triggers) —
+        // left alone, it would stay fully tappable after the item it points to was completed or
+        // deleted elsewhere, including its "Mark Done"/"Snooze" action buttons once those ship.
+        let delivered = await center.deliveredNotifications()
+        let deliveredIDsToRemove = delivered.map(\.request.identifier).filter { $0.hasPrefix(prefix) }
+        if deliveredIDsToRemove.isEmpty == false {
+            center.removeDeliveredNotifications(withIdentifiers: deliveredIDsToRemove)
+        }
     }
 
     /// Re-derives and reschedules the once-a-day "here's what actually needs you" summary from
