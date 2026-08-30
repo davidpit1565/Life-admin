@@ -85,9 +85,14 @@ final class ItemStore: ObservableObject {
 
     private func observeNotificationActions() {
         NotificationCenter.default.addObserver(forName: NotificationActionHandler.actionReceived, object: nil, queue: .main) { [weak self] note in
-            guard let itemID = note.userInfo?["itemID"] as? UUID, let actionIdentifier = note.userInfo?["actionIdentifier"] as? String else { return }
+            let completion = note.userInfo?["completion"] as? () -> Void
+            guard let itemID = note.userInfo?["itemID"] as? UUID, let actionIdentifier = note.userInfo?["actionIdentifier"] as? String else {
+                completion?()
+                return
+            }
             Task { [weak self] in
                 await self?.handleNotificationAction(itemID: itemID, actionIdentifier: actionIdentifier)
+                completion?()
             }
         }
     }

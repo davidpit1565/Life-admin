@@ -17,13 +17,21 @@ final class NotificationActionHandler: NSObject, UNUserNotificationCenterDelegat
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        defer { completionHandler() }
         guard let idString = response.notification.request.content.userInfo["itemID"] as? String,
-              let itemID = UUID(uuidString: idString) else { return }
+              let itemID = UUID(uuidString: idString) else {
+            completionHandler()
+            return
+        }
+        // ItemStore's handler does its work asynchronously (SwiftData save, calendar/reminder
+        // sync) after this posts. Calling completionHandler before that finishes tells iOS the
+        // notification is fully handled — if the app was only launched in the background to
+        // process this tap, the system is then free to suspend it before the action it promised
+        // (Mark Done, Snooze) actually persists. Passing the handler along and firing it only
+        // once that work completes keeps the process alive long enough for it to really happen.
         NotificationCenter.default.post(
             name: Self.actionReceived,
             object: nil,
-            userInfo: ["itemID": itemID, "actionIdentifier": response.actionIdentifier]
+            userInfo: ["itemID": itemID, "actionIdentifier": response.actionIdentifier, "completion": completionHandler]
         )
     }
 
