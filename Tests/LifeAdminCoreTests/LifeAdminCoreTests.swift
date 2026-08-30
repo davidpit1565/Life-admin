@@ -146,6 +146,14 @@ final class LifeAdminCoreTests: XCTestCase {
  func testSplitEntriesSplitsMultipleLines() { XCTAssertEqual(NaturalLanguageParser.splitEntries("Rent $1200\nGym $40\nNetflix $17"), ["Rent $1200", "Gym $40", "Netflix $17"]) }
  func testSplitEntriesIgnoresBlankLinesAndTrimsWhitespace() { XCTAssertEqual(NaturalLanguageParser.splitEntries("  Rent $1200  \n\n  Gym $40\n"), ["Rent $1200", "Gym $40"]) }
  func testSplitEntriesOnEmptyTextReturnsTheTextItself() { XCTAssertEqual(NaturalLanguageParser.splitEntries(""), [""]) }
+ func testDateWithOrdinalSuffixIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("Car insurance renews August 15th, $240", now: now)
+     XCTAssertNotNil(e.date, "an ordinal suffix (\"15th\") must not make a clearly-stated date silently disappear")
+     let components = Calendar.current.dateComponents([.month, .day], from: e.date!)
+     XCTAssertEqual(components.month, 8)
+     XCTAssertEqual(components.day, 15)
+ }
  func testTomorrowInEnglishIsRecognized() {
      let now = Date(timeIntervalSince1970: 1_700_000_000)
      let e = NaturalLanguageParser().parse("Dentist tomorrow", now: now)
