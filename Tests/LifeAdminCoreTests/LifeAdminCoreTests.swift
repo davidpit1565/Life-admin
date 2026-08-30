@@ -154,6 +154,62 @@ final class LifeAdminCoreTests: XCTestCase {
      XCTAssertEqual(components.month, 8)
      XCTAssertEqual(components.day, 15)
  }
+ func testNextWeekdayInEnglishIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("Dentist appointment next Tuesday", now: now)
+     XCTAssertNotNil(e.date)
+     XCTAssertEqual(Calendar.current.component(.weekday, from: e.date!), 3, "Tuesday is weekday 3 in Calendar's 1=Sunday...7=Saturday numbering")
+     XCTAssertGreaterThan(e.date!, Calendar.current.startOfDay(for: now))
+ }
+ func testNextWeekdayInHebrewIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("תור לרופא ביום שלישי הבא", now: now)
+     XCTAssertNotNil(e.date)
+     XCTAssertEqual(Calendar.current.component(.weekday, from: e.date!), 3)
+ }
+ func testHebrewAbsoluteDateWithPrefixedMonthIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("ביטוח רכב מתחדש ב-15 באוגוסט, 840 שח", now: now)
+     XCTAssertNotNil(e.date, "a Hebrew month name glued to its ב prefix (\"באוגוסט\") must still be recognized")
+     let components = Calendar.current.dateComponents([.month, .day], from: e.date!)
+     XCTAssertEqual(components.month, 8)
+     XCTAssertEqual(components.day, 15)
+ }
+ func testInNYearsIsRecognizedAndNotMistakenForAnAmount() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("Passport expires in 2 years", now: now)
+     XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .year, value: 2, to: now)!))
+     XCTAssertNil(e.amount, "a bare number immediately before a duration word (\"2 years\") is not an amount")
+ }
+ func testNextYearIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("warranty expires next year", now: now)
+     XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .year, value: 1, to: now)!))
+ }
+ func testHebrewKeywordMatchesWithGluedPrefix() {
+     let e = NaturalLanguageParser().parse("מחר יש לי תור לרופא")
+     XCTAssertEqual(e.category, .appointments, "\"לרופא\" (to the doctor) must match the \"רופא\" keyword despite the glued ל prefix")
+ }
+ func testShekelsSpelledOutInEnglishIsRecognizedAsILS() {
+     let e = NaturalLanguageParser().parse("Water bill 320 shekels due in 10 days")
+     XCTAssertEqual(e.currency, "ILS")
+ }
+ func testCasualShHWithoutPunctuationIsRecognizedAsILS() {
+     let e = NaturalLanguageParser().parse("ביטוח בריאות 1200 שח")
+     XCTAssertEqual(e.currency, "ILS")
+ }
+ func testHebrewWordForDollarIsRecognizedAsUSD() {
+     let e = NaturalLanguageParser().parse("ביטוח דירה מתחדש כל שנה, 600 דולר")
+     XCTAssertEqual(e.currency, "USD")
+ }
+ func testRenewsEveryMonthIsMonthlyNotYearly() {
+     let e = NaturalLanguageParser().parse("Gym membership renews every month at $45")
+     XCTAssertEqual(e.recurring, .monthly, "\"renews every month\" contains \"renews every\" as a substring — that generic yearly fallback must not win against the actual \"month\" it's paired with")
+ }
+ func testSlashMonthIsRecognizedAsMonthlyRecurrence() {
+     let e = NaturalLanguageParser().parse("Gym membership $45/month")
+     XCTAssertEqual(e.recurring, .monthly)
+ }
  func testTomorrowInEnglishIsRecognized() {
      let now = Date(timeIntervalSince1970: 1_700_000_000)
      let e = NaturalLanguageParser().parse("Dentist tomorrow", now: now)

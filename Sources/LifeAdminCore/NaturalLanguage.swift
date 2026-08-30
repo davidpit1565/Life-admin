@@ -6,8 +6,14 @@ public struct NaturalLanguageParser: Sendable {
     /// Recognizes both orderings — "March 18" and "18 March" — since day-before-month is the
     /// everyday order outside the US, and the confirmed on-device bug report that motivated the
     /// garbled-title fix elsewhere in this file used exactly that order ("On the 24 august").
+    private static let hebrewMonths = ["ינואר": 1, "פברואר": 2, "מרץ": 3, "אפריל": 4, "מאי": 5, "יוני": 6, "יולי": 7, "אוגוסט": 8, "ספטמבר": 9, "אוקטובר": 10, "נובמבר": 11, "דצמבר": 12]
+    /// Hebrew glues single-letter prepositions directly onto the following word with no space or
+    /// hyphen — "in August" is "באוגוסט" (ב + אוגוסט), not two tokens — so a month name is only
+    /// ever found by also trying the token with one of these leading letters stripped.
+    private static let hebrewPrefixLetters: Set<Character> = ["ב", "ה", "ו", "ל", "מ", "כ", "ש"]
+
     static func simpleDate(in lower: String, now: Date) -> Date? {
-        let months = ["january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6, "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12]
+        let englishMonths = ["january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6, "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12]
         let parts = lower.split { !$0.isLetter && !$0.isNumber }.map(String.init)
         // A written-out date is far more likely to carry an ordinal suffix ("August 15th", "the
         // 1st") than not — Int("15th") fails outright, which silently dropped a clearly-stated
@@ -18,11 +24,17 @@ public struct NaturalLanguageParser: Sendable {
             let digits = token.prefix { $0.isNumber }
             return digits.isEmpty ? nil : Int(digits)
         }
+        func monthNumber(_ token: String) -> Int? {
+            if let m = englishMonths[token] { return m }
+            if let m = hebrewMonths[token] { return m }
+            if let first = token.first, hebrewPrefixLetters.contains(first), let m = hebrewMonths[String(token.dropFirst())] { return m }
+            return nil
+        }
         for (i, p) in parts.enumerated() {
-            if let m = months[p], i + 1 < parts.count, let day = dayNumber(parts[i + 1]), (1...31).contains(day) {
+            if let m = monthNumber(p), i + 1 < parts.count, let day = dayNumber(parts[i + 1]), (1...31).contains(day) {
                 return Self.nextOccurrence(month: m, day: day, now: now)
             }
-            if let day = dayNumber(p), (1...31).contains(day), i + 1 < parts.count, let m = months[parts[i + 1]] {
+            if let day = dayNumber(p), (1...31).contains(day), i + 1 < parts.count, let m = monthNumber(parts[i + 1]) {
                 return Self.nextOccurrence(month: m, day: day, now: now)
             }
             if let y = Int(p), y > 1900, y < 2200 {
@@ -49,11 +61,24 @@ public struct NaturalLanguageParser: Sendable {
     /// so this is tried before `simpleDate`, whose month-name matching can't see these at all.
     /// Always normalized to midnight, matching `simpleDate`'s "no stated time" convention; an
     /// explicit clock time in the same text is applied afterward by `timeOfDay`.
+    private static let weekdayNumbers = ["sunday": 1, "monday": 2, "tuesday": 3, "wednesday": 4, "thursday": 5, "friday": 6, "saturday": 7]
+    private static let hebrewWeekdayNumbers = ["ראשון": 1, "שני": 2, "שלישי": 3, "רביעי": 4, "חמישי": 5, "שישי": 6, "שבת": 7]
+
+    /// The next date (never today itself — "next Tuesday" said on a Tuesday means the Tuesday a
+    /// week out, not right now) whose weekday matches, per Calendar's own 1=Sunday...7=Saturday.
+    private static func nextWeekday(_ target: Int, from now: Date, calendar: Calendar) -> Date? {
+        let today = calendar.component(.weekday, from: now)
+        var delta = (target - today + 7) % 7
+        if delta == 0 { delta = 7 }
+        return calendar.date(byAdding: .day, value: delta, to: now).map(calendar.startOfDay)
+    }
+
     static func relativeDate(in lower: String, now: Date) -> Date? {
         let calendar = Calendar.current
         func days(_ n: Int) -> Date? { calendar.date(byAdding: .day, value: n, to: now).map(calendar.startOfDay) }
         func weeks(_ n: Int) -> Date? { calendar.date(byAdding: .weekOfYear, value: n, to: now).map(calendar.startOfDay) }
         func months(_ n: Int) -> Date? { calendar.date(byAdding: .month, value: n, to: now).map(calendar.startOfDay) }
+        func years(_ n: Int) -> Date? { calendar.date(byAdding: .year, value: n, to: now).map(calendar.startOfDay) }
 
         if lower.contains("day after tomorrow") || lower.contains("מחרתיים") { return days(2) }
         if lower.contains("tomorrow") || lower.contains("מחר") { return days(1) }
@@ -61,12 +86,25 @@ public struct NaturalLanguageParser: Sendable {
         if lower.contains("שבועיים") { return weeks(2) }
         if lower.contains("next week") || lower.contains("in a week") || lower.contains("בעוד שבוע") || lower.contains("בשבוע הבא") { return weeks(1) }
         if lower.contains("next month") || lower.contains("in a month") || lower.contains("בעוד חודש") || lower.contains("בחודש הבא") { return months(1) }
+        if lower.contains("next year") || lower.contains("in a year") || lower.contains("בעוד שנה") || lower.contains("בשנה הבאה") { return years(1) }
+
+        // "next Tuesday" / Hebrew "יום שלישי הבא" — a weekday name is only a relative-date signal
+        // paired with an explicit "next"/"הבא", since a bare day name usually just names which day
+        // of the week something already-dated falls on, not a date on its own.
+        for (name, number) in weekdayNumbers where lower.contains("next \(name)") {
+            return nextWeekday(number, from: now, calendar: calendar)
+        }
+        for (name, number) in hebrewWeekdayNumbers where lower.contains("יום \(name) הבא") || lower.contains("ביום \(name) הבא") {
+            return nextWeekday(number, from: now, calendar: calendar)
+        }
 
         let numberedPatterns: [(String, (Int) -> Date?)] = [
             (#"in\s+(\d+)\s+days?"#, days),
             (#"in\s+(\d+)\s+weeks?"#, weeks),
+            (#"in\s+(\d+)\s+years?"#, years),
             (#"בעוד\s+(\d+)\s+ימים?"#, days),
-            (#"בעוד\s+(\d+)\s+שבועות"#, weeks)
+            (#"בעוד\s+(\d+)\s+שבועות"#, weeks),
+            (#"בעוד\s+(\d+)\s+שנים?"#, years)
         ]
         for (pattern, apply) in numberedPatterns {
             guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { continue }
@@ -127,19 +165,57 @@ public struct NaturalLanguageParser: Sendable {
         KeywordMatch(keywords: ["phone bill"], title: "Phone Bill", category: .bills),
         KeywordMatch(keywords: ["dentist"], title: "Dentist Appointment", category: .appointments),
         KeywordMatch(keywords: ["doctor"], title: "Doctor Appointment", category: .appointments),
-        KeywordMatch(keywords: ["driving test"], title: "Driving Test", category: .appointments)
+        KeywordMatch(keywords: ["driving test"], title: "Driving Test", category: .appointments),
+        // Hebrew mirror of the English list above. Kept as a separate block (rather than adding
+        // a second keyword language to each existing entry) so the title stays in whichever
+        // language the user actually typed in, instead of a Hebrew sentence silently producing
+        // an English item title. Same specific-before-generic ordering within the block as above
+        // (e.g. "ביטוח רכב" before the bare "ביטוח") for the same reason.
+        KeywordMatch(keywords: ["ביטוח רכב"], title: "ביטוח רכב", category: .insurance),
+        KeywordMatch(keywords: ["ביטוח דירה", "ביטוח בית"], title: "ביטוח דירה", category: .insurance),
+        KeywordMatch(keywords: ["ביטוח בריאות"], title: "ביטוח בריאות", category: .insurance),
+        KeywordMatch(keywords: ["ביטוח חיים"], title: "ביטוח חיים", category: .insurance),
+        KeywordMatch(keywords: ["ביטוח"], title: "ביטוח", category: .insurance),
+        KeywordMatch(keywords: ["דרכון"], title: "דרכון", category: .travel),
+        KeywordMatch(keywords: ["ויזה"], title: "ויזה", category: .travel),
+        KeywordMatch(keywords: ["נטפליקס"], title: "נטפליקס", category: .subscriptions),
+        KeywordMatch(keywords: ["ספוטיפיי", "ספוטיפי"], title: "ספוטיפיי", category: .subscriptions),
+        KeywordMatch(keywords: ["אחריות"], title: "אחריות", category: .warranties),
+        KeywordMatch(keywords: ["חדר כושר", "מנוי כושר"], title: "מנוי חדר כושר", category: .memberships),
+        KeywordMatch(keywords: ["שכר דירה", "שכירות"], title: "שכר דירה", category: .bills),
+        KeywordMatch(keywords: ["משכנתא"], title: "משכנתא", category: .bills),
+        KeywordMatch(keywords: ["חשבון חשמל"], title: "חשבון חשמל", category: .bills),
+        KeywordMatch(keywords: ["חשבון מים"], title: "חשבון מים", category: .bills),
+        KeywordMatch(keywords: ["חשבון טלפון"], title: "חשבון טלפון", category: .bills),
+        KeywordMatch(keywords: ["רופא שיניים"], title: "תור לרופא שיניים", category: .appointments),
+        KeywordMatch(keywords: ["רופא"], title: "תור לרופא", category: .appointments),
+        KeywordMatch(keywords: ["טסט רכב", "מבחן נהיגה"], title: "טסט רכב", category: .appointments)
     ]
 
+    /// A bare-word keyword like "רופא" almost never appears bare in real Hebrew — "to the doctor"
+    /// glues the preposition straight onto it ("לרופא"), same as the month-name prefixes in
+    /// simpleDate. Widening the lookup set with each word's prefix-stripped form (once) is what
+    /// makes single-word Hebrew keywords actually match ordinary phrasing instead of only the
+    /// unnaturally bare form.
+    private static func destemmed(_ words: Set<String>) -> Set<String> {
+        words.reduce(into: words) { result, word in
+            if let first = word.first, hebrewPrefixLetters.contains(first) {
+                result.insert(String(word.dropFirst()))
+            }
+        }
+    }
+
     private static func firstMatch(in lower: String, words: Set<String>) -> KeywordMatch? {
-        knownMatches.first { match in
+        let expandedWords = destemmed(words)
+        return knownMatches.first { match in
             match.keywords.contains { keyword in
-                keyword.contains(" ") ? lower.contains(keyword) : words.contains(keyword)
+                keyword.contains(" ") ? lower.contains(keyword) : expandedWords.contains(keyword)
             }
         }
     }
 
     private static let currencyMarks: Set<Character> = ["$", "€", "₪"]
-    private static let currencyWords: Set<String> = ["שקל", "שקלים", "ש\"ח", "ש״ח", "nis", "ils", "usd", "eur"]
+    private static let currencyWords: Set<String> = ["שקל", "שקלים", "ש\"ח", "ש״ח", "nis", "ils", "usd", "eur", "shekel", "shekels"]
     private static func mentionsCurrency(_ token: String) -> Bool {
         token.contains { currencyMarks.contains($0) } || currencyWords.contains(token.lowercased())
     }
@@ -175,10 +251,15 @@ public struct NaturalLanguageParser: Sendable {
             }
         }
         let ordinalDatePattern = try! NSRegularExpression(pattern: #"^\d{1,2}(st|nd|rd|th)$"#, options: .caseInsensitive)
-        for token in tokens {
+        // "expires in 2 years" isn't a 2-dollar bill — a bare number immediately followed by a
+        // span-of-time word is a duration, not an amount, the same reasoning that already
+        // excludes an ordinal day-of-month here.
+        let durationWords: Set<String> = ["day", "days", "week", "weeks", "month", "months", "year", "years", "יום", "ימים", "שבוע", "שבועות", "חודש", "חודשים", "שנה", "שנים"]
+        for (index, token) in tokens.enumerated() {
             let range = NSRange(token.startIndex..., in: token)
             if ordinalDatePattern.firstMatch(in: token, range: range) != nil { continue }
             if let dayOfMonth, Int(token) == dayOfMonth { continue }
+            if index + 1 < tokens.count, durationWords.contains(tokens[index + 1].lowercased()) { continue }
             if let value = decimalValue(token) { return value }
         }
         return nil
@@ -213,11 +294,30 @@ public struct NaturalLanguageParser: Sendable {
         // ₪/שקל/ש"ח matter here specifically because the app's own Hebrew UI and example prompts
         // use them — without this, typing exactly what the app itself suggested ("ביטוח רכב
         // מתחדש ב-15 באוגוסט, 840 ש״ח") would silently fail to detect any currency at all.
-        let currency = lower.contains("€") ? "EUR"
-            : lower.contains("$") ? "USD"
-            : lower.contains("₪") || lower.contains("שקל") || lower.contains("ש\"ח") || lower.contains("ש״ח") ? "ILS"
+        // Symbols are checked as substrings (still fine even glued onto a prefix, e.g. "בשקלים"
+        // contains "שקל"); spelled-out currency words ("nis", "shekels", "usd") are only ever
+        // whole tokens, so those need the word set, not another `.contains` on the raw string.
+        let currency = lower.contains("€") || words.contains("eur") || lower.contains("יורו") ? "EUR"
+            : lower.contains("$") || words.contains("usd") || lower.contains("דולר") ? "USD"
+            : lower.contains("₪") || lower.contains("שקל") || lower.contains("ש\"ח") || lower.contains("ש״ח") || words.contains("שח") || words.contains("nis") || words.contains("ils") || words.contains("shekel") || words.contains("shekels") ? "ILS"
             : nil
-        let recurrence: Recurrence = lower.contains("every year") || lower.contains("yearly") || lower.contains("annual") || lower.contains("renews every") ? .yearly : lower.contains("every month") || lower.contains("monthly") ? .monthly : lower.contains("six months") ? .everySixMonths : .none
+        // Checked most-specific-period-first: "renews every month" contains "renews every" as a
+        // plain substring, so when that generic catch-all was checked before the monthly check,
+        // it silently misclassified a monthly subscription as yearly. "renews every" (with no
+        // period of its own) is only meant as a fallback for text that names no period at all —
+        // it must never win against an actual "month"/"six months" match sitting right next to it.
+        // "$45/month" and "לחודש" ("per month") are just as common a way to state a recurring
+        // price as "monthly" spelled out, so they get the same weight here.
+        let recurrence: Recurrence
+        if lower.contains("every month") || lower.contains("monthly") || lower.contains("/month") || lower.contains("per month") || lower.contains("כל חודש") || lower.contains("מדי חודש") || lower.contains("חודשי") || lower.contains("לחודש") {
+            recurrence = .monthly
+        } else if lower.contains("six months") || lower.contains("כל שישה חודשים") || lower.contains("כל 6 חודשים") {
+            recurrence = .everySixMonths
+        } else if lower.contains("every year") || lower.contains("yearly") || lower.contains("annual") || lower.contains("renews every") || lower.contains("/year") || lower.contains("per year") || lower.contains("כל שנה") || lower.contains("מדי שנה") || lower.contains("שנתי") || lower.contains("לשנה") {
+            recurrence = .yearly
+        } else {
+            recurrence = .none
+        }
         var date = Self.relativeDate(in: lower, now: now) ?? Self.simpleDate(in: lower, now: now)
         if let recognizedDate = date, let time = Self.timeOfDay(in: lower) {
             var components = Calendar.current.dateComponents([.year, .month, .day], from: recognizedDate)
