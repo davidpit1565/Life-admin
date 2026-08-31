@@ -33,15 +33,32 @@ struct AttachmentStore {
 
     func saveJPEG(_ image: UIImage, filename: String) -> Attachment? {
         guard let data = image.jpegData(compressionQuality: 0.7) else { return nil }
+        return save(data: data, filename: filename, mimeType: "image/jpeg", fileExtension: "jpg")
+    }
+
+    /// For a file picked from the Photos library or the Files app, where the bytes are already in
+    /// whatever format the source provided — a photo library picker item, an existing PDF someone
+    /// already has, an exported insurance policy — nothing here re-encodes them, so this only
+    /// needs a place to put them and a name to find them by again.
+    func save(data: Data, filename: String, mimeType: String, fileExtension: String) -> Attachment? {
         let id = UUID()
-        let storedFilename = "\(id.uuidString).jpg"
+        let storedFilename = "\(id.uuidString).\(fileExtension)"
         let url = directory.appending(path: storedFilename)
         // These files can be photographed IDs, insurance cards, or medical documents — the
         // default protection class stays readable once the device has been unlocked even once
         // since boot, so this matches the app's own opt-in Face ID lock semantics instead:
         // unreadable whenever the device itself is locked.
         guard (try? data.write(to: url, options: .completeFileProtection)) != nil else { return nil }
-        return Attachment(id: id, filename: filename, mimeType: "image/jpeg", sizeBytes: data.count, localPath: storedFilename)
+        // Photographed IDs and insurance cards have no business riding along in an iCloud device
+        // backup just because everything else in the app's container does by default — this is
+        // guidance to the system rather than a guarantee (Apple's own docs note routine file
+        // operations can reset it), so it's a defense-in-depth layer on top of file protection
+        // above, never a substitute for it.
+        var fileURL = url
+        var resourceValues = URLResourceValues()
+        resourceValues.isExcludedFromBackup = true
+        try? fileURL.setResourceValues(resourceValues)
+        return Attachment(id: id, filename: filename, mimeType: mimeType, sizeBytes: data.count, localPath: storedFilename)
     }
 
     func delete(_ attachment: Attachment) {

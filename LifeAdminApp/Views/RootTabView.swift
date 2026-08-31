@@ -31,6 +31,7 @@ struct RootTabView: View {
     @State private var firstRunStep: FirstRunStep?
     @State private var isLocked = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         TabView {
@@ -60,9 +61,14 @@ struct RootTabView: View {
                 UndoDeleteBanner(item: pendingUndo) { store.undoDelete() }
                     .padding(.bottom, FABLayout.undoBannerBottomPadding)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if store.calendarSyncWarningVisible {
+                CalendarSyncWarningBanner()
+                    .padding(.bottom, FABLayout.undoBannerBottomPadding)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.default, value: store.pendingUndo?.id)
+        .animation(reduceMotion ? nil : .default, value: store.pendingUndo?.id)
+        .animation(reduceMotion ? nil : .default, value: store.calendarSyncWarningVisible)
         .sheet(isPresented: $adding) {
             AddItemView()
         }
@@ -97,6 +103,19 @@ struct RootTabView: View {
                 }
             }
             .interactiveDismissDisabled()
+        }
+        // iOS captures the still-unblurred App Switcher snapshot at `.inactive` — a moment BEFORE
+        // the `.background` transition below ever sets `isLocked`, so relying on that alone still
+        // leaves bills/amounts/attachment thumbnails visible to anyone swiping through the switcher.
+        // This curtain only masks that snapshot; it never requires a fresh Face ID/Touch ID check
+        // itself (`isLocked` is untouched here), so a merely-transient `.inactive` blip — the
+        // system's own Photos/Files pickers this app now uses to attach a document, an incoming
+        // call banner, Control Center — doesn't force re-authentication on its own. Real
+        // re-authentication still only kicks in once the app actually reaches `.background`, below.
+        .overlay {
+            if appLockEnabled, scenePhase != .active {
+                PrivacyCurtainView()
+            }
         }
         // A bill/insurance tracker is exactly the kind of app where "someone else picks up my
         // unlocked phone" matters, so this is opt-in in Settings — locking on by default with no
@@ -134,6 +153,20 @@ struct RootTabView: View {
     }
 }
 
+/// A purely visual mask — no authentication challenge of its own — shown the moment the scene
+/// stops being `.active` for any reason, so the OS never gets to snapshot real content (item
+/// titles, amounts, attachment thumbnails) for the App Switcher before `LockScreenView`'s own
+/// real Face ID/Touch ID gate has had a chance to engage on an actual `.background` transition.
+private struct PrivacyCurtainView: View {
+    var body: some View {
+        Image(systemName: "lock.fill")
+            .font(.system(size: 48))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.background)
+            .accessibilityHidden(true)
+    }
+}
 private struct LockScreenView: View {
     let onRetry: () -> Void
 
@@ -154,6 +187,7 @@ private struct LockScreenView: View {
 }
 struct HomeView: View {
     @EnvironmentObject var store: ItemStore
+    @AppStorage("checklistDismissedIDs") private var dismissedIDsRaw = ""
     @State private var dismissedMovingBanner = false
 
     // Completed items (e.g. via "Mark Done" on a notification) stay in store.items rather than
@@ -167,9 +201,28 @@ struct HomeView: View {
         store.items.contains { $0.status == .active && $0.tags.contains(LifeEventDetector.movingTag) }
     }
 
+    // No per-session dismiss for this one, unlike the moving banner below — it's meant to keep
+    // being visible on Home until the user genuinely resolves it (adds the item or marks it not
+    // relevant in the checklist itself), which is what "surface this again from time to time"
+    // means for a screen someone actually opens often, instead of a one-off popup they close once
+    // and never see again.
+    private var outstandingChecklistCount: Int {
+        let dismissedIDs = Set(dismissedIDsRaw.split(separator: ",").map(String.init))
+        return ChecklistEngine().outstandingSuggestions(items: store.items, dismissedIDs: dismissedIDs).count
+    }
+
     var body: some View {
         NavigationStack {
             List {
+                if outstandingChecklistCount > 0 {
+                    Section {
+                        NavigationLink {
+                            ChecklistView()
+                        } label: {
+                            Label(String(format: String(localized: "home.checklistTeaser"), outstandingChecklistCount), systemImage: "checklist")
+                        }
+                    }
+                }
                 if hasMovingEvent && dismissedMovingBanner == false {
                     Section {
                         HStack {
@@ -664,6 +717,7 @@ struct SettingsView: View {
     @AppStorage("appLockEnabled") private var appLockEnabled = false
     @State private var showingAIConsentReview = false
     @State private var showingDeleteAIDataConfirmation = false
+    @State private var showingDeleteAllDataConfirmation = false
     @State private var exportFileURL: URL?
     @State private var showingShareSheet = false
     @State private var showingImporter = false
@@ -697,6 +751,9 @@ struct SettingsView: View {
                     }
                     NavigationLink(String(localized: "settings.addressChange")) {
                         AddressChangeView()
+                    }
+                    NavigationLink(String(localized: "checklist.title")) {
+                        ChecklistView()
                     }
                 }
                 Section(String(localized: "settings.ai")) {
@@ -757,6 +814,9 @@ struct SettingsView: View {
                     Button(String(localized: "settings.deleteAIData"), role: .destructive) {
                         showingDeleteAIDataConfirmation = true
                     }
+                    Button(String(localized: "settings.deleteAllData"), role: .destructive) {
+                        showingDeleteAllDataConfirmation = true
+                    }
                 }
             }.navigationTitle(String(localized: "tab.settings"))
             .sheet(isPresented: $showingAIConsentReview) {
@@ -794,6 +854,17 @@ struct SettingsView: View {
                 Button(String(localized: "settings.deleteAIData"), role: .destructive) {
                     ActivityLog.shared.clear()
                 }
+            }
+            .confirmationDialog(
+                String(localized: "settings.deleteAllData.confirmTitle"),
+                isPresented: $showingDeleteAllDataConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button(String(localized: "settings.deleteAllData"), role: .destructive) {
+                    Task { await store.deleteAllData() }
+                }
+            } message: {
+                Text(String(localized: "settings.deleteAllData.confirmMessage"))
             }
             .alert(String(localized: "settings.language.restartTitle"), isPresented: $showingRestartNotice) {
                 Button(String(localized: "settings.language.restartNow"), role: .destructive) {
@@ -875,9 +946,15 @@ struct AddItemView: View {
     @State private var itemPendingReview: LifeAdminItem?
     @State private var showingScanner = false
     @State private var pendingAttachments: [Attachment] = []
+    // Recognized text from a scanned document (a passport, an ID card) can contain far more
+    // sensitive content than anything someone would normally type here — see the doc comment on
+    // ItemStore.add's containsScannedText parameter for why this has to force local-only
+    // processing for the whole entry, not just this one field.
+    @State private var textIncludesScannedContent = false
     @State private var confirmedItem: LifeAdminItem?
     @State private var confirmedItemWasMerged = false
     @State private var confirmedCount: Int?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// A handful of ready-made examples spanning different categories — tapping one fills the
     /// text box with exactly what to type, so a first-time (or simply overwhelmed) user can see
@@ -965,7 +1042,7 @@ struct AddItemView: View {
                         Button {
                             isSaving = true
                             Task {
-                                let outcome = await store.add(text: text, attachments: pendingAttachments)
+                                let outcome = await store.add(text: text, attachments: pendingAttachments, containsScannedText: textIncludesScannedContent)
                                 isSaving = false
                                 switch outcome {
                                 case .pendingReview(let item):
@@ -979,14 +1056,14 @@ struct AddItemView: View {
                                     // visible "here's what we understood" moment, tapping Save
                                     // just closes the screen with no sign anything happened at
                                     // all, which reads as broken rather than automatic.
-                                    withAnimation {
+                                    withAnimation(reduceMotion ? nil : .default) {
                                         confirmedItem = item
                                         confirmedItemWasMerged = merged
                                     }
                                     try? await Task.sleep(for: .seconds(1.2))
                                     dismiss()
                                 case .addedMultiple(let addedItems):
-                                    withAnimation { confirmedCount = addedItems.count }
+                                    withAnimation(reduceMotion ? nil : .default) { confirmedCount = addedItems.count }
                                     try? await Task.sleep(for: .seconds(1.2))
                                     dismiss()
                                 }
@@ -1023,6 +1100,7 @@ struct AddItemView: View {
                             showingScanner = false
                             if recognized.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
                                 text = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? recognized : text + "\n" + recognized
+                                textIncludesScannedContent = true
                             }
                             for (index, image) in pageImages.enumerated() {
                                 let filename = String(format: String(localized: "add.scannedPageFilename"), pendingAttachments.count + index + 1)
@@ -1097,15 +1175,37 @@ private struct MultiAddConfirmationBanner: View {
     }
 }
 
+private struct CalendarSyncWarningBanner: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "calendar.badge.exclamationmark")
+                .font(.title2)
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+            // No line limit — at the largest accessibility Dynamic Type sizes this message (the
+            // one time this banner appears at all) must stay fully readable rather than getting
+            // cut off, exactly for the low-vision users who need it most.
+            Text(String(localized: "calendarSync.warning"))
+                .font(.subheadline)
+            Spacer()
+        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal)
+        .shadow(radius: 4)
+    }
+}
+
 private struct UndoDeleteBanner: View {
     let item: LifeAdminItem
     let onUndo: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
+            // No line limit, same reasoning as CalendarSyncWarningBanner above — a long item
+            // title at the largest accessibility text sizes must wrap, not vanish mid-word.
             Text(String(format: String(localized: "items.deletedToast"), item.title))
                 .font(.subheadline)
-                .lineLimit(1)
             Spacer()
             Button(String(localized: "common.undo"), action: onUndo)
                 .font(.subheadline.bold())

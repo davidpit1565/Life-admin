@@ -73,7 +73,11 @@ extension Priority {
         switch self {
         case .critical: return .red
         case .high: return .orange
-        case .medium: return .yellow
+        // Plain .yellow reads as barely-there on a light background — a real problem for a
+        // sighted-but-low-vision user trying to tell "medium" apart from "low" (.secondary) at a
+        // glance. This darker gold keeps the same warm hue (still clearly not orange/red) while
+        // actually being visible against white.
+        case .medium: return Color(red: 0.72, green: 0.53, blue: 0.04)
         case .low: return .secondary
         }
     }

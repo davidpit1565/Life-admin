@@ -57,6 +57,21 @@ struct ItemRow: View {
                 parts.append(amount.formatted())
             }
         }
+        // A renewal quietly costing more than last time was previously only visible by opening
+        // the item's own edit screen — surfacing it right in the list is what actually makes it
+        // catchable at a glance, the same way ItemDetailView's own priceChangeDescription does.
+        if let priceChangeBadge {
+            parts.append(priceChangeBadge)
+        }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private var priceChangeBadge: String? {
+        guard let percent = RecurrenceEngine().priceChangePercent(for: item) else { return nil }
+        let rounded = Int(percent.rounded())
+        guard rounded != 0 else { return nil }
+        return rounded > 0
+            ? String(format: String(localized: "itemDetail.priceChangeUpCompact"), rounded)
+            : String(format: String(localized: "itemDetail.priceChangeDownCompact"), abs(rounded))
     }
 }

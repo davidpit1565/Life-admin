@@ -1,5 +1,5 @@
 import Foundation
-public struct ExtractedItem: Codable, Equatable, Sendable { public var title: String?; public var category: LifeCategory?; public var amount: Decimal?; public var currency: String?; public var date: Date?; public var recurring: Recurrence?; public var reminderOffsets: [Int]?; public var confidence: Double }
+public struct ExtractedItem: Codable, Equatable, Sendable { public var title: String?; public var category: LifeCategory?; public var amount: Decimal?; public var currency: String?; public var date: Date?; public var recurring: Recurrence?; public var reminderOffsets: [Int]?; public var confidence: Double; public var scamRiskDetected: Bool? = nil }
 public struct NaturalLanguageParser: Sendable {
     public init() {}
 
@@ -7,13 +7,24 @@ public struct NaturalLanguageParser: Sendable {
     /// everyday order outside the US, and the confirmed on-device bug report that motivated the
     /// garbled-title fix elsewhere in this file used exactly that order ("On the 24 august").
     private static let hebrewMonths = ["ינואר": 1, "פברואר": 2, "מרץ": 3, "אפריל": 4, "מאי": 5, "יוני": 6, "יולי": 7, "אוגוסט": 8, "ספטמבר": 9, "אוקטובר": 10, "נובמבר": 11, "דצמבר": 12]
+    private static let englishMonths = ["january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6, "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12]
+    /// "starting sep 1" is at least as common as "starting september 1" in casual writing — a
+    /// real test sentence used exactly this abbreviated form and was silently unrecognized before
+    /// this was added. "may" needs no separate entry: its abbreviation is already its full name.
+    private static let englishMonthAbbreviations = ["jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12]
+    // Spanish and French are the app's other two supported languages besides Hebrew/English —
+    // understanding what's actually typed has to work in whichever one the user chose, regardless
+    // of what the app's own display language happens to be set to (parse() never looks at that).
+    private static let spanishMonths = ["enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6, "julio": 7, "agosto": 8, "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12]
+    private static let spanishMonthAbbreviations = ["ene": 1, "feb": 2, "mar": 3, "abr": 4, "jun": 6, "jul": 7, "ago": 8, "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dic": 12]
+    private static let frenchMonths = ["janvier": 1, "février": 2, "mars": 3, "avril": 4, "mai": 5, "juin": 6, "juillet": 7, "août": 8, "septembre": 9, "octobre": 10, "novembre": 11, "décembre": 12]
+    private static let frenchMonthAbbreviations = ["janv": 1, "févr": 2, "avr": 4, "juil": 7, "sept": 9, "oct": 10, "nov": 11, "déc": 12]
     /// Hebrew glues single-letter prepositions directly onto the following word with no space or
     /// hyphen — "in August" is "באוגוסט" (ב + אוגוסט), not two tokens — so a month name is only
     /// ever found by also trying the token with one of these leading letters stripped.
     private static let hebrewPrefixLetters: Set<Character> = ["ב", "ה", "ו", "ל", "מ", "כ", "ש"]
 
     static func simpleDate(in lower: String, now: Date) -> Date? {
-        let englishMonths = ["january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6, "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12]
         let parts = lower.split { !$0.isLetter && !$0.isNumber }.map(String.init)
         // A written-out date is far more likely to carry an ordinal suffix ("August 15th", "the
         // 1st") than not — Int("15th") fails outright, which silently dropped a clearly-stated
@@ -26,6 +37,11 @@ public struct NaturalLanguageParser: Sendable {
         }
         func monthNumber(_ token: String) -> Int? {
             if let m = englishMonths[token] { return m }
+            if let m = englishMonthAbbreviations[token] { return m }
+            if let m = spanishMonths[token] { return m }
+            if let m = spanishMonthAbbreviations[token] { return m }
+            if let m = frenchMonths[token] { return m }
+            if let m = frenchMonthAbbreviations[token] { return m }
             if let m = hebrewMonths[token] { return m }
             if let first = token.first, hebrewPrefixLetters.contains(first), let m = hebrewMonths[String(token.dropFirst())] { return m }
             return nil
@@ -35,6 +51,13 @@ public struct NaturalLanguageParser: Sendable {
                 return Self.nextOccurrence(month: m, day: day, now: now)
             }
             if let day = dayNumber(p), (1...31).contains(day), i + 1 < parts.count, let m = monthNumber(parts[i + 1]) {
+                return Self.nextOccurrence(month: m, day: day, now: now)
+            }
+            // Spanish and French almost always place "de" between the day and the month ("15 de
+            // agosto") rather than putting them right next to each other — without also trying one
+            // connector word apart, "15 de agosto" was invisible to this parser even though
+            // "15 agosto" (never actually said) would have matched.
+            if let day = dayNumber(p), (1...31).contains(day), i + 2 < parts.count, parts[i + 1] == "de", let m = monthNumber(parts[i + 2]) {
                 return Self.nextOccurrence(month: m, day: day, now: now)
             }
             if let y = Int(p), y > 1900, y < 2200 {
@@ -63,6 +86,8 @@ public struct NaturalLanguageParser: Sendable {
     /// explicit clock time in the same text is applied afterward by `timeOfDay`.
     private static let weekdayNumbers = ["sunday": 1, "monday": 2, "tuesday": 3, "wednesday": 4, "thursday": 5, "friday": 6, "saturday": 7]
     private static let hebrewWeekdayNumbers = ["ראשון": 1, "שני": 2, "שלישי": 3, "רביעי": 4, "חמישי": 5, "שישי": 6, "שבת": 7]
+    private static let spanishWeekdayNumbers = ["domingo": 1, "lunes": 2, "martes": 3, "miércoles": 4, "jueves": 5, "viernes": 6, "sábado": 7]
+    private static let frenchWeekdayNumbers = ["dimanche": 1, "lundi": 2, "mardi": 3, "mercredi": 4, "jeudi": 5, "vendredi": 6, "samedi": 7]
 
     /// The next date (never today itself — "next Tuesday" said on a Tuesday means the Tuesday a
     /// week out, not right now) whose weekday matches, per Calendar's own 1=Sunday...7=Saturday.
@@ -73,6 +98,16 @@ public struct NaturalLanguageParser: Sendable {
         return calendar.date(byAdding: .day, value: delta, to: now).map(calendar.startOfDay)
     }
 
+    /// Spelled-out counts ("in three weeks", "בעוד שלושה שבועות") are at least as common in
+    /// natural writing as digits, and understanding what was actually typed — not just the
+    /// digit form — is the whole point; a real test sentence using "three" instead of "3" was
+    /// silently unrecognized before this was added. Hebrew carries grammatical gender, so both
+    /// forms of each number are listed.
+    private static let englishNumberWords: [String: Int] = ["one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12]
+    private static let hebrewNumberWords: [String: Int] = ["אחד": 1, "אחת": 1, "שניים": 2, "שתיים": 2, "שני": 2, "שתי": 2, "שלושה": 3, "שלוש": 3, "ארבעה": 4, "ארבע": 4, "חמישה": 5, "חמש": 5, "שישה": 6, "שש": 6, "שבעה": 7, "שבע": 7, "שמונה": 8, "תשעה": 9, "תשע": 9, "עשרה": 10, "עשר": 10]
+    private static let spanishNumberWords: [String: Int] = ["un": 1, "uno": 1, "una": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6, "siete": 7, "ocho": 8, "nueve": 9, "diez": 10, "once": 11, "doce": 12]
+    private static let frenchNumberWords: [String: Int] = ["un": 1, "une": 1, "deux": 2, "trois": 3, "quatre": 4, "cinq": 5, "six": 6, "sept": 7, "huit": 8, "neuf": 9, "dix": 10, "onze": 11, "douze": 12]
+
     static func relativeDate(in lower: String, now: Date) -> Date? {
         let calendar = Calendar.current
         func days(_ n: Int) -> Date? { calendar.date(byAdding: .day, value: n, to: now).map(calendar.startOfDay) }
@@ -80,38 +115,98 @@ public struct NaturalLanguageParser: Sendable {
         func months(_ n: Int) -> Date? { calendar.date(byAdding: .month, value: n, to: now).map(calendar.startOfDay) }
         func years(_ n: Int) -> Date? { calendar.date(byAdding: .year, value: n, to: now).map(calendar.startOfDay) }
 
-        if lower.contains("day after tomorrow") || lower.contains("מחרתיים") { return days(2) }
-        if lower.contains("tomorrow") || lower.contains("מחר") { return days(1) }
-        if lower.contains("today") || lower.contains("היום") { return days(0) }
-        if lower.contains("שבועיים") { return weeks(2) }
-        if lower.contains("next week") || lower.contains("in a week") || lower.contains("בעוד שבוע") || lower.contains("בשבוע הבא") { return weeks(1) }
-        if lower.contains("next month") || lower.contains("in a month") || lower.contains("בעוד חודש") || lower.contains("בחודש הבא") { return months(1) }
-        if lower.contains("next year") || lower.contains("in a year") || lower.contains("בעוד שנה") || lower.contains("בשנה הבאה") { return years(1) }
+        if lower.contains("day after tomorrow") || lower.contains("מחרתיים") || lower.contains("pasado mañana") || lower.contains("après-demain") { return days(2) }
+        // Spanish "mañana" also means "morning" ("por la mañana") — a real ambiguity this substring
+        // check can't fully resolve, but "tomorrow" is by far the more common standalone meaning in
+        // a short reminder ("cita mañana"), the same trade-off already accepted elsewhere in this
+        // file (e.g. English "next Tuesday" only fires with an explicit "next").
+        if lower.contains("tomorrow") || lower.contains("מחר") || lower.contains("mañana") || lower.contains("demain") { return days(1) }
+        if lower.contains("today") || lower.contains("היום") || lower.contains("hoy") || lower.contains("aujourd'hui") { return days(0) }
+        // Hebrew's dual grammatical form for exactly two ("יומיים"/"שבועיים"/"חודשיים"/"שנתיים")
+        // is a single word, not "two days/weeks/months/years" as separate tokens, so it can't be
+        // caught by the number-word scan below at all — it needs its own direct check. But "כל
+        // שבועיים"/"כל חודשיים" ("every two weeks"/"every two months") is a recurrence with no
+        // specific date at all, not a one-time date two weeks/months from now — recognized
+        // separately as biweekly/everyTwoMonths recurrence in parse() — so it must be excluded
+        // here or a recurring item would wrongly also get a fabricated due date.
+        if lower.contains("יומיים") && !lower.contains("כל יומיים") { return days(2) }
+        if lower.contains("שבועיים") && !lower.contains("כל שבועיים") { return weeks(2) }
+        if lower.contains("חודשיים") && !lower.contains("כל חודשיים") { return months(2) }
+        if lower.contains("שנתיים") && !lower.contains("כל שנתיים") { return years(2) }
+        if lower.contains("next week") || lower.contains("in a week") || lower.contains("בעוד שבוע") || lower.contains("בשבוע הבא") || lower.contains("la semana que viene") || lower.contains("próxima semana") || lower.contains("en una semana") || lower.contains("la semaine prochaine") || lower.contains("dans une semaine") { return weeks(1) }
+        if lower.contains("next month") || lower.contains("in a month") || lower.contains("בעוד חודש") || lower.contains("בחודש הבא") || lower.contains("el mes que viene") || lower.contains("próximo mes") || lower.contains("en un mes") || lower.contains("le mois prochain") || lower.contains("dans un mois") { return months(1) }
+        if lower.contains("next year") || lower.contains("in a year") || lower.contains("בעוד שנה") || lower.contains("בשנה הבאה") || lower.contains("el año que viene") || lower.contains("próximo año") || lower.contains("en un año") || lower.contains("l'année prochaine") || lower.contains("l'an prochain") || lower.contains("l’année prochaine") || lower.contains("dans un an") { return years(1) }
 
-        // "next Tuesday" / Hebrew "יום שלישי הבא" — a weekday name is only a relative-date signal
-        // paired with an explicit "next"/"הבא", since a bare day name usually just names which day
-        // of the week something already-dated falls on, not a date on its own.
+        // "next Tuesday" / Hebrew "יום שלישי הבא" / Spanish "el lunes que viene" / French "lundi
+        // prochain" — a weekday name is only a relative-date signal paired with an explicit
+        // "next"/"הבא"/"que viene"/"prochain", since a bare day name usually just names which day
+        // of the week something already-dated falls on, not a date on its own. French puts
+        // "prochain" after the day name; Spanish commonly uses either order, so both are checked.
         for (name, number) in weekdayNumbers where lower.contains("next \(name)") {
             return nextWeekday(number, from: now, calendar: calendar)
         }
         for (name, number) in hebrewWeekdayNumbers where lower.contains("יום \(name) הבא") || lower.contains("ביום \(name) הבא") {
             return nextWeekday(number, from: now, calendar: calendar)
         }
+        for (name, number) in spanishWeekdayNumbers where lower.contains("\(name) que viene") || lower.contains("próximo \(name)") || lower.contains("próxima \(name)") {
+            return nextWeekday(number, from: now, calendar: calendar)
+        }
+        for (name, number) in frenchWeekdayNumbers where lower.contains("\(name) prochain") {
+            return nextWeekday(number, from: now, calendar: calendar)
+        }
+        // "next December" / "בדצמבר הקרוב" / "el próximo diciembre" / "décembre prochain" — a bare
+        // month name is only a relative-date signal paired with "next"/"הקרוב"/"próximo"/
+        // "prochain"; with no day stated, the 1st of that month is the only reasonable convention
+        // (matches simpleDate's own next-occurrence rule for month+day).
+        for (name, number) in englishMonths where lower.contains("next \(name)") {
+            return Self.nextOccurrence(month: number, day: 1, now: now)
+        }
+        for (name, number) in hebrewMonths where lower.contains("ב\(name) הקרוב") || lower.contains("ל\(name) הקרוב") {
+            return Self.nextOccurrence(month: number, day: 1, now: now)
+        }
+        for (name, number) in spanishMonths where lower.contains("próximo \(name)") {
+            return Self.nextOccurrence(month: number, day: 1, now: now)
+        }
+        for (name, number) in frenchMonths where lower.contains("\(name) prochain") {
+            return Self.nextOccurrence(month: number, day: 1, now: now)
+        }
 
+        func numberToken(_ s: String) -> Int? {
+            if let n = Int(s) { return n }
+            if let n = englishNumberWords[s.lowercased()] { return n }
+            if let n = hebrewNumberWords[s] { return n }
+            if let n = spanishNumberWords[s.lowercased()] { return n }
+            if let n = frenchNumberWords[s.lowercased()] { return n }
+            return nil
+        }
+        let numberAlternation = (["\\d+"] + englishNumberWords.keys + hebrewNumberWords.keys + spanishNumberWords.keys + frenchNumberWords.keys).joined(separator: "|")
         let numberedPatterns: [(String, (Int) -> Date?)] = [
-            (#"in\s+(\d+)\s+days?"#, days),
-            (#"in\s+(\d+)\s+weeks?"#, weeks),
-            (#"in\s+(\d+)\s+years?"#, years),
-            (#"בעוד\s+(\d+)\s+ימים?"#, days),
-            (#"בעוד\s+(\d+)\s+שבועות"#, weeks),
-            (#"בעוד\s+(\d+)\s+שנים?"#, years)
+            ("in\\s+(\(numberAlternation))\\s+days?", days),
+            ("in\\s+(\(numberAlternation))\\s+weeks?", weeks),
+            ("in\\s+(\(numberAlternation))\\s+months?", months),
+            ("in\\s+(\(numberAlternation))\\s+years?", years),
+            ("בעוד\\s+(\(numberAlternation))\\s+ימים?", days),
+            ("בעוד\\s+(\(numberAlternation))\\s+שבועות", weeks),
+            ("בעוד\\s+(\(numberAlternation))\\s+חודשים?", months),
+            ("בעוד\\s+(\(numberAlternation))\\s+שנים?", years),
+            ("en\\s+(\(numberAlternation))\\s+días?", days),
+            ("en\\s+(\(numberAlternation))\\s+semanas?", weeks),
+            ("en\\s+(\(numberAlternation))\\s+meses?", months),
+            ("en\\s+(\(numberAlternation))\\s+años?", years),
+            // French "mois" (month/months) never takes a plural "s" — a "mois?" pattern would also
+            // match the unrelated word "moi" ("me"), so the literal word is used as-is here, unlike
+            // every other unit above.
+            ("dans\\s+(\(numberAlternation))\\s+jours?", days),
+            ("dans\\s+(\(numberAlternation))\\s+semaines?", weeks),
+            ("dans\\s+(\(numberAlternation))\\s+mois\\b", months),
+            ("dans\\s+(\(numberAlternation))\\s+ans?", years)
         ]
         for (pattern, apply) in numberedPatterns {
             guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { continue }
             let range = NSRange(lower.startIndex..., in: lower)
             if let match = regex.firstMatch(in: lower, range: range),
                let numberRange = Range(match.range(at: 1), in: lower),
-               let value = Int(lower[numberRange]) {
+               let value = numberToken(String(lower[numberRange])) {
                 return apply(value)
             }
         }
@@ -166,6 +261,27 @@ public struct NaturalLanguageParser: Sendable {
         KeywordMatch(keywords: ["dentist"], title: "Dentist Appointment", category: .appointments),
         KeywordMatch(keywords: ["doctor"], title: "Doctor Appointment", category: .appointments),
         KeywordMatch(keywords: ["driving test"], title: "Driving Test", category: .appointments),
+        // car/money/health/work/education/documents/family were real LifeCategory cases the
+        // parser could never actually reach — every sentence naming one of them (a car service,
+        // a loan, a prescription, a paycheck, tuition, an ID renewal, a birthday) silently landed
+        // in .other instead. Kept deliberately narrow to safe, unambiguous keywords rather than
+        // broad single words like "home"/"shopping" that would false-positive too easily (e.g. a
+        // bare "home" also appears in "home from work").
+        KeywordMatch(keywords: ["car service"], title: "Car Service", category: .car),
+        KeywordMatch(keywords: ["car wash"], title: "Car Wash", category: .car),
+        KeywordMatch(keywords: ["car registration"], title: "Car Registration", category: .car),
+        KeywordMatch(keywords: ["car maintenance"], title: "Car Maintenance", category: .car),
+        KeywordMatch(keywords: ["credit card"], title: "Credit Card", category: .money),
+        KeywordMatch(keywords: ["savings"], title: "Savings", category: .money),
+        KeywordMatch(keywords: ["loan"], title: "Loan", category: .money),
+        KeywordMatch(keywords: ["prescription"], title: "Prescription", category: .health),
+        KeywordMatch(keywords: ["medication"], title: "Medication", category: .health),
+        KeywordMatch(keywords: ["vitamins"], title: "Vitamins", category: .health),
+        KeywordMatch(keywords: ["salary", "paycheck", "payroll"], title: "Salary", category: .work),
+        KeywordMatch(keywords: ["tuition", "school fee"], title: "Tuition", category: .education),
+        KeywordMatch(keywords: ["driver's license", "drivers license", "id card", "birth certificate"], title: "Document Renewal", category: .documents),
+        KeywordMatch(keywords: ["birthday"], title: "Birthday", category: .family),
+        KeywordMatch(keywords: ["anniversary"], title: "Anniversary", category: .family),
         // Hebrew mirror of the English list above. Kept as a separate block (rather than adding
         // a second keyword language to each existing entry) so the title stays in whichever
         // language the user actually typed in, instead of a Hebrew sentence silently producing
@@ -189,7 +305,88 @@ public struct NaturalLanguageParser: Sendable {
         KeywordMatch(keywords: ["חשבון טלפון"], title: "חשבון טלפון", category: .bills),
         KeywordMatch(keywords: ["רופא שיניים"], title: "תור לרופא שיניים", category: .appointments),
         KeywordMatch(keywords: ["רופא"], title: "תור לרופא", category: .appointments),
-        KeywordMatch(keywords: ["טסט רכב", "מבחן נהיגה"], title: "טסט רכב", category: .appointments)
+        KeywordMatch(keywords: ["טסט רכב", "מבחן נהיגה"], title: "טסט רכב", category: .appointments),
+        KeywordMatch(keywords: ["טיפול לרכב"], title: "טיפול לרכב", category: .car),
+        KeywordMatch(keywords: ["שטיפת רכב"], title: "שטיפת רכב", category: .car),
+        KeywordMatch(keywords: ["רישוי רכב"], title: "רישוי רכב", category: .car),
+        KeywordMatch(keywords: ["כרטיס אשראי"], title: "כרטיס אשראי", category: .money),
+        KeywordMatch(keywords: ["חיסכון"], title: "חיסכון", category: .money),
+        KeywordMatch(keywords: ["הלוואה"], title: "הלוואה", category: .money),
+        KeywordMatch(keywords: ["מרשם"], title: "מרשם", category: .health),
+        KeywordMatch(keywords: ["תרופה"], title: "תרופה", category: .health),
+        KeywordMatch(keywords: ["משכורת"], title: "משכורת", category: .work),
+        KeywordMatch(keywords: ["שכר לימוד", "אגרת לימוד"], title: "שכר לימוד", category: .education),
+        KeywordMatch(keywords: ["רישיון נהיגה", "תעודת זהות", "תעודת לידה"], title: "חידוש מסמך", category: .documents),
+        KeywordMatch(keywords: ["יום הולדת"], title: "יום הולדת", category: .family),
+        KeywordMatch(keywords: ["יום נישואין"], title: "יום נישואין", category: .family),
+        // Spanish mirror, same specific-before-generic ordering. "matrícula" (tuition) and car
+        // registration terms vary too much by country (Spain vs. Latin America) to pick one safe
+        // generic keyword, so car registration is deliberately left uncovered here rather than
+        // risk a wrong regional match; "receta" (prescription) is skipped bare since it's also the
+        // everyday word for a cooking recipe — only the unambiguous "receta médica" is matched.
+        KeywordMatch(keywords: ["seguro de auto", "seguro de coche"], title: "Seguro de Auto", category: .insurance),
+        KeywordMatch(keywords: ["seguro de hogar", "seguro de casa"], title: "Seguro de Hogar", category: .insurance),
+        KeywordMatch(keywords: ["seguro de salud"], title: "Seguro de Salud", category: .insurance),
+        KeywordMatch(keywords: ["seguro de vida"], title: "Seguro de Vida", category: .insurance),
+        KeywordMatch(keywords: ["seguro"], title: "Seguro", category: .insurance),
+        KeywordMatch(keywords: ["pasaporte"], title: "Pasaporte", category: .travel),
+        KeywordMatch(keywords: ["visa"], title: "Visa", category: .travel),
+        KeywordMatch(keywords: ["garantía"], title: "Garantía", category: .warranties),
+        KeywordMatch(keywords: ["gimnasio"], title: "Membresía de Gimnasio", category: .memberships),
+        KeywordMatch(keywords: ["alquiler", "renta"], title: "Alquiler", category: .bills),
+        KeywordMatch(keywords: ["hipoteca"], title: "Hipoteca", category: .bills),
+        KeywordMatch(keywords: ["factura de electricidad", "factura de luz"], title: "Factura de Electricidad", category: .bills),
+        KeywordMatch(keywords: ["factura de agua"], title: "Factura de Agua", category: .bills),
+        KeywordMatch(keywords: ["factura de teléfono"], title: "Factura de Teléfono", category: .bills),
+        KeywordMatch(keywords: ["dentista"], title: "Cita con el Dentista", category: .appointments),
+        KeywordMatch(keywords: ["médico"], title: "Cita Médica", category: .appointments),
+        KeywordMatch(keywords: ["examen de manejo", "examen de conducir"], title: "Examen de Manejo", category: .appointments),
+        KeywordMatch(keywords: ["servicio de auto", "servicio del auto"], title: "Servicio de Auto", category: .car),
+        KeywordMatch(keywords: ["lavado de auto", "lavado del auto"], title: "Lavado de Auto", category: .car),
+        KeywordMatch(keywords: ["tarjeta de crédito"], title: "Tarjeta de Crédito", category: .money),
+        KeywordMatch(keywords: ["ahorros"], title: "Ahorros", category: .money),
+        KeywordMatch(keywords: ["préstamo"], title: "Préstamo", category: .money),
+        KeywordMatch(keywords: ["receta médica"], title: "Receta Médica", category: .health),
+        KeywordMatch(keywords: ["medicamento"], title: "Medicamento", category: .health),
+        KeywordMatch(keywords: ["vitaminas"], title: "Vitaminas", category: .health),
+        KeywordMatch(keywords: ["salario", "sueldo", "nómina"], title: "Salario", category: .work),
+        KeywordMatch(keywords: ["matrícula", "colegiatura"], title: "Matrícula", category: .education),
+        KeywordMatch(keywords: ["licencia de conducir", "acta de nacimiento"], title: "Renovación de Documento", category: .documents),
+        KeywordMatch(keywords: ["aniversario de bodas"], title: "Aniversario", category: .family),
+        KeywordMatch(keywords: ["cumpleaños"], title: "Cumpleaños", category: .family),
+        // French mirror. "prêt immobilier" (mortgage) is skipped in favor of the unambiguous
+        // "hypothèque" alone, so the generic "prêt" (loan) keyword below never needs to be ordered
+        // around it; "carte d'identité" uses a straight apostrophe to match how it's most commonly
+        // typed, same trade-off as "aujourd'hui" above.
+        KeywordMatch(keywords: ["assurance auto", "assurance voiture"], title: "Assurance Auto", category: .insurance),
+        KeywordMatch(keywords: ["assurance habitation", "assurance maison"], title: "Assurance Habitation", category: .insurance),
+        KeywordMatch(keywords: ["assurance santé"], title: "Assurance Santé", category: .insurance),
+        KeywordMatch(keywords: ["assurance vie"], title: "Assurance Vie", category: .insurance),
+        KeywordMatch(keywords: ["assurance"], title: "Assurance", category: .insurance),
+        KeywordMatch(keywords: ["passeport"], title: "Passeport", category: .travel),
+        KeywordMatch(keywords: ["garantie"], title: "Garantie", category: .warranties),
+        KeywordMatch(keywords: ["salle de sport"], title: "Abonnement Salle de Sport", category: .memberships),
+        KeywordMatch(keywords: ["loyer"], title: "Loyer", category: .bills),
+        KeywordMatch(keywords: ["hypothèque"], title: "Hypothèque", category: .bills),
+        KeywordMatch(keywords: ["facture d'électricité", "facture d’électricité"], title: "Facture d'Électricité", category: .bills),
+        KeywordMatch(keywords: ["facture d'eau", "facture d’eau"], title: "Facture d'Eau", category: .bills),
+        KeywordMatch(keywords: ["facture de téléphone"], title: "Facture de Téléphone", category: .bills),
+        KeywordMatch(keywords: ["dentiste"], title: "Rendez-vous chez le Dentiste", category: .appointments),
+        KeywordMatch(keywords: ["médecin"], title: "Rendez-vous Médical", category: .appointments),
+        KeywordMatch(keywords: ["examen du permis"], title: "Examen du Permis", category: .appointments),
+        KeywordMatch(keywords: ["service auto"], title: "Service Auto", category: .car),
+        KeywordMatch(keywords: ["lavage auto"], title: "Lavage Auto", category: .car),
+        KeywordMatch(keywords: ["carte de crédit"], title: "Carte de Crédit", category: .money),
+        KeywordMatch(keywords: ["épargne"], title: "Épargne", category: .money),
+        KeywordMatch(keywords: ["prêt"], title: "Prêt", category: .money),
+        KeywordMatch(keywords: ["ordonnance"], title: "Ordonnance", category: .health),
+        KeywordMatch(keywords: ["médicament"], title: "Médicament", category: .health),
+        KeywordMatch(keywords: ["vitamines"], title: "Vitamines", category: .health),
+        KeywordMatch(keywords: ["salaire", "paie"], title: "Salaire", category: .work),
+        KeywordMatch(keywords: ["frais de scolarité"], title: "Frais de Scolarité", category: .education),
+        KeywordMatch(keywords: ["permis de conduire", "acte de naissance", "carte d'identité", "carte d’identité"], title: "Renouvellement de Document", category: .documents),
+        KeywordMatch(keywords: ["anniversaire de mariage"], title: "Anniversaire de Mariage", category: .family),
+        KeywordMatch(keywords: ["anniversaire"], title: "Anniversaire", category: .family)
     ]
 
     /// A bare-word keyword like "רופא" almost never appears bare in real Hebrew — "to the doctor"
@@ -205,11 +402,26 @@ public struct NaturalLanguageParser: Sendable {
         }
     }
 
+    /// Hebrew inserts its definite article directly onto the second word of a two-word phrase
+    /// when the phrase is definite — "פרעתי את כרטיס האשראי" ("I paid off the credit card") says
+    /// "כרטיס האשראי", not the bare "כרטיס אשראי" a keyword phrase is written as — so a plain
+    /// substring check alone misses an entire, completely ordinary way of phrasing it. Trying the
+    /// same phrase with "ה" inserted right after its first space catches that form too, for every
+    /// two-word keyword in the list at once instead of special-casing each one.
+    private static func withDefiniteArticle(_ keyword: String) -> String? {
+        guard let spaceIndex = keyword.firstIndex(of: " ") else { return nil }
+        let afterSpace = keyword.index(after: spaceIndex)
+        return keyword[..<spaceIndex] + " ה" + keyword[afterSpace...]
+    }
+
     private static func firstMatch(in lower: String, words: Set<String>) -> KeywordMatch? {
         let expandedWords = destemmed(words)
         return knownMatches.first { match in
             match.keywords.contains { keyword in
-                keyword.contains(" ") ? lower.contains(keyword) : expandedWords.contains(keyword)
+                guard keyword.contains(" ") else { return expandedWords.contains(keyword) }
+                if lower.contains(keyword) { return true }
+                if let withArticle = withDefiniteArticle(keyword), lower.contains(withArticle) { return true }
+                return false
             }
         }
     }
@@ -250,16 +462,33 @@ public struct NaturalLanguageParser: Sendable {
                 return value
             }
         }
-        let ordinalDatePattern = try! NSRegularExpression(pattern: #"^\d{1,2}(st|nd|rd|th)$"#, options: .caseInsensitive)
+        // "er" catches French "1er" (as in "le 1er septembre") the same way "st/nd/rd/th" catches
+        // English ordinals — a glued ordinal suffix marks a day-of-month, not an amount.
+        let ordinalDatePattern = try! NSRegularExpression(pattern: #"^\d{1,2}(st|nd|rd|th|er)$"#, options: .caseInsensitive)
+        // "meeting at 9am" isn't a $9 charge — a clock hour glued to am/pm (or standing right
+        // next to it as its own token) is a time, not an amount. Found on a real test sentence
+        // that had no currency in it at all, so nothing else here was catching it.
+        let timeTokenPattern = try! NSRegularExpression(pattern: #"^\d{1,2}\s*(am|pm)$"#, options: .caseInsensitive)
+        let timeMarkers: Set<String> = ["am", "pm"]
         // "expires in 2 years" isn't a 2-dollar bill — a bare number immediately followed by a
         // span-of-time word is a duration, not an amount, the same reasoning that already
         // excludes an ordinal day-of-month here.
-        let durationWords: Set<String> = ["day", "days", "week", "weeks", "month", "months", "year", "years", "יום", "ימים", "שבוע", "שבועות", "חודש", "חודשים", "שנה", "שנים"]
+        let durationWords: Set<String> = ["day", "days", "week", "weeks", "month", "months", "year", "years", "יום", "ימים", "שבוע", "שבועות", "חודש", "חודשים", "שנה", "שנים", "día", "días", "semana", "semanas", "mes", "meses", "año", "años", "jour", "jours", "semaine", "semaines", "mois", "an", "ans"]
+        // Spanish/French routinely state a recurring day-of-month as "el 1 de cada mes"/"le 3 de
+        // chaque mois" — an article immediately before the number and "de" immediately after mark
+        // it as a day reference, not an amount, the same way an ordinal suffix or a recognized
+        // absolute date's own day already does below. There's no absolute date to compare against
+        // here (no month is even named — "cada mes"/"chaque mois" is just "each month"), so this
+        // has to be caught positionally instead.
+        let dayOfMonthArticles: Set<String> = ["el", "la", "le"]
         for (index, token) in tokens.enumerated() {
             let range = NSRange(token.startIndex..., in: token)
             if ordinalDatePattern.firstMatch(in: token, range: range) != nil { continue }
+            if timeTokenPattern.firstMatch(in: token, range: range) != nil { continue }
             if let dayOfMonth, Int(token) == dayOfMonth { continue }
             if index + 1 < tokens.count, durationWords.contains(tokens[index + 1].lowercased()) { continue }
+            if index + 1 < tokens.count, timeMarkers.contains(tokens[index + 1].lowercased()) { continue }
+            if index > 0, index + 1 < tokens.count, dayOfMonthArticles.contains(tokens[index - 1].lowercased()), tokens[index + 1].lowercased() == "de" { continue }
             if let value = decimalValue(token) { return value }
         }
         return nil
@@ -289,7 +518,14 @@ public struct NaturalLanguageParser: Sendable {
         // or LifeAdminAIService.isCompleteEnough will treat it as good enough and never ask Gemini
         // for a real title.
         let recognizedTitle: String? = match?.title
-        let fallbackTitle = text.split(separator: " ").prefix(4).joined(separator: " ")
+        // A fallback title should never end up literally showing the amount ("credit card
+        // payment $85"): stopping at the first token that carries a digit keeps the amount out of
+        // the title text while still using up to 4 words, same as before, whenever the first
+        // words happen to be digit-free (the overwhelmingly common case).
+        let leadingWords = text.split(separator: " ").map(String.init)
+        let wordsBeforeFirstDigit = leadingWords.prefix { $0.contains { $0.isNumber } == false }
+        let fallbackWords = wordsBeforeFirstDigit.isEmpty ? leadingWords : Array(wordsBeforeFirstDigit)
+        let fallbackTitle = fallbackWords.prefix(4).joined(separator: " ")
         let title = recognizedTitle ?? fallbackTitle
         // ₪/שקל/ש"ח matter here specifically because the app's own Hebrew UI and example prompts
         // use them — without this, typing exactly what the app itself suggested ("ביטוח רכב
@@ -297,8 +533,12 @@ public struct NaturalLanguageParser: Sendable {
         // Symbols are checked as substrings (still fine even glued onto a prefix, e.g. "בשקלים"
         // contains "שקל"); spelled-out currency words ("nis", "shekels", "usd") are only ever
         // whole tokens, so those need the word set, not another `.contains` on the raw string.
-        let currency = lower.contains("€") || words.contains("eur") || lower.contains("יורו") ? "EUR"
-            : lower.contains("$") || words.contains("usd") || lower.contains("דולר") ? "USD"
+        // "euro"/"euros" (English, Spanish, and French all spell it this way) is the spelled-out
+        // form of the same symbol/code already checked here — a pre-existing gap, not specific to
+        // adding Spanish/French support, since "the bill is 240 euros" was never recognized before
+        // even in English.
+        let currency = lower.contains("€") || words.contains("eur") || words.contains("euro") || words.contains("euros") || lower.contains("יורו") ? "EUR"
+            : lower.contains("$") || words.contains("usd") || words.contains("dollar") || words.contains("dollars") || words.contains("dólar") || words.contains("dólares") || lower.contains("דולר") ? "USD"
             : lower.contains("₪") || lower.contains("שקל") || lower.contains("ש\"ח") || lower.contains("ש״ח") || words.contains("שח") || words.contains("nis") || words.contains("ils") || words.contains("shekel") || words.contains("shekels") ? "ILS"
             : nil
         // Checked most-specific-period-first: "renews every month" contains "renews every" as a
@@ -308,12 +548,43 @@ public struct NaturalLanguageParser: Sendable {
         // it must never win against an actual "month"/"six months" match sitting right next to it.
         // "$45/month" and "לחודש" ("per month") are just as common a way to state a recurring
         // price as "monthly" spelled out, so they get the same weight here.
+        // "יומיים"/"שבועיים"/"חודשיים"/"שנתיים" are Hebrew's dual form for exactly two
+        // days/weeks/months/years — a single word, not "day/week/month/year" plus a count — and
+        // each one contains "יומי"/"שבועי"/"חודשי"/"שנתי" as a plain substring, which falsely
+        // fired the daily/weekly/monthly/yearly checks below on a one-time "expires in two months"
+        // sentence that has no recurrence in it at all. Stripping the dual words out before
+        // matching removes the false substring without touching any of the real
+        // "יומי"/"שבועי"/"חודשי"/"שנתי"/"כל חודש"/"כל שנה" phrasing this block is meant to catch.
+        // The explicit "every two X" / "כל Xיים" phrases (biweekly, everyTwoMonths) are matched
+        // separately against the un-stripped text before falling through to this generic pass, so
+        // stripping the dual word here never loses that case — it only stops it from being
+        // mis-read as a plain weekly/monthly signal.
+        let lowerForRecurrence = lower
+            .replacingOccurrences(of: "יומיים", with: "")
+            .replacingOccurrences(of: "שבועיים", with: "")
+            .replacingOccurrences(of: "חודשיים", with: "")
+            .replacingOccurrences(of: "שנתיים", with: "")
         let recurrence: Recurrence
-        if lower.contains("every month") || lower.contains("monthly") || lower.contains("/month") || lower.contains("per month") || lower.contains("כל חודש") || lower.contains("מדי חודש") || lower.contains("חודשי") || lower.contains("לחודש") {
+        // " a month"/" a year" (no leading "in") is as common a way to state a recurring price as
+        // "monthly" spelled out ("45 dollars a month") — but "in a month"/"in a year" is the
+        // one-time relative-date phrase already handled above, and always contains " a month"/" a
+        // year" as a substring, so it must be excluded here to avoid double-tagging a one-time
+        // date as also recurring.
+        if lowerForRecurrence.contains("daily") || lowerForRecurrence.contains("every day") || lowerForRecurrence.contains("כל יום") || lowerForRecurrence.contains("יומי") || lowerForRecurrence.contains("diario") || lowerForRecurrence.contains("diaria") || lowerForRecurrence.contains("cada día") || lowerForRecurrence.contains("todos los días") || lowerForRecurrence.contains("quotidien") || lowerForRecurrence.contains("chaque jour") || lowerForRecurrence.contains("tous les jours") {
+            recurrence = .daily
+        } else if lower.contains("biweekly") || lower.contains("every two weeks") || lower.contains("every other week") || lower.contains("כל שבועיים") || lower.contains("quincenal") || lower.contains("cada dos semanas") || lower.contains("cada quince días") || lower.contains("toutes les deux semaines") {
+            recurrence = .biweekly
+        } else if lower.contains("every two months") || lower.contains("every other month") || lower.contains("כל חודשיים") || lower.contains("cada dos meses") || lower.contains("tous les deux mois") {
+            recurrence = .everyTwoMonths
+        } else if lowerForRecurrence.contains("quarterly") || lowerForRecurrence.contains("every quarter") || lowerForRecurrence.contains("every 3 months") || lowerForRecurrence.contains("every three months") || lowerForRecurrence.contains("רבעוני") || lowerForRecurrence.contains("כל רבעון") || lowerForRecurrence.contains("כל 3 חודשים") || lowerForRecurrence.contains("כל שלושה חודשים") || lowerForRecurrence.contains("trimestral") || lowerForRecurrence.contains("cada tres meses") || lowerForRecurrence.contains("cada trimestre") || lowerForRecurrence.contains("trimestriel") || lowerForRecurrence.contains("tous les trois mois") || lowerForRecurrence.contains("chaque trimestre") {
+            recurrence = .quarterly
+        } else if lowerForRecurrence.contains("weekly") || lowerForRecurrence.contains("every week") || lowerForRecurrence.contains("שבועי") || lowerForRecurrence.contains("כל שבוע") || lowerForRecurrence.contains("לשבוע") || lowerForRecurrence.contains("semanal") || lowerForRecurrence.contains("cada semana") || lowerForRecurrence.contains("hebdomadaire") || lowerForRecurrence.contains("chaque semaine") {
+            recurrence = .weekly
+        } else if lowerForRecurrence.contains("every month") || lowerForRecurrence.contains("monthly") || lowerForRecurrence.contains("/month") || lowerForRecurrence.contains("per month") || lowerForRecurrence.contains("כל חודש") || lowerForRecurrence.contains("מדי חודש") || lowerForRecurrence.contains("חודשי") || lowerForRecurrence.contains("לחודש") || (lowerForRecurrence.contains(" a month") && !lowerForRecurrence.contains("in a month")) || lowerForRecurrence.contains("mensual") || lowerForRecurrence.contains("cada mes") || lowerForRecurrence.contains("al mes") || lowerForRecurrence.contains("por mes") || lowerForRecurrence.contains("mensuel") || lowerForRecurrence.contains("chaque mois") || lowerForRecurrence.contains("par mois") || lowerForRecurrence.contains("tous les mois") {
             recurrence = .monthly
-        } else if lower.contains("six months") || lower.contains("כל שישה חודשים") || lower.contains("כל 6 חודשים") {
+        } else if lowerForRecurrence.contains("six months") || (lowerForRecurrence.contains("6 months") && !lowerForRecurrence.contains("in 6 months")) || lowerForRecurrence.contains("כל שישה חודשים") || lowerForRecurrence.contains("כל 6 חודשים") || lowerForRecurrence.contains("חצי שנה") || lowerForRecurrence.contains("semestral") || lowerForRecurrence.contains("cada seis meses") || lowerForRecurrence.contains("cada medio año") || lowerForRecurrence.contains("semestriel") || lowerForRecurrence.contains("tous les six mois") {
             recurrence = .everySixMonths
-        } else if lower.contains("every year") || lower.contains("yearly") || lower.contains("annual") || lower.contains("renews every") || lower.contains("/year") || lower.contains("per year") || lower.contains("כל שנה") || lower.contains("מדי שנה") || lower.contains("שנתי") || lower.contains("לשנה") {
+        } else if lowerForRecurrence.contains("every year") || lowerForRecurrence.contains("yearly") || lowerForRecurrence.contains("annual") || lowerForRecurrence.contains("renews every") || lowerForRecurrence.contains("/year") || lowerForRecurrence.contains("per year") || lowerForRecurrence.contains("כל שנה") || lowerForRecurrence.contains("מדי שנה") || lowerForRecurrence.contains("שנתי") || lowerForRecurrence.contains("לשנה") || (lowerForRecurrence.contains(" a year") && !lowerForRecurrence.contains("in a year")) || lowerForRecurrence.contains("anual") || lowerForRecurrence.contains("cada año") || lowerForRecurrence.contains("al año") || lowerForRecurrence.contains("por año") || lowerForRecurrence.contains("annuel") || lowerForRecurrence.contains("chaque année") || lowerForRecurrence.contains("par an") || lowerForRecurrence.contains("tous les ans") {
             recurrence = .yearly
         } else {
             recurrence = .none
@@ -335,10 +606,49 @@ public struct NaturalLanguageParser: Sendable {
             currency: currency,
             date: date,
             recurring: recurrence,
-            reminderOffsets: category == .travel ? [90, 30, 7, 1] : [30],
-            confidence: confidence
+            reminderOffsets: ReminderEngine.defaultOffsets(for: category),
+            confidence: confidence,
+            scamRiskDetected: Self.detectsScamLanguage(in: lower)
         )
     }
+
+    /// A real bill legitimately says "final notice" or "pay immediately to avoid a late fee" all
+    /// the time — urgency language alone is much too common in ordinary correspondence to flag on
+    /// its own, and would just train people to ignore the warning. What phishing/scam messages
+    /// add on top of urgency is a request to act on a link or "verify"/"confirm" account or
+    /// payment details right now — this only flags when BOTH kinds of phrase appear together,
+    /// deliberately trading missed detections for not crying wolf on real bills. This is a
+    /// heuristic, not a guarantee: it can't and shouldn't be sold as "we'll catch every scam."
+    private static let urgencyOrThreatPhrases: [String] = [
+        "account will be suspended", "account will be closed", "account has been compromised",
+        "final notice", "legal action", "risk of arrest", "unusual activity detected",
+        "act now", "immediately or your", "failure to pay will result in",
+        "החשבון שלך יושעה", "החשבון ייסגר", "החשבון נפרץ", "הודעה אחרונה", "צעדים משפטיים",
+        "סכנת מעצר", "פעילות חשודה זוהתה", "פעל מיד", "אי תשלום יגרור",
+        "su cuenta será suspendida", "su cuenta será cerrada", "su cuenta ha sido comprometida",
+        "aviso final", "acciones legales", "riesgo de arresto", "actividad inusual detectada",
+        "actúe ahora", "inmediatamente o su", "el incumplimiento del pago resultará en",
+        "votre compte sera suspendu", "votre compte sera fermé", "votre compte a été compromis",
+        "dernier avis", "poursuites judiciaires", "risque d'arrestation", "activité inhabituelle détectée",
+        "agissez maintenant", "immédiatement ou votre", "le non-paiement entraînera"
+    ]
+    private static let phishingActionPhrases: [String] = [
+        "verify your account", "confirm your payment details", "confirm your password",
+        "click here to avoid", "click the link below", "update your billing information now",
+        "אמת את החשבון שלך", "אשר את פרטי התשלום", "אשר את הסיסמה שלך", "לחץ כאן כדי למנוע", "לחץ על הקישור",
+        "verifique su cuenta", "confirme los datos de su pago", "confirme su contraseña",
+        "haga clic aquí para evitar", "haga clic en el enlace", "actualice su información de facturación ahora",
+        "vérifiez votre compte", "confirmez vos informations de paiement", "confirmez votre mot de passe",
+        "cliquez ici pour éviter", "cliquez sur le lien", "mettez à jour vos informations de facturation maintenant"
+    ]
+    static func detectsScamLanguage(in lower: String) -> Bool {
+        urgencyOrThreatPhrases.contains { lower.contains($0) } && phishingActionPhrases.contains { lower.contains($0) }
+    }
+
+    /// Applied to `LifeAdminItem.tags` (the same "special tag with app-wide meaning" pattern
+    /// `LifeEventDetector.movingTag` already uses) rather than adding a dedicated model field —
+    /// `tags` already exists precisely for this kind of lightweight, App-target-visible signal.
+    public static let scamRiskTag = "possible-scam-language"
 }
 public struct AIJSONValidator { public init() {} ; public func decode(_ data: Data) throws -> ExtractedItem { let dec=JSONDecoder(); dec.dateDecodingStrategy = .iso8601; let item = try dec.decode(ExtractedItem.self, from: data); if item.confidence < 0 || item.confidence > 1 { throw LifeAdminError.invalidJSON }; return item } }
 public enum AIProcessingMode: String, Codable, CaseIterable { case askEveryTime, allowAutomatically, disabled }

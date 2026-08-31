@@ -29,6 +29,7 @@ struct LifeAdminApp: App {
     /// store so the app can still open rather than crash-loop forever.
     private static func makeModelContainer() -> ModelContainer {
         if let container = try? ModelContainer(for: PersistedItem.self) {
+            protectDefaultStore()
             return container
         }
 
@@ -37,11 +38,31 @@ struct LifeAdminApp: App {
             try? FileManager.default.removeItem(at: URL(fileURLWithPath: storeURL.path + suffix))
         }
         if let container = try? ModelContainer(for: PersistedItem.self) {
+            protectDefaultStore()
             return container
         }
 
         let inMemoryConfiguration = ModelConfiguration(isStoredInMemoryOnly: true)
         return try! ModelContainer(for: PersistedItem.self, configurations: inMemoryConfiguration)
+    }
+
+    /// SwiftData gives this store no explicit protection level of its own — with no custom
+    /// `ModelConfiguration`, it sits at iOS's default (`.completeUntilFirstUserAuthentication`:
+    /// readable once the device has been unlocked even a single time since boot), even though it
+    /// holds the same titles, notes, amounts, and contact emails `AttachmentStore` already treats
+    /// as needing better than that. Matches AttachmentStore's own choice — unreadable whenever the
+    /// device itself is locked, not merely before its first unlock since a reboot — applied after
+    /// the fact via `FileManager.setAttributes`, since (unlike `AttachmentStore`'s own files,
+    /// written directly with `Data.WritingOptions.completeFileProtection`) SwiftData creates and
+    /// writes this file itself; the -wal/-shm siblings are SQLite's write-ahead-log files, which
+    /// hold the same uncommitted row data and need the same protection.
+    private static func protectDefaultStore() {
+        let storeURL = URL.applicationSupportDirectory.appending(path: "default.store")
+        for suffix in ["", "-wal", "-shm"] {
+            let path = storeURL.path + suffix
+            guard FileManager.default.fileExists(atPath: path) else { continue }
+            try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: path)
+        }
     }
 }
 
@@ -135,9 +156,16 @@ final class ItemStore: ObservableObject {
         await refreshDigest()
     }
 
+    /// When `true`, forces local-only processing for this add regardless of the user's AI
+    /// Autonomy setting — the one enforcement point for what the AI consent screen promises
+    /// ("nothing else: not your contacts, calendar, or photos"). A scanned passport/ID's
+    /// recognized OCR text (full name, document number, date of birth, MRZ line) landing in this
+    /// same free-text field as ordinary typed input would otherwise escalate to Gemini exactly
+    /// like any other text whenever the local parser can't fully understand it on its own — which
+    /// a scan almost always can't, since it rarely contains an obvious due date or amount.
     @discardableResult
-    func add(text: String, attachments: [Attachment] = []) async -> AddOutcome {
-        let mode = autonomyMode
+    func add(text: String, attachments: [Attachment] = [], containsScannedText: Bool = false) async -> AddOutcome {
+        let mode = containsScannedText ? .disabled : autonomyMode
         let entries = NaturalLanguageParser.splitEntries(text)
         guard entries.count > 1 else {
             let result = await addOneEntry(text: text, attachments: attachments, mode: mode)
@@ -170,12 +198,18 @@ final class ItemStore: ObservableObject {
             amount: extracted.amount,
             currency: extracted.currency,
             recurrence: extracted.recurring ?? .none,
-            reminderOffsets: extracted.reminderOffsets ?? [30]
+            reminderOffsets: extracted.reminderOffsets ?? ReminderEngine.defaultOffsets(for: extracted.category ?? .other)
         )
         item.priority = PriorityEngine().priority(for: item)
         item.attachments = attachments
         if FeatureFlags.moveDetectionEnabled {
             item.tags.append(contentsOf: LifeEventDetector().detectedTags(in: text))
+        }
+        // Not gated behind a feature flag, unlike moveDetectionEnabled above — this is a safety
+        // signal, not a nice-to-have, so it should always be active rather than held back for a
+        // later release.
+        if extracted.scamRiskDetected == true {
+            item.tags.append(NaturalLanguageParser.scamRiskTag)
         }
         if decision.usedAI {
             ActivityLog.shared.record(String(format: String(localized: "activityLog.aiHelped"), item.title))
@@ -204,6 +238,14 @@ final class ItemStore: ObservableObject {
             ActivityLog.shared.record(String(format: String(localized: "activityLog.contactAutoFilled"), item.title))
         }
 
+        return AddOneEntryResult(item: await persistNewItem(item), wasMerged: false)
+    }
+
+    /// The second half of adding an item once its title/category/recurrence/etc. are already
+    /// decided — shared by `addOneEntry` (decided by AI/local NL parsing) and
+    /// `addFromChecklistSuggestion` (decided directly from a `ChecklistSuggestion`, no parsing
+    /// involved) so persistence, scheduling, and calendar sync only exist in one place.
+    private func persistNewItem(_ item: LifeAdminItem) async -> LifeAdminItem {
         let persisted = PersistedItem(item: item)
         modelContext.insert(persisted)
         try? modelContext.save()
@@ -217,13 +259,37 @@ final class ItemStore: ObservableObject {
         persisted.calendarEventIdentifier = sync.eventIdentifier
         persisted.reminderIdentifier = sync.reminderIdentifier
         try? modelContext.save()
+        flagCalendarSyncIssueIfNeeded(dueDate: item.dueDate, eventIdentifier: sync.eventIdentifier)
 
         await refreshDigest()
-        return AddOneEntryResult(item: item, wasMerged: false)
+        return item
+    }
+
+    /// Adds an item straight from a tapped checklist suggestion — bypasses AI/local NL parsing
+    /// entirely, unlike `add(text:)`, since the category and recurrence are already known from the
+    /// suggestion itself. That's not just simpler: NaturalLanguageParser only deeply understands
+    /// recurrence phrasing in English/Hebrew/Spanish/French, so generating a sentence and parsing
+    /// it back would silently lose the intended recurrence in the app's other locales.
+    func addFromChecklistSuggestion(_ suggestion: ChecklistSuggestion) async -> LifeAdminItem {
+        var item = LifeAdminItem(
+            title: NSLocalizedString(suggestion.titleKey, comment: ""),
+            category: suggestion.category,
+            recurrence: suggestion.suggestedRecurrence,
+            reminderOffsets: ReminderEngine.defaultOffsets(for: suggestion.category)
+        )
+        item.priority = PriorityEngine().priority(for: item)
+        ActivityLog.shared.record(String(format: String(localized: "activityLog.addedFromChecklist"), item.title))
+        return await persistNewItem(item)
     }
 
     private func refreshDigest() async {
         await NotificationScheduler.shared.scheduleDailyDigest(items: items)
+        // Reads the same UserDefaults key ChecklistView's own @AppStorage writes to — ItemStore
+        // isn't a View and can't use the property wrapper itself, but it's the identical
+        // underlying storage, so the two always agree on what's been dismissed.
+        let dismissedIDs = Set((UserDefaults.standard.string(forKey: "checklistDismissedIDs") ?? "").split(separator: ",").map(String.init))
+        let hasOutstanding = ChecklistEngine().outstandingSuggestions(items: items, dismissedIDs: dismissedIDs).isEmpty == false
+        await NotificationScheduler.shared.scheduleChecklistNudge(hasOutstandingSuggestions: hasOutstanding)
     }
 
     func update(_ item: LifeAdminItem) async {
@@ -244,9 +310,26 @@ final class ItemStore: ObservableObject {
         persisted.calendarEventIdentifier = sync.eventIdentifier
         persisted.reminderIdentifier = sync.reminderIdentifier
         try? modelContext.save()
+        flagCalendarSyncIssueIfNeeded(dueDate: item.dueDate, eventIdentifier: sync.eventIdentifier)
 
         await NotificationScheduler.shared.schedule(for: item)
         await refreshDigest()
+    }
+
+    /// Non-blocking, self-dismissing notice (rendered by RootTabView) for the one case that used
+    /// to fail in total silence: a sync just ran for an item with a due date, produced no calendar
+    /// event, and Calendar access genuinely isn't fully granted. Never fires for an item with no
+    /// due date, or once access is fully granted, so it can't nag someone who never wanted this
+    /// feature synced in the first place.
+    private func flagCalendarSyncIssueIfNeeded(dueDate: Date?, eventIdentifier: String?) {
+        guard dueDate != nil, eventIdentifier == nil, CalendarSyncService.hasFullCalendarAccess() == false else { return }
+        calendarSyncWarningTask?.cancel()
+        calendarSyncWarningVisible = true
+        calendarSyncWarningTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4))
+            guard Task.isCancelled == false else { return }
+            self?.calendarSyncWarningVisible = false
+        }
     }
 
     private func fetchPersisted(_ id: UUID) -> PersistedItem? {
@@ -292,6 +375,11 @@ final class ItemStore: ObservableObject {
 
     @Published var pendingUndo: LifeAdminItem?
     private var pendingDeletions: [UUID: Task<Void, Never>] = [:]
+
+    /// Drives the brief, self-dismissing "not added to your calendar" banner in RootTabView —
+    /// see `flagCalendarSyncIssueIfNeeded` below.
+    @Published var calendarSyncWarningVisible = false
+    private var calendarSyncWarningTask: Task<Void, Never>?
 
     /// Removes `item` from view immediately, so a swipe-to-delete feels instant, but defers the
     /// destructive part — freeing attachment files, canceling notifications, removing the
@@ -340,6 +428,37 @@ final class ItemStore: ObservableObject {
         await refreshDigest()
     }
 
+    /// Settings > "Delete All My Data" — a full, irreversible wipe of every item, unlike
+    /// `delete(_:)`/`scheduleDelete(_:)` there is no undo. Runs the same per-item cleanup
+    /// `delete(_:)` already does (calendar event/reminder removal, notification cancellation,
+    /// attachment files) for every item, then sweeps the model context directly so every
+    /// `PersistedItem` is gone even if it somehow drifted out of sync with `items`.
+    func deleteAllData() async {
+        // A delete already in its undo window would otherwise still fire after this finishes and
+        // look up a persisted row that's already gone — harmless (its own guards no-op), but
+        // cancelling it here avoids any latent Task outliving a full wipe.
+        pendingDeletions.values.forEach { $0.cancel() }
+        pendingDeletions = [:]
+        pendingUndo = nil
+
+        for item in items {
+            if let persisted = fetchPersisted(item.id) {
+                var cleared = item
+                cleared.dueDate = nil
+                _ = CalendarSyncService.shared.sync(item: cleared, existingEventID: persisted.calendarEventIdentifier, existingReminderID: persisted.reminderIdentifier)
+            }
+            item.attachments.forEach(AttachmentStore.shared.delete)
+            await NotificationScheduler.shared.cancel(for: item.id)
+        }
+
+        let allPersisted = (try? modelContext.fetch(FetchDescriptor<PersistedItem>())) ?? []
+        allPersisted.forEach(modelContext.delete)
+        try? modelContext.save()
+
+        items = []
+        await refreshDigest()
+    }
+
     /// Restoring a backup (new phone, or handing a JSON export to someone else) should be as safe
     /// to repeat as it is to run once — skip anything whose ID is already present instead of
     /// duplicating every item on a second import of the same file.
@@ -355,6 +474,7 @@ final class ItemStore: ObservableObject {
 
         await NotificationScheduler.shared.requestAuthorizationIfNeeded()
         await CalendarSyncService.shared.requestAuthorizationIfNeeded()
+        var processedItems: [LifeAdminItem] = []
         for var item in newItems {
             // A JSON export carries only the attachment's metadata, never the file bytes — an
             // item imported on a different install can never actually have that file (unlike an
@@ -364,12 +484,18 @@ final class ItemStore: ObservableObject {
             item.attachments = item.attachments.filter { AttachmentStore.shared.exists($0) }
             let persisted = PersistedItem(item: item)
             modelContext.insert(persisted)
-            items.insert(item, at: 0)
             await NotificationScheduler.shared.schedule(for: item)
             let sync = CalendarSyncService.shared.sync(item: item, existingEventID: nil, existingReminderID: nil)
             persisted.calendarEventIdentifier = sync.eventIdentifier
             persisted.reminderIdentifier = sync.reminderIdentifier
+            processedItems.append(item)
         }
+        // One bulk insert at the front rather than `items.insert(item, at: 0)` inside the loop
+        // above — repeating a front-insert once per item is O(existing items) every time, making
+        // a large backup restore against an already-large library quadratic for no real reason.
+        // Reversed so the result preserves the same "most-recently-imported first" order the old
+        // per-item insert produced.
+        items.insert(contentsOf: processedItems.reversed(), at: 0)
         try? modelContext.save()
         ActivityLog.shared.record(String(format: String(localized: "activityLog.imported"), newItems.count))
         await refreshDigest()

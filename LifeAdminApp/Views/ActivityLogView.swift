@@ -18,6 +18,10 @@ struct ActivityLogView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    // Without this, VoiceOver reads the message and the relative timestamp as two
+                    // separate swipe stops on the same row — ItemRow's own two-line layout already
+                    // combines the same way for the same reason.
+                    .accessibilityElement(children: .combine)
                 }
             }
         }
