@@ -32,11 +32,16 @@ struct CalendarSyncService {
         }
 
         var result = SyncResult(eventIdentifier: existingEventID, reminderIdentifier: existingReminderID)
+        // The same "don't show this verbatim outside the app" rule NotificationScheduler already
+        // applies to a sensitive category's lock-screen notification — a synced system Calendar
+        // (often iCloud-shared with family) and Reminders list are just as much "outside the app"
+        // as a lock screen, and neither gets any file-protection or App Lock guard of its own.
+        let title = item.category.isSensitive ? String(localized: "notification.reminderTitle") : item.title
 
         if EKEventStore.authorizationStatus(for: .event) == .fullAccess {
             let event = existingEventID.flatMap(store.event(withIdentifier:)) ?? EKEvent(eventStore: store)
             if event.calendar == nil { event.calendar = store.defaultCalendarForNewEvents }
-            event.title = item.title
+            event.title = title
             event.startDate = dueDate
             event.endDate = dueDate.addingTimeInterval(3600)
             if (try? store.save(event, span: .thisEvent, commit: true)) != nil {
@@ -48,7 +53,7 @@ struct CalendarSyncService {
             let existingReminder = existingReminderID.flatMap(store.calendarItem(withIdentifier:)) as? EKReminder
             let reminder = existingReminder ?? EKReminder(eventStore: store)
             if reminder.calendar == nil { reminder.calendar = store.defaultCalendarForNewReminders() }
-            reminder.title = item.title
+            reminder.title = title
             reminder.dueDateComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: dueDate)
             reminder.isCompleted = item.status == .completed
             if (try? store.save(reminder, commit: true)) != nil {

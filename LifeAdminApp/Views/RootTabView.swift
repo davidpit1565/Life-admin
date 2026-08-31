@@ -104,6 +104,19 @@ struct RootTabView: View {
             }
             .interactiveDismissDisabled()
         }
+        // iOS captures the still-unblurred App Switcher snapshot at `.inactive` — a moment BEFORE
+        // the `.background` transition below ever sets `isLocked`, so relying on that alone still
+        // leaves bills/amounts/attachment thumbnails visible to anyone swiping through the switcher.
+        // This curtain only masks that snapshot; it never requires a fresh Face ID/Touch ID check
+        // itself (`isLocked` is untouched here), so a merely-transient `.inactive` blip — the
+        // system's own Photos/Files pickers this app now uses to attach a document, an incoming
+        // call banner, Control Center — doesn't force re-authentication on its own. Real
+        // re-authentication still only kicks in once the app actually reaches `.background`, below.
+        .overlay {
+            if appLockEnabled, scenePhase != .active {
+                PrivacyCurtainView()
+            }
+        }
         // A bill/insurance tracker is exactly the kind of app where "someone else picks up my
         // unlocked phone" matters, so this is opt-in in Settings — locking on by default with no
         // way to check first would be its own kind of broken. Locks going to the background (not
@@ -140,6 +153,20 @@ struct RootTabView: View {
     }
 }
 
+/// A purely visual mask — no authentication challenge of its own — shown the moment the scene
+/// stops being `.active` for any reason, so the OS never gets to snapshot real content (item
+/// titles, amounts, attachment thumbnails) for the App Switcher before `LockScreenView`'s own
+/// real Face ID/Touch ID gate has had a chance to engage on an actual `.background` transition.
+private struct PrivacyCurtainView: View {
+    var body: some View {
+        Image(systemName: "lock.fill")
+            .font(.system(size: 48))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.background)
+            .accessibilityHidden(true)
+    }
+}
 private struct LockScreenView: View {
     let onRetry: () -> Void
 
@@ -919,6 +946,11 @@ struct AddItemView: View {
     @State private var itemPendingReview: LifeAdminItem?
     @State private var showingScanner = false
     @State private var pendingAttachments: [Attachment] = []
+    // Recognized text from a scanned document (a passport, an ID card) can contain far more
+    // sensitive content than anything someone would normally type here — see the doc comment on
+    // ItemStore.add's containsScannedText parameter for why this has to force local-only
+    // processing for the whole entry, not just this one field.
+    @State private var textIncludesScannedContent = false
     @State private var confirmedItem: LifeAdminItem?
     @State private var confirmedItemWasMerged = false
     @State private var confirmedCount: Int?
@@ -1010,7 +1042,7 @@ struct AddItemView: View {
                         Button {
                             isSaving = true
                             Task {
-                                let outcome = await store.add(text: text, attachments: pendingAttachments)
+                                let outcome = await store.add(text: text, attachments: pendingAttachments, containsScannedText: textIncludesScannedContent)
                                 isSaving = false
                                 switch outcome {
                                 case .pendingReview(let item):
@@ -1068,6 +1100,7 @@ struct AddItemView: View {
                             showingScanner = false
                             if recognized.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
                                 text = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? recognized : text + "\n" + recognized
+                                textIncludesScannedContent = true
                             }
                             for (index, image) in pageImages.enumerated() {
                                 let filename = String(format: String(localized: "add.scannedPageFilename"), pendingAttachments.count + index + 1)

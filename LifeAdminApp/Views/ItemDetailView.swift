@@ -481,12 +481,32 @@ struct ItemDetailView: View {
     private func addAttachment(fromFileAt url: URL) {
         showingFileImporter = false
         defer { try? FileManager.default.removeItem(at: url) }
+        // Checked from the file's own metadata BEFORE reading its bytes — a multi-hundred-MB file
+        // picked from a cloud provider through Files (nothing stops someone from picking a large
+        // video renamed to .pdf) would otherwise be fully loaded into memory by `Data(contentsOf:)`
+        // itself before this guard ever got a chance to reject it.
+        let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
+        guard let fileSize, fileSize <= Self.maxAttachmentBytes else { return }
         guard let data = try? Data(contentsOf: url), data.count <= Self.maxAttachmentBytes else { return }
         let fileExtension = url.pathExtension.isEmpty ? "dat" : url.pathExtension
         let mimeType = UTType(filenameExtension: fileExtension)?.preferredMIMEType ?? "application/octet-stream"
-        if let attachment = AttachmentStore.shared.save(data: data, filename: url.lastPathComponent, mimeType: mimeType, fileExtension: fileExtension) {
+        if let attachment = AttachmentStore.shared.save(data: data, filename: Self.sanitizedFilename(url.lastPathComponent), mimeType: mimeType, fileExtension: fileExtension) {
             attachments.append(attachment)
         }
+    }
+
+    /// A file from an external Files provider carries whatever name its source gave it —
+    /// including, in principle, Unicode bidi-override characters (U+202A–U+202E, U+2066–U+2069)
+    /// that could make a name display as something other than what it actually is (the classic
+    /// "invoice\u{202E}fdp.exe" trick, which reads as "invoice...exe.pdf"). This is purely a
+    /// display concern — `Attachment.filename` is never executed or used as a real file path (see
+    /// `AttachmentStore.url(for:)`, which always stores under a fresh UUID) — but there's no
+    /// reason to let a misleading name reach the UI as-is.
+    private static func sanitizedFilename(_ raw: String) -> String {
+        let filtered = raw.unicodeScalars.filter {
+            !($0.value >= 0x202A && $0.value <= 0x202E) && !($0.value >= 0x2066 && $0.value <= 0x2069)
+        }
+        return String(String.UnicodeScalarView(filtered))
     }
 
     private func save() async {

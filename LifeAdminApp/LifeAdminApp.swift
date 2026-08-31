@@ -29,6 +29,7 @@ struct LifeAdminApp: App {
     /// store so the app can still open rather than crash-loop forever.
     private static func makeModelContainer() -> ModelContainer {
         if let container = try? ModelContainer(for: PersistedItem.self) {
+            protectDefaultStore()
             return container
         }
 
@@ -37,11 +38,31 @@ struct LifeAdminApp: App {
             try? FileManager.default.removeItem(at: URL(fileURLWithPath: storeURL.path + suffix))
         }
         if let container = try? ModelContainer(for: PersistedItem.self) {
+            protectDefaultStore()
             return container
         }
 
         let inMemoryConfiguration = ModelConfiguration(isStoredInMemoryOnly: true)
         return try! ModelContainer(for: PersistedItem.self, configurations: inMemoryConfiguration)
+    }
+
+    /// SwiftData gives this store no explicit protection level of its own — with no custom
+    /// `ModelConfiguration`, it sits at iOS's default (`.completeUntilFirstUserAuthentication`:
+    /// readable once the device has been unlocked even a single time since boot), even though it
+    /// holds the same titles, notes, amounts, and contact emails `AttachmentStore` already treats
+    /// as needing better than that. Matches AttachmentStore's own choice — unreadable whenever the
+    /// device itself is locked, not merely before its first unlock since a reboot — applied after
+    /// the fact via `FileManager.setAttributes`, since (unlike `AttachmentStore`'s own files,
+    /// written directly with `Data.WritingOptions.completeFileProtection`) SwiftData creates and
+    /// writes this file itself; the -wal/-shm siblings are SQLite's write-ahead-log files, which
+    /// hold the same uncommitted row data and need the same protection.
+    private static func protectDefaultStore() {
+        let storeURL = URL.applicationSupportDirectory.appending(path: "default.store")
+        for suffix in ["", "-wal", "-shm"] {
+            let path = storeURL.path + suffix
+            guard FileManager.default.fileExists(atPath: path) else { continue }
+            try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: path)
+        }
     }
 }
 
@@ -135,9 +156,16 @@ final class ItemStore: ObservableObject {
         await refreshDigest()
     }
 
+    /// When `true`, forces local-only processing for this add regardless of the user's AI
+    /// Autonomy setting — the one enforcement point for what the AI consent screen promises
+    /// ("nothing else: not your contacts, calendar, or photos"). A scanned passport/ID's
+    /// recognized OCR text (full name, document number, date of birth, MRZ line) landing in this
+    /// same free-text field as ordinary typed input would otherwise escalate to Gemini exactly
+    /// like any other text whenever the local parser can't fully understand it on its own — which
+    /// a scan almost always can't, since it rarely contains an obvious due date or amount.
     @discardableResult
-    func add(text: String, attachments: [Attachment] = []) async -> AddOutcome {
-        let mode = autonomyMode
+    func add(text: String, attachments: [Attachment] = [], containsScannedText: Bool = false) async -> AddOutcome {
+        let mode = containsScannedText ? .disabled : autonomyMode
         let entries = NaturalLanguageParser.splitEntries(text)
         guard entries.count > 1 else {
             let result = await addOneEntry(text: text, attachments: attachments, mode: mode)

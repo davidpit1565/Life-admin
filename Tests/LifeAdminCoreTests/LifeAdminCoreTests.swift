@@ -107,8 +107,11 @@ final class LifeAdminCoreTests: XCTestCase {
  func testNonCriticalItemsDoNotGetTheEscalatedReminder() { let i=LifeAdminItem(title:"Gym", category:.other, dueDate:Date().addingTimeInterval(86400*5), reminderOffsets:[30]); XCTAssertEqual(i.priority, .low); XCTAssertFalse(ReminderEngine().notificationDates(for:i).contains { Calendar.current.isDate($0, inSameDayAs: i.dueDate!) }) }
  func testLifeEventDetectorFlagsMoving() { XCTAssertEqual(LifeEventDetector().detectedTags(in: "I'm moving to a new apartment next month"), [LifeEventDetector.movingTag]) }
  func testLifeEventDetectorIgnoresUnrelatedText() { XCTAssertTrue(LifeEventDetector().detectedTags(in: "Pay the Netflix subscription").isEmpty) }
- func testSensitiveCategoriesFlaggedForGenericNotifications() { XCTAssertTrue(LifeCategory.insurance.isSensitive); XCTAssertTrue(LifeCategory.money.isSensitive); XCTAssertTrue(LifeCategory.health.isSensitive) }
- func testNonSensitiveCategoriesShowTitleInNotifications() { XCTAssertFalse(LifeCategory.subscriptions.isSensitive); XCTAssertFalse(LifeCategory.travel.isSensitive) }
+ // .documents/.travel/.personal added after a red-team review found a passport/ID/visa renewal
+ // (the exact use case this app's checklist feature targets) could otherwise show its full title
+ // verbatim on the lock screen or in a shared calendar, unlike an insurance/money/health item.
+ func testSensitiveCategoriesFlaggedForGenericNotifications() { XCTAssertTrue(LifeCategory.insurance.isSensitive); XCTAssertTrue(LifeCategory.money.isSensitive); XCTAssertTrue(LifeCategory.health.isSensitive); XCTAssertTrue(LifeCategory.documents.isSensitive); XCTAssertTrue(LifeCategory.travel.isSensitive); XCTAssertTrue(LifeCategory.personal.isSensitive) }
+ func testNonSensitiveCategoriesShowTitleInNotifications() { XCTAssertFalse(LifeCategory.subscriptions.isSensitive); XCTAssertFalse(LifeCategory.shopping.isSensitive) }
  func testChineseLocaleIdentifiersAreValidBCP47() { XCTAssertEqual(SupportedLanguage.zhHans.localeIdentifier, "zh-Hans"); XCTAssertEqual(SupportedLanguage.zhHant.localeIdentifier, "zh-Hant") }
  func testOrdinaryLocaleIdentifierMatchesRawValue() { XCTAssertEqual(SupportedLanguage.he.localeIdentifier, "he") }
  func testParserRecognizesRentAsABill() { let e = NaturalLanguageParser().parse("I need to pay rent on the 1st"); XCTAssertEqual(e.title, "Rent"); XCTAssertEqual(e.category, .bills) }
