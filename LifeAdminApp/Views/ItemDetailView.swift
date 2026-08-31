@@ -305,7 +305,13 @@ struct ItemDetailView: View {
         }
         .sheet(isPresented: $showingFileImporter) {
             FileImportPicker(
-                onPicked: { url in addAttachment(fromFileAt: url) },
+                onPicked: { url in
+                    isImportingAttachment = true
+                    Task {
+                        await addAttachment(fromFileAt: url)
+                        isImportingAttachment = false
+                    }
+                },
                 onCancel: { showingFileImporter = false }
             )
         }
@@ -486,6 +492,7 @@ struct ItemDetailView: View {
         let filename = String(format: String(localized: "itemDetail.photoFilename"), attachments.count + 1)
         if let attachment = AttachmentStore.shared.save(data: data, filename: filename, mimeType: mimeType, fileExtension: fileExtension) {
             attachments.append(attachment)
+            await autoFillFromImageAttachment(attachment)
         }
     }
 
@@ -495,7 +502,7 @@ struct ItemDetailView: View {
     /// `AttachmentStore`'s own protected, backup-excluded directory (it's the system's plain,
     /// unprotected /tmp), so it's removed here the moment its bytes are safely persisted through
     /// AttachmentStore, rather than left for the system to eventually reclaim on its own schedule.
-    private func addAttachment(fromFileAt url: URL) {
+    private func addAttachment(fromFileAt url: URL) async {
         showingFileImporter = false
         defer { try? FileManager.default.removeItem(at: url) }
         // Checked from the file's own metadata BEFORE reading its bytes — a multi-hundred-MB file
@@ -509,6 +516,47 @@ struct ItemDetailView: View {
         let mimeType = UTType(filenameExtension: fileExtension)?.preferredMIMEType ?? "application/octet-stream"
         if let attachment = AttachmentStore.shared.save(data: data, filename: Self.sanitizedFilename(url.lastPathComponent), mimeType: mimeType, fileExtension: fileExtension) {
             attachments.append(attachment)
+            await autoFillFromImageAttachment(attachment)
+        }
+    }
+
+    /// A photo of a passport, an insurance card, or any other document is otherwise just a
+    /// picture sitting in the attachments list — someone still has to read it themselves and
+    /// retype the title/category/date/amount by hand. Running the same on-device OCR the camera
+    /// scanner already uses, then handing the recognized text through the exact same
+    /// AI-Autonomy-respecting extraction pipeline as typed input, means attaching the photo is
+    /// often enough on its own. Never touches a field the user (or an earlier auto-fill) already
+    /// put something into — this is "fill in the blanks," not "trust the photo over what's
+    /// already on screen." PDFs are skipped: Vision's text recognition reads image pixels, not a
+    /// PDF's text layer, so running it against page 1 of a multi-page PDF would silently ignore
+    /// the rest and likely mislead more than it'd help.
+    private func autoFillFromImageAttachment(_ attachment: Attachment) async {
+        guard attachment.mimeType.hasPrefix("image/"),
+              let uiImage = UIImage(contentsOfFile: AttachmentStore.shared.url(for: attachment).path) else { return }
+        let recognizedText = await Task.detached(priority: .userInitiated) {
+            TextRecognizer.recognizeText(in: uiImage)
+        }.value
+        guard recognizedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
+        let extracted = await store.extractFields(from: recognizedText)
+        applyAutoFill(extracted)
+    }
+
+    private func applyAutoFill(_ extracted: ExtractedItem) {
+        if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let extractedTitle = extracted.title, extractedTitle.isEmpty == false {
+            title = extractedTitle
+        }
+        if category == .other, let extractedCategory = extracted.category {
+            category = extractedCategory
+        }
+        if hasDueDate == false, let date = extracted.date {
+            hasDueDate = true
+            dueDate = date
+        }
+        if amountText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let amount = extracted.amount {
+            amountText = "\(amount)"
+        }
+        if currency.isEmpty, let extractedCurrency = extracted.currency {
+            currency = extractedCurrency
         }
     }
 

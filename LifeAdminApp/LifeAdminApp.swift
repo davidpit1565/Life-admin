@@ -156,6 +156,18 @@ final class ItemStore: ObservableObject {
         await refreshDigest()
     }
 
+    /// Read-only extraction — parses `text` into structured fields without creating or persisting
+    /// any item, for a caller that already has an item open and only wants to fill in its blank
+    /// fields (`ItemDetailView`'s attachment auto-fill: OCR text from a just-added passport/
+    /// insurance photo). Goes through the exact same `autonomyMode`/consent gate as every other
+    /// AI use in the app — "Off" never reaches Gemini here either, and "Ask me first" still means
+    /// only the local parser runs, same as `addOneEntry`.
+    func extractFields(from text: String) async -> ExtractedItem {
+        let mode = autonomyMode
+        let decision = mode == .disabled ? aiService.extractLocalOnly(text) : await aiService.extract(text)
+        return decision.item
+    }
+
     /// When `true`, forces local-only processing for this add regardless of the user's AI
     /// Autonomy setting — the one enforcement point for what the AI consent screen promises
     /// ("nothing else: not your contacts, calendar, or photos"). A scanned passport/ID's
