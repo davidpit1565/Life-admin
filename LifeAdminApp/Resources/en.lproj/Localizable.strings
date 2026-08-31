@@ -42,7 +42,6 @@
 "addressChange.affectedItems" = "Notify these contacts";
 "addressChange.noAffectedItems" = "No items have a contact email yet. Add one from an item's page first.";
 "addressChange.reviewSend" = "Review & Send";
-"addressChange.mailUnavailable" = "Set up Mail on this device first to send address updates.";
 "addressChange.sendFailedTitle" = "Some emails didn't send";
 "addressChange.sendFailedMessage" = "%@ didn't send. You can try again from the item's page.";
 "common.ok" = "OK";
@@ -198,6 +197,7 @@
 "items.filterHasPayment" = "Has an Amount";
 "itemDetail.markDone" = "Mark as Done";
 "itemDetail.reopen" = "Reopen";
+"itemDetail.archive" = "Archive";
 "itemDetail.snooze" = "Snooze";
 "itemDetail.snooze.1day" = "1 day";
 "itemDetail.snooze.3days" = "3 days";

@@ -42,7 +42,6 @@
 "addressChange.affectedItems" = "これらの連絡先に通知";
 "addressChange.noAffectedItems" = "連絡先のメールアドレスが登録された項目がまだありません。まず項目のページから追加してください。";
 "addressChange.reviewSend" = "確認して送信";
-"addressChange.mailUnavailable" = "住所変更を送信するには、まずこの端末でメールを設定してください。";
 "addressChange.sendFailedTitle" = "送信できなかったメールがあります";
 "addressChange.sendFailedMessage" = "%@ は送信されませんでした。項目のページから再試行できます。";
 "common.ok" = "OK";
@@ -198,6 +197,7 @@
 "items.filterHasPayment" = "金額あり";
 "itemDetail.markDone" = "完了にする";
 "itemDetail.reopen" = "再開する";
+"itemDetail.archive" = "アーカイブ";
 "itemDetail.snooze" = "スヌーズ";
 "itemDetail.snooze.1day" = "1日";
 "itemDetail.snooze.3days" = "3日";

@@ -304,9 +304,21 @@ private struct ItemRowLink: View {
                 }
                 .tint(.green)
             }
+            // Distinct from Delete: keeps the item (and its history) around, just off every
+            // everyday list — the "archive this without deleting it" pattern Reminders/Todoist
+            // both offer, which this app's data model already had an ItemStatus case for but
+            // nothing ever actually set.
+            if item.status != .archived {
+                Button {
+                    Task { await store.archive(item) }
+                } label: {
+                    Label(String(localized: "itemDetail.archive"), systemImage: "archivebox.fill")
+                }
+                .tint(.gray)
+            }
         }
-        // The same three actions as the swipe gesture, for anyone who didn't know to swipe (or
-        // is holding the phone in a way that makes swiping awkward) — a long press is the other
+        // The same actions as the swipe gesture, for anyone who didn't know to swipe (or is
+        // holding the phone in a way that makes swiping awkward) — a long press is the other
         // standard iOS discovery path for row actions.
         .contextMenu {
             if item.status == .active {
@@ -314,6 +326,13 @@ private struct ItemRowLink: View {
                     Task { await store.markCompleted(item) }
                 } label: {
                     Label(String(localized: "itemDetail.markDone"), systemImage: "checkmark.circle.fill")
+                }
+            }
+            if item.status != .archived {
+                Button {
+                    Task { await store.archive(item) }
+                } label: {
+                    Label(String(localized: "itemDetail.archive"), systemImage: "archivebox.fill")
                 }
             }
             Button(role: .destructive) {
@@ -524,11 +543,13 @@ struct ItemsView: View {
                             }
                         }
                         Menu(String(localized: "items.filterByStatus")) {
-                            // .snoozed and .archived are part of the data model but nothing in the
-                            // app ever sets an item to either — offering them here would let
-                            // someone filter for "Snoozed" and get zero results forever, with no
-                            // way to tell that from "nothing happens to be snoozed right now".
-                            ForEach([ItemStatus.active, .completed], id: \.self) { status in
+                            // .snoozed is part of the data model but nothing in the app ever sets
+                            // an item to it — offering it here would let someone filter for
+                            // "Snoozed" and get zero results forever, with no way to tell that
+                            // from "nothing happens to be snoozed right now". .archived is now
+                            // real (the swipe/context-menu Archive action on ItemRowLink), so it
+                            // belongs here alongside the other statuses someone can actually reach.
+                            ForEach([ItemStatus.active, .completed, .archived], id: \.self) { status in
                                 Button {
                                     toggleStatus(status)
                                 } label: {

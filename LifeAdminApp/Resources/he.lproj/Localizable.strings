@@ -42,7 +42,6 @@
 "addressChange.affectedItems" = "עדכן את אנשי הקשר האלה";
 "addressChange.noAffectedItems" = "לאף פריט אין עדיין אימייל של איש קשר. הוסף אחד ממסך הפריט קודם.";
 "addressChange.reviewSend" = "סקירה ושליחה";
-"addressChange.mailUnavailable" = "הגדר את Mail במכשיר הזה לפני שליחת עדכוני כתובת.";
 "addressChange.sendFailedTitle" = "חלק מהמיילים לא נשלחו";
 "addressChange.sendFailedMessage" = "%@ לא נשלחו. אפשר לנסות שוב מעמוד הפריט.";
 "common.ok" = "אישור";
@@ -198,6 +197,7 @@
 "items.filterHasPayment" = "יש סכום";
 "itemDetail.markDone" = "סמן כבוצע";
 "itemDetail.reopen" = "פתח מחדש";
+"itemDetail.archive" = "העבר לארכיון";
 "itemDetail.snooze" = "הזכר לי מאוחר יותר";
 "itemDetail.snooze.1day" = "יום אחד";
 "itemDetail.snooze.3days" = "3 ימים";

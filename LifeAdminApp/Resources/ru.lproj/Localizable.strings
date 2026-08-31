@@ -42,7 +42,6 @@
 "addressChange.affectedItems" = "Уведомить эти контакты";
 "addressChange.noAffectedItems" = "Ни у одной записи ещё нет email контакта. Сначала добавьте его на странице записи.";
 "addressChange.reviewSend" = "Просмотреть и отправить";
-"addressChange.mailUnavailable" = "Сначала настройте почту на этом устройстве, чтобы отправлять уведомления о смене адреса.";
 "addressChange.sendFailedTitle" = "Некоторые письма не отправлены";
 "addressChange.sendFailedMessage" = "%@ не отправлено. Можно повторить попытку со страницы записи.";
 "common.ok" = "ОК";
@@ -198,6 +197,7 @@
 "items.filterHasPayment" = "С суммой";
 "itemDetail.markDone" = "Отметить как выполнено";
 "itemDetail.reopen" = "Открыть снова";
+"itemDetail.archive" = "В архив";
 "itemDetail.snooze" = "Отложить";
 "itemDetail.snooze.1day" = "1 день";
 "itemDetail.snooze.3days" = "3 дня";

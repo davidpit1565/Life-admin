@@ -8,7 +8,12 @@ struct AddressChangeView: View {
     @State private var selectedItemIDs = Set<UUID>()
     @State private var queue: [AddressChangeMessage] = []
     @State private var currentMessage: AddressChangeMessage?
-    @State private var showMailUnavailableAlert = false
+    // Most users only ever use a third-party mail app (Gmail, Outlook) and have never configured
+    // the native Mail app at all — MFMailComposeViewController.canSendMail() being false used to
+    // just dead-end the entire feature behind an alert with no way to actually send anything.
+    // Falling back to the system share sheet lets the exact same drafted subject/body go to
+    // whatever the user actually uses (their mail app, Messages, or a plain copy).
+    @State private var useShareFallback = false
     @State private var failedItemTitles: [String] = []
     @State private var showingSendSummary = false
 
@@ -72,12 +77,14 @@ struct AddressChangeView: View {
             selectedItemIDs = Set(affectedItems.map(\.id))
         }
         .sheet(item: $currentMessage) { message in
-            MailComposeView(message: message) { result in
-                handleResult(result, for: message)
+            if useShareFallback {
+                ShareSheet(activityItems: [shareText(for: message)])
+                    .onDisappear { advanceQueueAfterShare(message) }
+            } else {
+                MailComposeView(message: message) { result in
+                    handleResult(result, for: message)
+                }
             }
-        }
-        .alert(String(localized: "addressChange.mailUnavailable"), isPresented: $showMailUnavailableAlert) {
-            Button(String(localized: "common.ok"), role: .cancel) {}
         }
         // A failed send was otherwise indistinguishable from the user simply cancelling that
         // one draft — silently advancing to the next item left no way to tell "I chose to skip
@@ -98,10 +105,7 @@ struct AddressChangeView: View {
     }
 
     private func startSending() {
-        guard MFMailComposeViewController.canSendMail() else {
-            showMailUnavailableAlert = true
-            return
-        }
+        useShareFallback = MFMailComposeViewController.canSendMail() == false
         failedItemTitles = []
         let selected = affectedItems.filter { selectedItemIDs.contains($0.id) }
         queue = AddressChangeDraftBuilder().drafts(for: selected, newAddress: newAddress)
@@ -113,6 +117,26 @@ struct AddressChangeView: View {
         if currentMessage == nil && failedItemTitles.isEmpty == false {
             showingSendSummary = true
         }
+    }
+
+    /// A recipient's email/name plus the exact subject/body `MailComposeView` would have used —
+    /// whatever app the user picks from the share sheet gets the same drafted content, not a
+    /// vaguer summary.
+    private func shareText(for message: AddressChangeMessage) -> String {
+        let recipient = message.recipientName.map { "\($0) <\(message.recipientEmail)>" } ?? message.recipientEmail
+        return "\(recipient)\n\(message.subject)\n\n\(message.body)"
+    }
+
+    /// Unlike `handleResult`'s Mail-specific `.sent`/`.failed`/`.cancelled` outcome, the share
+    /// sheet gives no signal at all about whether the user actually sent anything (picking an app
+    /// vs. tapping Cancel both just dismiss it the same way) — so this never marks the item as
+    /// address-synced, unlike the Mail path's confirmed-`.sent` case. It'll simply stay in
+    /// "affected items" and can be sent again next time, which is the honest default when there's
+    /// no way to confirm delivery either way.
+    private func advanceQueueAfterShare(_ message: AddressChangeMessage) {
+        queue.removeAll { $0.itemID == message.itemID }
+        currentMessage = nil
+        advanceQueue()
     }
 
     private func handleResult(_ result: MFMailComposeResult, for message: AddressChangeMessage) {

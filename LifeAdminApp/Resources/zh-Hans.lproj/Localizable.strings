@@ -42,7 +42,6 @@
 "addressChange.affectedItems" = "通知这些联系人";
 "addressChange.noAffectedItems" = "还没有任何事项包含联系人邮箱。请先在某个事项页面中添加一个。";
 "addressChange.reviewSend" = "查看并发送";
-"addressChange.mailUnavailable" = "请先在此设备上设置邮件功能，才能发送地址变更通知。";
 "addressChange.sendFailedTitle" = "部分邮件发送失败";
 "addressChange.sendFailedMessage" = "%@ 未能发送。你可以在该事项页面中重试。";
 "common.ok" = "好";
@@ -198,6 +197,7 @@
 "items.filterHasPayment" = "有金额";
 "itemDetail.markDone" = "标记为完成";
 "itemDetail.reopen" = "重新开启";
+"itemDetail.archive" = "归档";
 "itemDetail.snooze" = "延后";
 "itemDetail.snooze.1day" = "1天";
 "itemDetail.snooze.3days" = "3天";

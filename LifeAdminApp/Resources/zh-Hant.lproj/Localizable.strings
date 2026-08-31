@@ -42,7 +42,6 @@
 "addressChange.affectedItems" = "通知這些聯絡人";
 "addressChange.noAffectedItems" = "目前沒有任何事項含有聯絡人電子郵件，請先在某個事項頁面中新增一個。";
 "addressChange.reviewSend" = "確認並傳送";
-"addressChange.mailUnavailable" = "請先在此裝置上設定郵件功能，才能傳送地址變更通知。";
 "addressChange.sendFailedTitle" = "部分郵件未能傳送";
 "addressChange.sendFailedMessage" = "%@ 未能送出，你可以在該事項頁面中重試。";
 "common.ok" = "好";
@@ -198,6 +197,7 @@
 "items.filterHasPayment" = "有金額";
 "itemDetail.markDone" = "標記為完成";
 "itemDetail.reopen" = "重新開啟";
+"itemDetail.archive" = "封存";
 "itemDetail.snooze" = "延後";
 "itemDetail.snooze.1day" = "1天";
 "itemDetail.snooze.3days" = "3天";

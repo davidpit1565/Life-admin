@@ -42,7 +42,6 @@
 "addressChange.affectedItems" = "Notificar a estos contactos";
 "addressChange.noAffectedItems" = "Ningún elemento tiene aún un correo de contacto. Añade uno desde la página de un elemento primero.";
 "addressChange.reviewSend" = "Revisar y enviar";
-"addressChange.mailUnavailable" = "Configura Mail en este dispositivo antes de enviar actualizaciones de dirección.";
 "addressChange.sendFailedTitle" = "Algunos correos no se enviaron";
 "addressChange.sendFailedMessage" = "%@ no se enviaron. Puedes intentarlo de nuevo desde la página del elemento.";
 "common.ok" = "Aceptar";
@@ -198,6 +197,7 @@
 "items.filterHasPayment" = "Con importe";
 "itemDetail.markDone" = "Marcar como hecho";
 "itemDetail.reopen" = "Reabrir";
+"itemDetail.archive" = "Archivar";
 "itemDetail.snooze" = "Posponer";
 "itemDetail.snooze.1day" = "1 día";
 "itemDetail.snooze.3days" = "3 días";

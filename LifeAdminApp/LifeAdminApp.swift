@@ -367,6 +367,27 @@ final class ItemStore: ObservableObject {
         await createRecurringOccurrence(next)
     }
 
+    /// Distinct from `delete`: keeps the record (and its history/attachments) around, just off
+    /// every everyday list — `.archived` is an `ItemStatus` case the data model already had, with
+    /// nothing that ever actually set it until now.
+    func archive(_ item: LifeAdminItem) async {
+        var archived = item
+        archived.status = .archived
+        await update(archived)
+        // `update()` above still syncs a calendar event/reminder off the (now archived) item's
+        // own dueDate — an archived item has no business still showing on the system Calendar or
+        // Reminders. Removing it here works on a transient local copy, not `archived` itself, so
+        // the item's own dueDate stays intact (in memory and persisted) for if it's ever
+        // unarchived later.
+        guard let persisted = fetchPersisted(item.id) else { return }
+        var cleared = archived
+        cleared.dueDate = nil
+        let sync = CalendarSyncService.shared.sync(item: cleared, existingEventID: persisted.calendarEventIdentifier, existingReminderID: persisted.reminderIdentifier)
+        persisted.calendarEventIdentifier = sync.eventIdentifier
+        persisted.reminderIdentifier = sync.reminderIdentifier
+        try? modelContext.save()
+    }
+
     private func createRecurringOccurrence(_ item: LifeAdminItem) async {
         var newItem = item
         newItem.priority = PriorityEngine().priority(for: newItem)

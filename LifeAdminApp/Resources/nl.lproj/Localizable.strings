@@ -42,7 +42,6 @@
 "addressChange.affectedItems" = "Deze contacten informeren";
 "addressChange.noAffectedItems" = "Nog geen enkel item heeft een contact-e-mailadres. Voeg er eerst een toe via de pagina van een item.";
 "addressChange.reviewSend" = "Controleren & versturen";
-"addressChange.mailUnavailable" = "Stel eerst Mail op dit apparaat in om adreswijzigingen te versturen.";
 "addressChange.sendFailedTitle" = "Sommige e-mails zijn niet verzonden";
 "addressChange.sendFailedMessage" = "%@ is niet verzonden. Je kunt het opnieuw proberen via de pagina van het item.";
 "common.ok" = "OK";
@@ -198,6 +197,7 @@
 "items.filterHasPayment" = "Heeft een bedrag";
 "itemDetail.markDone" = "Markeer als klaar";
 "itemDetail.reopen" = "Heropenen";
+"itemDetail.archive" = "Archiveren";
 "itemDetail.snooze" = "Uitstellen";
 "itemDetail.snooze.1day" = "1 dag";
 "itemDetail.snooze.3days" = "3 dagen";

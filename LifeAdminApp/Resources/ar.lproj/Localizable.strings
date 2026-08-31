@@ -42,7 +42,6 @@
 "addressChange.affectedItems" = "إخطار جهات الاتصال هذه";
 "addressChange.noAffectedItems" = "لا يوجد أي عنصر بعد يحتوي على بريد إلكتروني لجهة اتصال. أضف واحدًا أولًا من صفحة أحد العناصر.";
 "addressChange.reviewSend" = "مراجعة وإرسال";
-"addressChange.mailUnavailable" = "قم أولًا بإعداد تطبيق البريد على هذا الجهاز لإرسال تحديثات العنوان.";
 "addressChange.sendFailedTitle" = "لم يتم إرسال بعض الرسائل";
 "addressChange.sendFailedMessage" = "لم يتم إرسال %@. يمكنك المحاولة مرة أخرى من صفحة العنصر.";
 "common.ok" = "حسنًا";
@@ -198,6 +197,7 @@
 "items.filterHasPayment" = "به مبلغ";
 "itemDetail.markDone" = "وضع علامة كمكتمل";
 "itemDetail.reopen" = "إعادة الفتح";
+"itemDetail.archive" = "أرشفة";
 "itemDetail.snooze" = "تأجيل";
 "itemDetail.snooze.1day" = "يوم واحد";
 "itemDetail.snooze.3days" = "3 أيام";
