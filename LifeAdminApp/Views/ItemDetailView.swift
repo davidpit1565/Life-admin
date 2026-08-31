@@ -221,13 +221,25 @@ struct ItemDetailView: View {
                         }
                     }
                     .onDelete { offsets in
-                        // Only remove from this screen's own draft state here — the file on disk
-                        // isn't deleted until Save/Mark Done actually commits the change (see
-                        // deleteFilesForRemovedAttachments()). Deleting it immediately meant
-                        // backing out without saving still permanently destroyed the photo, unlike
-                        // every other edit on this screen (title, notes, category, …), which stays
-                        // safely discardable until Save is tapped.
+                        // An originally-committed attachment is only removed from this screen's
+                        // own draft state here — its file on disk isn't deleted until Save/Mark
+                        // Done actually commits the change (see deleteFilesForRemovedAttachments).
+                        // Deleting it immediately meant backing out without saving still
+                        // permanently destroyed the photo, unlike every other edit on this screen
+                        // (title, notes, category, …), which stays safely discardable until Save.
+                        //
+                        // An attachment added THIS session and then swiped away again before ever
+                        // saving is different: it was never part of `committedAttachments`, so
+                        // neither this deferred cleanup nor `discardAbandonedAttachments` (which
+                        // only ever looks at what's still in `attachments`) would otherwise catch
+                        // it once it's gone from that array — its file would leak forever. Nothing
+                        // is lost by deleting it immediately: it was never saved anywhere to begin
+                        // with.
+                        let removedThisSession = offsets.map { attachments[$0] }.filter { committedAttachments.contains($0) == false }
                         attachments.remove(atOffsets: offsets)
+                        for attachment in removedThisSession {
+                            AttachmentStore.shared.delete(attachment)
+                        }
                     }
                 }
                 PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: 5, matching: .images) {
@@ -527,11 +539,27 @@ struct ItemDetailView: View {
         store.items.first(where: { $0.id == item.id }) ?? item
     }
 
-    /// Deletes the on-disk file for any attachment the user swiped away on this screen — deferred
-    /// until here (rather than at the moment of the swipe) so the removal only actually happens
-    /// once it's committed via Save/Mark Done, matching every other edit on this form.
+    /// What's REALLY on disk and persisted for this item right now, independent of anything this
+    /// screen's own `attachments` state currently shows — empty for an item that was never
+    /// persisted at all (a fresh `isNewDraft`, or an "ask every time" merge preview before its
+    /// Save actually runs `update()`), otherwise the real stored attachments. This is the one
+    /// source of truth `deleteFilesForRemovedAttachments`, `discardAbandonedAttachments`, and the
+    /// attachment list's own swipe-to-delete all check before ever deleting a file, since only a
+    /// file that isn't part of this is safe to remove without losing something the user could
+    /// still back out of.
+    private var committedAttachments: [Attachment] {
+        store.items.first(where: { $0.id == item.id })?.attachments ?? []
+    }
+
+    /// Deletes the on-disk file for any originally-committed attachment the user swiped away on
+    /// this screen — deferred until here (rather than at the moment of the swipe) so the removal
+    /// only actually happens once it's committed via Save/Mark Done, matching every other edit on
+    /// this form. An attachment added and then swiped away again in the same session, before ever
+    /// saving, is handled separately, immediately, at the point of that swipe (see the `.onDelete`
+    /// handler above) — it was never part of `committedAttachments` to begin with, so it would
+    /// never show up as "removed" here.
     private func deleteFilesForRemovedAttachments() {
-        let removed = item.attachments.filter { attachments.contains($0) == false }
+        let removed = committedAttachments.filter { attachments.contains($0) == false }
         for attachment in removed {
             AttachmentStore.shared.delete(attachment)
         }
@@ -539,15 +567,14 @@ struct ItemDetailView: View {
 
     /// The mirror image of `deleteFilesForRemovedAttachments`: cleans up on-disk files for
     /// attachments that aren't actually committed anywhere, because the screen was dismissed some
-    /// other way than Save/Mark Done/Delete. Deliberately compares against what's REALLY currently
-    /// persisted (`store.items`), not `item.attachments` (this view's initial snapshot): for an
-    /// `isNewDraft` item — or a checklist/"ask every time" merge preview, whose `item.attachments`
-    /// already includes files an eventual Save would add but a real update() hasn't applied yet —
-    /// nothing in `item.attachments` is actually safe on its own. A never-persisted draft has no
-    /// entry in `store.items` at all, so every current attachment counts as abandoned; an existing
-    /// item being edited keeps only its real stored attachments as the safe baseline.
+    /// other way than Save/Mark Done/Delete. Comparing against `committedAttachments` rather than
+    /// `item.attachments` (this view's initial snapshot) is deliberate: for an `isNewDraft` item —
+    /// or a checklist/"ask every time" merge preview, whose `item.attachments` already includes
+    /// files an eventual Save would add but a real update() hasn't applied yet — nothing in
+    /// `item.attachments` is actually safe on its own. A never-persisted draft has no entry in
+    /// `store.items` at all, so every current attachment counts as abandoned; an existing item
+    /// being edited keeps only its real stored attachments as the safe baseline.
     private func discardAbandonedAttachments() {
-        let committedAttachments = store.items.first(where: { $0.id == item.id })?.attachments ?? []
         let abandoned = attachments.filter { committedAttachments.contains($0) == false }
         for attachment in abandoned {
             AttachmentStore.shared.delete(attachment)
