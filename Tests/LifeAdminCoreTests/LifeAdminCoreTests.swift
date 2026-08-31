@@ -611,4 +611,37 @@ final class LifeAdminCoreTests: XCTestCase {
  func testSpelledOutEuroIsRecognizedAsEUR() {
      XCTAssertEqual(NaturalLanguageParser().parse("El seguro cuesta 100 euros").currency, "EUR")
  }
+ // ChecklistEngine: the starter checklist of commonly-forgotten reminders (passport, car
+ // insurance, ...), shown to users who haven't added one yet.
+ func testDefaultsCoverEveryCategoryTheyClaimAndHaveNoDuplicateIDs() {
+     let defaults = ChecklistSuggestion.defaults
+     XCTAssertEqual(Set(defaults.map(\.id)).count, defaults.count)
+     XCTAssertFalse(defaults.isEmpty)
+ }
+ func testUncoveredCategoryProducesAnOutstandingSuggestion() {
+     let suggestions = ChecklistEngine().outstandingSuggestions(items: [])
+     XCTAssertTrue(suggestions.contains { $0.id == "passport" })
+ }
+ func testMatchingExistingItemCoversItsSuggestion() {
+     let carInsurance = LifeAdminItem(title: "Car Insurance", category: .insurance)
+     let suggestions = ChecklistEngine().outstandingSuggestions(items: [carInsurance])
+     XCTAssertFalse(suggestions.contains { $0.id == "carInsurance" })
+     // A different insurance keyword in the same category must not falsely cover car insurance.
+     XCTAssertTrue(suggestions.contains { $0.id == "homeInsurance" })
+ }
+ func testHebrewTitleAlsoCoversItsSuggestion() {
+     let item = LifeAdminItem(title: "ביטוח דירה", category: .insurance)
+     let suggestions = ChecklistEngine().outstandingSuggestions(items: [item])
+     XCTAssertFalse(suggestions.contains { $0.id == "homeInsurance" })
+ }
+ func testArchivedItemDoesNotCountAsCoverage() {
+     var item = LifeAdminItem(title: "Passport", category: .travel)
+     item.status = .archived
+     let suggestions = ChecklistEngine().outstandingSuggestions(items: [item])
+     XCTAssertTrue(suggestions.contains { $0.id == "passport" })
+ }
+ func testDismissedSuggestionStaysHiddenEvenWhenUncovered() {
+     let suggestions = ChecklistEngine().outstandingSuggestions(items: [], dismissedIDs: ["passport"])
+     XCTAssertFalse(suggestions.contains { $0.id == "passport" })
+ }
 }
