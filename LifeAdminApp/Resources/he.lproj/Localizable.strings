@@ -234,6 +234,11 @@
 "notification.checklistNudgeTitle" = "תזכורות מומלצות";
 "notification.checklistNudgeBody" = "עדיין יש לך כמה תזכורות חשובות שלא הוספת.";
 "itemDetail.attachmentLocked" = "קובץ מצורף נעול. הקש כדי לפתוח עם Face ID או Touch ID.";
+"itemDetail.documentFields" = "פרטי מסמך";
+"itemDetail.fieldLabel" = "תווית";
+"itemDetail.fieldValue" = "ערך";
+"itemDetail.fieldLocked" = "שדה נעול. הקש כדי לפתוח עם Face ID או Touch ID.";
+"itemDetail.addField" = "הוספת שדה";
 "itemDetail.priceIncreased" = "עלה ב-%d%% מהפעם הקודמת";
 "itemDetail.priceDecreased" = "ירד ב-%d%% מהפעם הקודמת";
 "itemDetail.priceChangeUpCompact" = "+%d%%";

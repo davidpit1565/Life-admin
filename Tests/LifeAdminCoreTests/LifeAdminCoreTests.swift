@@ -87,6 +87,20 @@ final class LifeAdminCoreTests: XCTestCase {
  func testNaturalLanguageCurrency() { let e=NaturalLanguageParser().parse("My car insurance costs €840 and renews every March 18."); XCTAssertEqual(e.category, .insurance); XCTAssertEqual(e.currency, "EUR"); XCTAssertEqual(e.recurring, .yearly) }
  func testAIJSONParsing() throws { let json=#"{"title":"Passport","category":"travel","currency":"EUR","confidence":0.8}"#.data(using:.utf8)!; XCTAssertEqual(try AIJSONValidator().decode(json).title, "Passport") }
  func testAIJSONFailure() { let json=#"{"confidence":2}"#.data(using:.utf8)!; XCTAssertThrowsError(try AIJSONValidator().decode(json)) }
+ func testAIJSONParsesDocumentFieldsFromAScannedPassport() throws {
+     let json = #"{"title":"Passport","category":"documents","confidence":0.9,"documentFields":[{"label":"Passport Number","value":"912345678"},{"label":"Nationality","value":"Israeli"}]}"#.data(using: .utf8)!
+     let fields = try AIJSONValidator().decode(json).documentFields
+     XCTAssertEqual(fields?.count, 2)
+     XCTAssertEqual(fields?.first?.label, "Passport Number")
+     XCTAssertEqual(fields?.first?.value, "912345678")
+ }
+ // A CVV/CVC must never survive decoding, no matter what a scanned card's OCR text (or a buggy/
+ // compromised proxy) hands back — see DocumentFieldSafety's own doc comment for why.
+ func testAIJSONNeverSurfacesACVVField() throws {
+     let json = #"{"title":"Visa Card","category":"money","confidence":0.9,"documentFields":[{"label":"Card Number","value":"4111111111111111"},{"label":"CVV","value":"123"},{"label":"Security Code","value":"456"}]}"#.data(using: .utf8)!
+     let fields = try AIJSONValidator().decode(json).documentFields
+     XCTAssertEqual(fields?.map(\.label), ["Card Number"])
+ }
  func testLocalizationCoverage() { XCTAssertEqual(SupportedLanguage.allCases.count, 14); XCTAssertTrue(SupportedLanguage.he.isRTL); XCTAssertTrue(SupportedLanguage.ar.isRTL) }
  func testStatusCompletion() { var i=LifeAdminItem(title:"Dentist"); i.status = .completed; XCTAssertEqual(i.status, .completed) }
  func testAttachmentValidation() { let a=Attachment(filename:"policy.pdf", mimeType:"application/pdf", sizeBytes:1, localPath:"/local/policy.pdf"); XCTAssertNoThrow(try ItemValidator().validate(LifeAdminItem(title:"Policy", attachments:[a]))) }
@@ -524,13 +538,14 @@ final class LifeAdminCoreTests: XCTestCase {
  func testCodableRoundTripPreservesEveryPopulatedOptionalField() throws {
      let attachment = Attachment(filename: "policy.pdf", mimeType: "application/pdf", sizeBytes: 1024, localPath: "/local/policy.pdf")
      let contact = ContactInfo(name: "Dana", company: "Acme", phone: "050-1234567", email: "dana@acme.com", website: "https://acme.com", notes: "Ask for Dana")
+     let documentField = DocumentField(label: "Policy Number", value: "POL-12345")
      let full = LifeAdminItem(
          title: "Car Insurance", description: "Annual policy", category: .insurance, status: .snoozed,
          priority: .high, priorityOverride: .critical, dueDate: Date(timeIntervalSince1970: 1_700_000_000),
          endDate: Date(timeIntervalSince1970: 1_800_000_000), amount: 840.50, currency: "ILS",
          recurrence: .yearly, recurrenceRule: "FREQ=YEARLY", recurrenceAnchorDay: 31,
          reminderOffsets: [30, 7, 1], notes: "Renew early", tags: ["car", "insurance"],
-         attachments: [attachment], contact: contact, location: "Home",
+         attachments: [attachment], contact: contact, location: "Home", documentFields: [documentField],
          createdAt: Date(timeIntervalSince1970: 1_600_000_000), updatedAt: Date(timeIntervalSince1970: 1_650_000_000)
      )
      let decodedFull = try JSONDecoder().decode(LifeAdminItem.self, from: JSONEncoder().encode(full))
@@ -546,6 +561,15 @@ final class LifeAdminCoreTests: XCTestCase {
      // key at all. It must still decode (as nil), not fail to import.
      let json = #"[{"id":"\#(UUID().uuidString)","title":"Gym","category":"other","status":"active","priority":"low","recurrence":"none","reminderOffsets":[],"tags":[],"attachments":[],"createdAt":"2024-01-01T00:00:00Z","updatedAt":"2024-01-01T00:00:00Z"}]"#.data(using: .utf8)!
      XCTAssertNoThrow(try ImportExportEngine().importJSON(json))
+ }
+
+ func testOldExportWithoutDocumentFieldsKeyStillDecodesAsEmpty() throws {
+     // Same backward-compatibility contract as recurrenceAnchorDay above, but for documentFields
+     // — added later, and (unlike recurrenceAnchorDay) a non-optional array everywhere else in
+     // the app, so it needs its own explicit decoding fallback rather than getting one for free.
+     let json = #"[{"id":"\#(UUID().uuidString)","title":"Gym","category":"other","status":"active","priority":"low","recurrence":"none","reminderOffsets":[],"tags":[],"attachments":[],"createdAt":"2024-01-01T00:00:00Z","updatedAt":"2024-01-01T00:00:00Z"}]"#.data(using: .utf8)!
+     let items = try ImportExportEngine().importJSON(json)
+     XCTAssertEqual(items.first?.documentFields, [])
  }
 
  // MARK: - ImportExportEngine edge cases (Engines.swift)

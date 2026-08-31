@@ -1,5 +1,30 @@
 import Foundation
-public struct ExtractedItem: Codable, Equatable, Sendable { public var title: String?; public var category: LifeCategory?; public var amount: Decimal?; public var currency: String?; public var date: Date?; public var recurring: Recurrence?; public var reminderOffsets: [Int]?; public var confidence: Double; public var scamRiskDetected: Bool? = nil }
+
+/// A single label/value pair Gemini spotted in a scanned document's OCR text — a passport number,
+/// a bank's name on a card, an expiry month/year, and so on. Deliberately carries no identity of
+/// its own (unlike `DocumentField` below): it's a transient suggestion straight off the wire, not
+/// yet something that needs a stable id for a SwiftUI list or persistence.
+public struct DocumentFieldSuggestion: Codable, Equatable, Sendable {
+    public var label: String
+    public var value: String
+    public init(label: String, value: String) { self.label = label; self.value = value }
+}
+
+/// A card verification code (CVV/CVC/CID) must never be persisted anywhere in this app, even
+/// briefly — unlike a card number kept for personal reference, it has no legitimate use once a
+/// purchase is complete, and PCI-DSS explicitly forbids retaining it after authorization. This is
+/// enforced here, in Core, as the one place every `DocumentFieldSuggestion` — regardless of
+/// which server or prompt version produced it — passes through before it can ever reach the UI or
+/// SwiftData: see `AIJSONValidator.decode`.
+public enum DocumentFieldSafety {
+    private static let forbiddenLabelPattern = try! NSRegularExpression(pattern: "cvv|cvc|cid\\b|security code|card verification|verification code", options: [.caseInsensitive])
+    public static func isForbidden(label: String) -> Bool {
+        let range = NSRange(label.startIndex..., in: label)
+        return forbiddenLabelPattern.firstMatch(in: label, range: range) != nil
+    }
+}
+
+public struct ExtractedItem: Codable, Equatable, Sendable { public var title: String?; public var category: LifeCategory?; public var amount: Decimal?; public var currency: String?; public var date: Date?; public var recurring: Recurrence?; public var reminderOffsets: [Int]?; public var confidence: Double; public var scamRiskDetected: Bool? = nil; public var documentFields: [DocumentFieldSuggestion]? = nil }
 public struct NaturalLanguageParser: Sendable {
     public init() {}
 
@@ -667,7 +692,22 @@ public struct NaturalLanguageParser: Sendable {
     /// `tags` already exists precisely for this kind of lightweight, App-target-visible signal.
     public static let scamRiskTag = "possible-scam-language"
 }
-public struct AIJSONValidator { public init() {} ; public func decode(_ data: Data) throws -> ExtractedItem { let dec=JSONDecoder(); dec.dateDecodingStrategy = .iso8601; let item = try dec.decode(ExtractedItem.self, from: data); if item.confidence < 0 || item.confidence > 1 { throw LifeAdminError.invalidJSON }; return item } }
+public struct AIJSONValidator {
+    public init() {}
+
+    public func decode(_ data: Data) throws -> ExtractedItem {
+        let dec = JSONDecoder()
+        dec.dateDecodingStrategy = .iso8601
+        var item = try dec.decode(ExtractedItem.self, from: data)
+        if item.confidence < 0 || item.confidence > 1 { throw LifeAdminError.invalidJSON }
+        // Belt-and-suspenders: the proxy's own prompt and its `toExtraction` filter should never
+        // let a CVV-labeled field through in the first place, but this is the one point every
+        // extraction — regardless of server version — passes through before reaching the rest of
+        // the app, so it's the right place to guarantee it rather than trust it happened upstream.
+        item.documentFields = item.documentFields?.filter { DocumentFieldSafety.isForbidden(label: $0.label) == false }
+        return item
+    }
+}
 public enum AIProcessingMode: String, Codable, CaseIterable { case askEveryTime, allowAutomatically, disabled }
 public protocol AIExtracting: Sendable { func extract(from text: String) async throws -> ExtractedItem }
 public typealias GeminiExtractionClient = ProxyAIClient

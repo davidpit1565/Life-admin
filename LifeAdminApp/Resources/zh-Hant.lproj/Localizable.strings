@@ -234,6 +234,11 @@
 "notification.checklistNudgeTitle" = "建議提醒";
 "notification.checklistNudgeBody" = "你還有一些重要的提醒事項尚未添加。";
 "itemDetail.attachmentLocked" = "已鎖定的附件。點按以使用Face ID或Touch ID解鎖。";
+"itemDetail.documentFields" = "證件詳情";
+"itemDetail.fieldLabel" = "標籤";
+"itemDetail.fieldValue" = "值";
+"itemDetail.fieldLocked" = "已鎖定的欄位。點按以使用Face ID或Touch ID解鎖。";
+"itemDetail.addField" = "新增欄位";
 "itemDetail.priceIncreased" = "比上次上漲%d%%";
 "itemDetail.priceDecreased" = "比上次下降%d%%";
 "itemDetail.priceChangeUpCompact" = "+%d%%";
