@@ -108,6 +108,9 @@
 "itemDetail.currency.none" = "Nessuna";
 "itemDetail.notes" = "Note";
 "itemDetail.attachments" = "Allegati";
+"itemDetail.addPhoto" = "Aggiungi foto";
+"itemDetail.browseFiles" = "Sfoglia file";
+"itemDetail.photoFilename" = "Foto %d";
 "itemDetail.delete" = "Elimina voce";
 "itemDetail.deleteConfirm" = "Eliminare questa voce? Verranno rimossi anche l'evento in calendario e il promemoria collegati.";
 "items.deleteSelectedConfirm" = "Eliminare %d voci? Verranno rimossi anche i relativi eventi in calendario e promemoria.";

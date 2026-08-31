@@ -1,5 +1,7 @@
 import SwiftUI
 import ContactsUI
+import PhotosUI
+import UniformTypeIdentifiers
 import UIKit
 import LifeAdminCore
 
@@ -23,6 +25,8 @@ struct ItemDetailView: View {
     @State private var showingContactPicker = false
     @State private var showingDeleteConfirmation = false
     @State private var isSaving = false
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
+    @State private var showingFileImporter = false
     @AppStorage("appLockEnabled") private var appLockEnabled = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // Reset every time this view is freshly opened (a new instance, a new empty Set) rather than
@@ -144,8 +148,13 @@ struct ItemDetailView: View {
                 TextEditor(text: $notes).frame(minHeight: 80)
             }
 
-            if attachments.isEmpty == false {
-                Section(String(localized: "itemDetail.attachments")) {
+            // Always shown, even with nothing attached yet — the document scanner (VisionKit +
+            // on-device OCR) that could once add the first attachment is held back behind a
+            // feature flag for App Store review reasons, so without a picker here an item like a
+            // checklist-created "Passport" reminder would have no way at all to actually attach
+            // the passport photo it exists to hold.
+            Section(String(localized: "itemDetail.attachments")) {
+                if attachments.isEmpty == false {
                     ForEach(attachments) { attachment in
                         HStack {
                             if let uiImage = UIImage(contentsOfFile: AttachmentStore.shared.url(for: attachment).path) {
@@ -194,6 +203,14 @@ struct ItemDetailView: View {
                         // safely discardable until Save is tapped.
                         attachments.remove(atOffsets: offsets)
                     }
+                }
+                PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: 5, matching: .images) {
+                    Label(String(localized: "itemDetail.addPhoto"), systemImage: "photo.on.rectangle")
+                }
+                Button {
+                    showingFileImporter = true
+                } label: {
+                    Label(String(localized: "itemDetail.browseFiles"), systemImage: "folder")
                 }
             }
 
@@ -269,6 +286,26 @@ struct ItemDetailView: View {
         .sheet(isPresented: $showingContactPicker) {
             ContactPickerView { contact in
                 apply(contact)
+            }
+        }
+        .sheet(isPresented: $showingFileImporter) {
+            FileImportPicker(
+                onPicked: { url in addAttachment(fromFileAt: url) },
+                onCancel: { showingFileImporter = false }
+            )
+        }
+        // Each selected library photo is written to disk (via AttachmentStore, immediately —
+        // same timing as the document scanner's own pendingAttachments) the moment it's picked,
+        // same as every other attachment source; only the item's `attachments` array itself
+        // waits for Save, exactly like the existing swipe-to-remove above.
+        .onChange(of: selectedPhotoItems) { _, newItems in
+            guard newItems.isEmpty == false else { return }
+            let itemsToLoad = newItems
+            selectedPhotoItems = []
+            Task {
+                for photoItem in itemsToLoad {
+                    await addAttachment(from: photoItem)
+                }
             }
         }
         .confirmationDialog(
@@ -411,6 +448,33 @@ struct ItemDetailView: View {
         let removed = item.attachments.filter { attachments.contains($0) == false }
         for attachment in removed {
             AttachmentStore.shared.delete(attachment)
+        }
+    }
+
+    /// A library photo's `supportedContentTypes` reflects whatever the source file actually is
+    /// (often HEIC on a modern iPhone, not JPEG) — reading that instead of assuming JPEG keeps
+    /// both the saved bytes and their declared mimeType/extension honest about the real format.
+    private func addAttachment(from photoItem: PhotosPickerItem) async {
+        guard let data = try? await photoItem.loadTransferable(type: Data.self) else { return }
+        let contentType = photoItem.supportedContentTypes.first
+        let fileExtension = contentType?.preferredFilenameExtension ?? "jpg"
+        let mimeType = contentType?.preferredMIMEType ?? "image/jpeg"
+        let filename = String(format: String(localized: "itemDetail.photoFilename"), attachments.count + 1)
+        if let attachment = AttachmentStore.shared.save(data: data, filename: filename, mimeType: mimeType, fileExtension: fileExtension) {
+            attachments.append(attachment)
+        }
+    }
+
+    /// `FileImportPicker` hands back a URL to a local copy already inside this app's sandbox
+    /// (`asCopy: true`), so this only needs to read it and hand the bytes to the same
+    /// `AttachmentStore` every other attachment source goes through.
+    private func addAttachment(fromFileAt url: URL) {
+        showingFileImporter = false
+        guard let data = try? Data(contentsOf: url) else { return }
+        let fileExtension = url.pathExtension.isEmpty ? "dat" : url.pathExtension
+        let mimeType = UTType(filenameExtension: fileExtension)?.preferredMIMEType ?? "application/octet-stream"
+        if let attachment = AttachmentStore.shared.save(data: data, filename: url.lastPathComponent, mimeType: mimeType, fileExtension: fileExtension) {
+            attachments.append(attachment)
         }
     }
 

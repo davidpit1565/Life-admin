@@ -108,6 +108,9 @@
 "itemDetail.currency.none" = "無";
 "itemDetail.notes" = "備註";
 "itemDetail.attachments" = "附件";
+"itemDetail.addPhoto" = "新增相片";
+"itemDetail.browseFiles" = "瀏覽檔案";
+"itemDetail.photoFilename" = "相片 %d";
 "itemDetail.delete" = "刪除事項";
 "itemDetail.deleteConfirm" = "確定刪除此事項？相關的行事曆事件與提醒事項也會一併刪除。";
 "items.deleteSelectedConfirm" = "確定刪除這 %d 項？相關的行事曆事件與提醒事項也會一併刪除。";

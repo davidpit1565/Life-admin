@@ -108,6 +108,9 @@
 "itemDetail.currency.none" = "なし";
 "itemDetail.notes" = "メモ";
 "itemDetail.attachments" = "添付ファイル";
+"itemDetail.addPhoto" = "写真を追加";
+"itemDetail.browseFiles" = "ファイルを参照";
+"itemDetail.photoFilename" = "写真 %d";
 "itemDetail.delete" = "項目を削除";
 "itemDetail.deleteConfirm" = "この項目を削除しますか？関連するカレンダーの予定とリマインダーも削除されます。";
 "items.deleteSelectedConfirm" = "%d件の項目を削除しますか？関連するカレンダーの予定とリマインダーも削除されます。";

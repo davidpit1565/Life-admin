@@ -108,6 +108,9 @@
 "itemDetail.currency.none" = "Нет";
 "itemDetail.notes" = "Заметки";
 "itemDetail.attachments" = "Вложения";
+"itemDetail.addPhoto" = "Добавить фото";
+"itemDetail.browseFiles" = "Обзор файлов";
+"itemDetail.photoFilename" = "Фото %d";
 "itemDetail.delete" = "Удалить запись";
 "itemDetail.deleteConfirm" = "Удалить эту запись? Это также удалит связанное событие в календаре и напоминание.";
 "items.deleteSelectedConfirm" = "Удалить записей: %d? Это также удалит их события в календаре и напоминания.";

@@ -108,6 +108,9 @@
 "itemDetail.currency.none" = "None";
 "itemDetail.notes" = "Notes";
 "itemDetail.attachments" = "Attachments";
+"itemDetail.addPhoto" = "Add Photo";
+"itemDetail.browseFiles" = "Browse Files";
+"itemDetail.photoFilename" = "Photo %d";
 "itemDetail.delete" = "Delete Item";
 "itemDetail.deleteConfirm" = "Delete this item? This also removes its calendar event and reminder.";
 "items.deleteSelectedConfirm" = "Delete %d items? This also removes their calendar events and reminders.";

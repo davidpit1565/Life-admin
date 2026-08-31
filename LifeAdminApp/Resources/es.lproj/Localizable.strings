@@ -108,6 +108,9 @@
 "itemDetail.currency.none" = "Ninguna";
 "itemDetail.notes" = "Notas";
 "itemDetail.attachments" = "Adjuntos";
+"itemDetail.addPhoto" = "Añadir foto";
+"itemDetail.browseFiles" = "Explorar archivos";
+"itemDetail.photoFilename" = "Foto %d";
 "itemDetail.delete" = "Eliminar elemento";
 "itemDetail.deleteConfirm" = "¿Eliminar este elemento? Esto también elimina su evento de calendario y su recordatorio.";
 "items.deleteSelectedConfirm" = "¿Eliminar %d elementos? Esto también elimina sus eventos de calendario y recordatorios.";

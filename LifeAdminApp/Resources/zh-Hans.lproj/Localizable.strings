@@ -108,6 +108,9 @@
 "itemDetail.currency.none" = "无";
 "itemDetail.notes" = "备注";
 "itemDetail.attachments" = "附件";
+"itemDetail.addPhoto" = "添加照片";
+"itemDetail.browseFiles" = "浏览文件";
+"itemDetail.photoFilename" = "照片 %d";
 "itemDetail.delete" = "删除事项";
 "itemDetail.deleteConfirm" = "确定删除此事项？相关的日历事件和提醒事项也会一并删除。";
 "items.deleteSelectedConfirm" = "确定删除这 %d 项？相关的日历事件和提醒事项也会一并删除。";

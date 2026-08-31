@@ -108,6 +108,9 @@
 "itemDetail.currency.none" = "לא צוין";
 "itemDetail.notes" = "הערות";
 "itemDetail.attachments" = "קבצים מצורפים";
+"itemDetail.addPhoto" = "הוסף תמונה";
+"itemDetail.browseFiles" = "עיון בקבצים";
+"itemDetail.photoFilename" = "תמונה %d";
 "itemDetail.delete" = "מחק פריט";
 "itemDetail.deleteConfirm" = "למחוק את הפריט הזה? זה יסיר גם את האירוע ביומן ואת התזכורת שלו.";
 "items.deleteSelectedConfirm" = "למחוק %d פריטים? זה יסיר גם את האירועים ביומן והתזכורות שלהם.";
