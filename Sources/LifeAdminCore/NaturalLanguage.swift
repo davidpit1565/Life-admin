@@ -110,6 +110,13 @@ public struct NaturalLanguageParser: Sendable {
 
     static func relativeDate(in lower: String, now: Date) -> Date? {
         let calendar = Calendar.current
+        // Unlike every other unit here, an hour/minute-scale reminder ("remind me in 1 hour",
+        // "in 30 minutes") is precisely about a specific moment, not a calendar day — snapping to
+        // `startOfDay` the way days/weeks/months/years intentionally do below would turn "in 1
+        // hour" into "today at midnight", which already passed and would fire (or simply look
+        // wrong) immediately.
+        func hours(_ n: Int) -> Date? { calendar.date(byAdding: .hour, value: n, to: now) }
+        func minutes(_ n: Int) -> Date? { calendar.date(byAdding: .minute, value: n, to: now) }
         func days(_ n: Int) -> Date? { calendar.date(byAdding: .day, value: n, to: now).map(calendar.startOfDay) }
         func weeks(_ n: Int) -> Date? { calendar.date(byAdding: .weekOfYear, value: n, to: now).map(calendar.startOfDay) }
         func months(_ n: Int) -> Date? { calendar.date(byAdding: .month, value: n, to: now).map(calendar.startOfDay) }
@@ -133,6 +140,8 @@ public struct NaturalLanguageParser: Sendable {
         if lower.contains("שבועיים") && !lower.contains("כל שבועיים") { return weeks(2) }
         if lower.contains("חודשיים") && !lower.contains("כל חודשיים") { return months(2) }
         if lower.contains("שנתיים") && !lower.contains("כל שנתיים") { return years(2) }
+        if lower.contains("in an hour") || lower.contains("בעוד שעה") || lower.contains("en una hora") || lower.contains("dans une heure") { return hours(1) }
+        if lower.contains("in a minute") || lower.contains("בעוד דקה") || lower.contains("en un minuto") || lower.contains("dans une minute") { return minutes(1) }
         if lower.contains("next week") || lower.contains("in a week") || lower.contains("בעוד שבוע") || lower.contains("בשבוע הבא") || lower.contains("la semana que viene") || lower.contains("próxima semana") || lower.contains("en una semana") || lower.contains("la semaine prochaine") || lower.contains("dans une semaine") { return weeks(1) }
         if lower.contains("next month") || lower.contains("in a month") || lower.contains("בעוד חודש") || lower.contains("בחודש הבא") || lower.contains("el mes que viene") || lower.contains("próximo mes") || lower.contains("en un mes") || lower.contains("le mois prochain") || lower.contains("dans un mois") { return months(1) }
         if lower.contains("next year") || lower.contains("in a year") || lower.contains("בעוד שנה") || lower.contains("בשנה הבאה") || lower.contains("el año que viene") || lower.contains("próximo año") || lower.contains("en un año") || lower.contains("l'année prochaine") || lower.contains("l'an prochain") || lower.contains("l’année prochaine") || lower.contains("dans un an") { return years(1) }
@@ -181,6 +190,14 @@ public struct NaturalLanguageParser: Sendable {
         }
         let numberAlternation = (["\\d+"] + englishNumberWords.keys + hebrewNumberWords.keys + spanishNumberWords.keys + frenchNumberWords.keys).joined(separator: "|")
         let numberedPatterns: [(String, (Int) -> Date?)] = [
+            ("in\\s+(\(numberAlternation))\\s+hours?", hours),
+            ("in\\s+(\(numberAlternation))\\s+minutes?", minutes),
+            ("בעוד\\s+(\(numberAlternation))\\s+שעות?", hours),
+            ("בעוד\\s+(\(numberAlternation))\\s+דקות?", minutes),
+            ("en\\s+(\(numberAlternation))\\s+horas?", hours),
+            ("en\\s+(\(numberAlternation))\\s+minutos?", minutes),
+            ("dans\\s+(\(numberAlternation))\\s+heures?", hours),
+            ("dans\\s+(\(numberAlternation))\\s+minutes?", minutes),
             ("in\\s+(\(numberAlternation))\\s+days?", days),
             ("in\\s+(\(numberAlternation))\\s+weeks?", weeks),
             ("in\\s+(\(numberAlternation))\\s+months?", months),
@@ -473,7 +490,7 @@ public struct NaturalLanguageParser: Sendable {
         // "expires in 2 years" isn't a 2-dollar bill — a bare number immediately followed by a
         // span-of-time word is a duration, not an amount, the same reasoning that already
         // excludes an ordinal day-of-month here.
-        let durationWords: Set<String> = ["day", "days", "week", "weeks", "month", "months", "year", "years", "יום", "ימים", "שבוע", "שבועות", "חודש", "חודשים", "שנה", "שנים", "día", "días", "semana", "semanas", "mes", "meses", "año", "años", "jour", "jours", "semaine", "semaines", "mois", "an", "ans"]
+        let durationWords: Set<String> = ["hour", "hours", "minute", "minutes", "day", "days", "week", "weeks", "month", "months", "year", "years", "שעה", "שעות", "דקה", "דקות", "יום", "ימים", "שבוע", "שבועות", "חודש", "חודשים", "שנה", "שנים", "hora", "horas", "minuto", "minutos", "día", "días", "semana", "semanas", "mes", "meses", "año", "años", "heure", "heures", "jour", "jours", "semaine", "semaines", "mois", "an", "ans"]
         // Spanish/French routinely state a recurring day-of-month as "el 1 de cada mes"/"le 3 de
         // chaque mois" — an article immediately before the number and "de" immediately after mark
         // it as a day reference, not an amount, the same way an ordinal suffix or a recognized

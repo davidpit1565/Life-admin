@@ -9,6 +9,10 @@ struct ItemDetailView: View {
     @EnvironmentObject var store: ItemStore
     @Environment(\.dismiss) var dismiss
     let item: LifeAdminItem
+    // True only for a checklist-suggested draft that has never been written to SwiftData yet
+    // (see `ItemStore.draftItem(for:)`) — lets `save()`/`markDone()` persist it for the first
+    // time instead of updating an item that doesn't exist in `store.items` yet.
+    let isNewDraft: Bool
 
     @State private var title: String
     @State private var category: LifeCategory
@@ -21,6 +25,7 @@ struct ItemDetailView: View {
     @State private var name: String
     @State private var company: String
     @State private var email: String
+    @State private var phone: String
     @State private var attachments: [Attachment]
     @State private var showingContactPicker = false
     @State private var showingDeleteConfirmation = false
@@ -28,6 +33,11 @@ struct ItemDetailView: View {
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var showingFileImporter = false
     @State private var isImportingAttachment = false
+    // Set right before any of save()/markDone()/reopen()/the Delete confirmation actually
+    // commits — lets `.onDisappear` below tell "the user finished with this screen" apart from
+    // "the user swiped it away", so it only cleans up abandoned attachment files in the latter
+    // case (see `discardAbandonedAttachments`).
+    @State private var didFinish = false
     @AppStorage("appLockEnabled") private var appLockEnabled = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // Reset every time this view is freshly opened (a new instance, a new empty Set) rather than
@@ -35,8 +45,9 @@ struct ItemDetailView: View {
     // the item is opened, not stay revealed forever once unlocked once.
     @State private var revealedAttachmentIDs: Set<UUID> = []
 
-    init(item: LifeAdminItem) {
+    init(item: LifeAdminItem, isNewDraft: Bool = false) {
         self.item = item
+        self.isNewDraft = isNewDraft
         _title = State(initialValue: item.title)
         _category = State(initialValue: item.category)
         _hasDueDate = State(initialValue: item.dueDate != nil)
@@ -48,6 +59,7 @@ struct ItemDetailView: View {
         _name = State(initialValue: item.contact?.name ?? "")
         _company = State(initialValue: item.contact?.company ?? "")
         _email = State(initialValue: item.contact?.email ?? "")
+        _phone = State(initialValue: item.contact?.phone ?? "")
         _attachments = State(initialValue: item.attachments)
     }
 
@@ -143,6 +155,19 @@ struct ItemDetailView: View {
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                // "Call customer service" is one of the single most common follow-ups on a bill or
+                // insurance item — a phone field with no way to actually place the call from here
+                // would just mean copy-pasting the number into the Phone app anyway.
+                HStack {
+                    TextField(String(localized: "editContact.phone"), text: $phone)
+                        .keyboardType(.phonePad)
+                    if let callURL {
+                        Link(destination: callURL) {
+                            Image(systemName: "phone.fill")
+                        }
+                        .accessibilityLabel(String(localized: "editContact.call"))
+                    }
+                }
             }
 
             Section(String(localized: "itemDetail.notes")) {
@@ -196,13 +221,25 @@ struct ItemDetailView: View {
                         }
                     }
                     .onDelete { offsets in
-                        // Only remove from this screen's own draft state here — the file on disk
-                        // isn't deleted until Save/Mark Done actually commits the change (see
-                        // deleteFilesForRemovedAttachments()). Deleting it immediately meant
-                        // backing out without saving still permanently destroyed the photo, unlike
-                        // every other edit on this screen (title, notes, category, …), which stays
-                        // safely discardable until Save is tapped.
+                        // An originally-committed attachment is only removed from this screen's
+                        // own draft state here — its file on disk isn't deleted until Save/Mark
+                        // Done actually commits the change (see deleteFilesForRemovedAttachments).
+                        // Deleting it immediately meant backing out without saving still
+                        // permanently destroyed the photo, unlike every other edit on this screen
+                        // (title, notes, category, …), which stays safely discardable until Save.
+                        //
+                        // An attachment added THIS session and then swiped away again before ever
+                        // saving is different: it was never part of `committedAttachments`, so
+                        // neither this deferred cleanup nor `discardAbandonedAttachments` (which
+                        // only ever looks at what's still in `attachments`) would otherwise catch
+                        // it once it's gone from that array — its file would leak forever. Nothing
+                        // is lost by deleting it immediately: it was never saved anywhere to begin
+                        // with.
+                        let removedThisSession = offsets.map { attachments[$0] }.filter { committedAttachments.contains($0) == false }
                         attachments.remove(atOffsets: offsets)
+                        for attachment in removedThisSession {
+                            AttachmentStore.shared.delete(attachment)
+                        }
                     }
                 }
                 PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: 5, matching: .images) {
@@ -267,6 +304,24 @@ struct ItemDetailView: View {
                         .disabled(isSaving)
                     }
                 }
+            } else if item.status == .completed {
+                // A fat-fingered "Mark Done" (or simply changing your mind) otherwise had no way
+                // back except Delete — permanently losing the item instead of just undoing a
+                // status change. Reopening goes through the same `save()`/store.update path as
+                // every other edit, so it also correctly re-schedules a reminder if there's still
+                // a due date, rather than leaving the item active but silently unreminded.
+                Section {
+                    Button {
+                        isSaving = true
+                        Task {
+                            await reopen()
+                            dismiss()
+                        }
+                    } label: {
+                        Label(String(localized: "itemDetail.reopen"), systemImage: "arrow.uturn.backward.circle.fill")
+                    }
+                    .disabled(isSaving)
+                }
             }
 
             Section {
@@ -298,6 +353,14 @@ struct ItemDetailView: View {
             }
         }
         .navigationTitle(title.isEmpty ? item.title : title)
+        // Every attachment source here (Photos, Files, the document scanner) writes its file to
+        // disk the moment it's picked, same timing as AddItemView's own scanner — swiping this
+        // whole screen away instead of tapping Save/Mark Done/Delete would otherwise leave that
+        // file behind forever with nothing left pointing at it.
+        .onDisappear {
+            guard didFinish == false else { return }
+            discardAbandonedAttachments()
+        }
         .sheet(isPresented: $showingContactPicker) {
             ContactPickerView { contact in
                 apply(contact)
@@ -305,7 +368,13 @@ struct ItemDetailView: View {
         }
         .sheet(isPresented: $showingFileImporter) {
             FileImportPicker(
-                onPicked: { url in addAttachment(fromFileAt: url) },
+                onPicked: { url in
+                    isImportingAttachment = true
+                    Task {
+                        await addAttachment(fromFileAt: url)
+                        isImportingAttachment = false
+                    }
+                },
                 onCancel: { showingFileImporter = false }
             )
         }
@@ -402,11 +471,21 @@ struct ItemDetailView: View {
         return "\(isolatedCode) – \(name)"
     }
 
+    /// `nil` for anything empty or that doesn't produce a valid `tel:` URL — the tap-to-call
+    /// button itself is only shown when this is non-nil, so a garbled or empty phone field just
+    /// silently has no call button rather than one that fails when tapped.
+    private var callURL: URL? {
+        let trimmed = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return nil }
+        return URL(string: "tel:\(trimmed.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? trimmed)")
+    }
+
     private func apply(_ contact: CNContact) {
         let fullName = [contact.givenName, contact.familyName].filter { $0.isEmpty == false }.joined(separator: " ")
         if fullName.isEmpty == false { name = fullName }
         if contact.organizationName.isEmpty == false { company = contact.organizationName }
         if let firstEmail = contact.emailAddresses.first?.value as String? { email = firstEmail }
+        if let firstPhone = contact.phoneNumbers.first?.value.stringValue, firstPhone.isEmpty == false { phone = firstPhone }
     }
 
     private func fieldsApplied(to base: LifeAdminItem) -> LifeAdminItem {
@@ -438,9 +517,11 @@ struct ItemDetailView: View {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedCompany = company.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        updated.contact = (trimmedName.isEmpty && trimmedCompany.isEmpty && trimmedEmail.isEmpty) ? nil : ContactInfo(
+        let trimmedPhone = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.contact = (trimmedName.isEmpty && trimmedCompany.isEmpty && trimmedEmail.isEmpty && trimmedPhone.isEmpty) ? nil : ContactInfo(
             name: trimmedName.isEmpty ? nil : trimmedName,
             company: trimmedCompany.isEmpty ? nil : trimmedCompany,
+            phone: trimmedPhone.isEmpty ? nil : trimmedPhone,
             email: trimmedEmail.isEmpty ? nil : trimmedEmail
         )
         updated.updatedAt = Date()
@@ -458,12 +539,44 @@ struct ItemDetailView: View {
         store.items.first(where: { $0.id == item.id }) ?? item
     }
 
-    /// Deletes the on-disk file for any attachment the user swiped away on this screen — deferred
-    /// until here (rather than at the moment of the swipe) so the removal only actually happens
-    /// once it's committed via Save/Mark Done, matching every other edit on this form.
+    /// What's REALLY on disk and persisted for this item right now, independent of anything this
+    /// screen's own `attachments` state currently shows — empty for an item that was never
+    /// persisted at all (a fresh `isNewDraft`, or an "ask every time" merge preview before its
+    /// Save actually runs `update()`), otherwise the real stored attachments. This is the one
+    /// source of truth `deleteFilesForRemovedAttachments`, `discardAbandonedAttachments`, and the
+    /// attachment list's own swipe-to-delete all check before ever deleting a file, since only a
+    /// file that isn't part of this is safe to remove without losing something the user could
+    /// still back out of.
+    private var committedAttachments: [Attachment] {
+        store.items.first(where: { $0.id == item.id })?.attachments ?? []
+    }
+
+    /// Deletes the on-disk file for any originally-committed attachment the user swiped away on
+    /// this screen — deferred until here (rather than at the moment of the swipe) so the removal
+    /// only actually happens once it's committed via Save/Mark Done, matching every other edit on
+    /// this form. An attachment added and then swiped away again in the same session, before ever
+    /// saving, is handled separately, immediately, at the point of that swipe (see the `.onDelete`
+    /// handler above) — it was never part of `committedAttachments` to begin with, so it would
+    /// never show up as "removed" here.
     private func deleteFilesForRemovedAttachments() {
-        let removed = item.attachments.filter { attachments.contains($0) == false }
+        let removed = committedAttachments.filter { attachments.contains($0) == false }
         for attachment in removed {
+            AttachmentStore.shared.delete(attachment)
+        }
+    }
+
+    /// The mirror image of `deleteFilesForRemovedAttachments`: cleans up on-disk files for
+    /// attachments that aren't actually committed anywhere, because the screen was dismissed some
+    /// other way than Save/Mark Done/Delete. Comparing against `committedAttachments` rather than
+    /// `item.attachments` (this view's initial snapshot) is deliberate: for an `isNewDraft` item —
+    /// or a checklist/"ask every time" merge preview, whose `item.attachments` already includes
+    /// files an eventual Save would add but a real update() hasn't applied yet — nothing in
+    /// `item.attachments` is actually safe on its own. A never-persisted draft has no entry in
+    /// `store.items` at all, so every current attachment counts as abandoned; an existing item
+    /// being edited keeps only its real stored attachments as the safe baseline.
+    private func discardAbandonedAttachments() {
+        let abandoned = attachments.filter { committedAttachments.contains($0) == false }
+        for attachment in abandoned {
             AttachmentStore.shared.delete(attachment)
         }
     }
@@ -486,6 +599,7 @@ struct ItemDetailView: View {
         let filename = String(format: String(localized: "itemDetail.photoFilename"), attachments.count + 1)
         if let attachment = AttachmentStore.shared.save(data: data, filename: filename, mimeType: mimeType, fileExtension: fileExtension) {
             attachments.append(attachment)
+            await autoFillFromImageAttachment(attachment)
         }
     }
 
@@ -495,7 +609,7 @@ struct ItemDetailView: View {
     /// `AttachmentStore`'s own protected, backup-excluded directory (it's the system's plain,
     /// unprotected /tmp), so it's removed here the moment its bytes are safely persisted through
     /// AttachmentStore, rather than left for the system to eventually reclaim on its own schedule.
-    private func addAttachment(fromFileAt url: URL) {
+    private func addAttachment(fromFileAt url: URL) async {
         showingFileImporter = false
         defer { try? FileManager.default.removeItem(at: url) }
         // Checked from the file's own metadata BEFORE reading its bytes — a multi-hundred-MB file
@@ -509,6 +623,47 @@ struct ItemDetailView: View {
         let mimeType = UTType(filenameExtension: fileExtension)?.preferredMIMEType ?? "application/octet-stream"
         if let attachment = AttachmentStore.shared.save(data: data, filename: Self.sanitizedFilename(url.lastPathComponent), mimeType: mimeType, fileExtension: fileExtension) {
             attachments.append(attachment)
+            await autoFillFromImageAttachment(attachment)
+        }
+    }
+
+    /// A photo of a passport, an insurance card, or any other document is otherwise just a
+    /// picture sitting in the attachments list — someone still has to read it themselves and
+    /// retype the title/category/date/amount by hand. Running the same on-device OCR the camera
+    /// scanner already uses, then handing the recognized text through the exact same
+    /// AI-Autonomy-respecting extraction pipeline as typed input, means attaching the photo is
+    /// often enough on its own. Never touches a field the user (or an earlier auto-fill) already
+    /// put something into — this is "fill in the blanks," not "trust the photo over what's
+    /// already on screen." PDFs are skipped: Vision's text recognition reads image pixels, not a
+    /// PDF's text layer, so running it against page 1 of a multi-page PDF would silently ignore
+    /// the rest and likely mislead more than it'd help.
+    private func autoFillFromImageAttachment(_ attachment: Attachment) async {
+        guard attachment.mimeType.hasPrefix("image/"),
+              let uiImage = UIImage(contentsOfFile: AttachmentStore.shared.url(for: attachment).path) else { return }
+        let recognizedText = await Task.detached(priority: .userInitiated) {
+            TextRecognizer.recognizeText(in: uiImage)
+        }.value
+        guard recognizedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
+        let extracted = await store.extractFields(from: recognizedText)
+        applyAutoFill(extracted)
+    }
+
+    private func applyAutoFill(_ extracted: ExtractedItem) {
+        if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let extractedTitle = extracted.title, extractedTitle.isEmpty == false {
+            title = extractedTitle
+        }
+        if category == .other, let extractedCategory = extracted.category {
+            category = extractedCategory
+        }
+        if hasDueDate == false, let date = extracted.date {
+            hasDueDate = true
+            dueDate = date
+        }
+        if amountText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let amount = extracted.amount {
+            amountText = "\(amount)"
+        }
+        if currency.isEmpty, let extractedCurrency = extracted.currency {
+            currency = extractedCurrency
         }
     }
 
@@ -527,12 +682,17 @@ struct ItemDetailView: View {
     }
 
     private func save() async {
+        didFinish = true
         deleteFilesForRemovedAttachments()
         let before = currentItem
         var updated = fieldsApplied(to: before)
         updated.priority = PriorityEngine().priority(for: updated)
-        logPriceChangeIfNeeded(before: before, after: updated)
-        await store.update(updated)
+        if isNewDraft {
+            _ = await store.persistNewItem(updated)
+        } else {
+            logPriceChangeIfNeeded(before: before, after: updated)
+            await store.update(updated)
+        }
     }
 
     /// Until now, a renewal costing more than last time was only ever visible by reopening this
@@ -549,9 +709,28 @@ struct ItemDetailView: View {
     }
 
     private func markDone() async {
+        didFinish = true
         deleteFilesForRemovedAttachments()
         var updated = fieldsApplied(to: currentItem)
         updated.priority = PriorityEngine().priority(for: updated)
-        await store.markCompleted(updated)
+        if isNewDraft {
+            // Persist first (so the item actually exists in `store.items`), then run it through
+            // the same `markCompleted` every other "mark done" path uses — that's what schedules
+            // the next occurrence for a recurring checklist item (e.g. a suggested monthly bill)
+            // instead of duplicating that logic here.
+            let persisted = await store.persistNewItem(updated)
+            await store.markCompleted(persisted)
+        } else {
+            await store.markCompleted(updated)
+        }
+    }
+
+    private func reopen() async {
+        didFinish = true
+        deleteFilesForRemovedAttachments()
+        var updated = fieldsApplied(to: currentItem)
+        updated.status = .active
+        updated.priority = PriorityEngine().priority(for: updated)
+        await store.update(updated)
     }
 }

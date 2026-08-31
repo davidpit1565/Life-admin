@@ -10,14 +10,14 @@ import LifeAdminCore
 struct ChecklistView: View {
     @EnvironmentObject var store: ItemStore
     @AppStorage("checklistDismissedIDs") private var dismissedIDsRaw = ""
-    @State private var addingSuggestionID: String?
     // A suggestion carries no due date of its own (a passport or a car insurance renewal has no
-    // single obvious date the way typed free text often does) — `addFromChecklistSuggestion`
-    // already persists the item exactly like every other "just tell me" add, but with no due date
-    // set, ReminderEngine.notificationDates has nothing to schedule against. Reviewing it here
-    // immediately, the same way "ask every time" AI mode already reviews a freshly-added item
-    // before considering it done, is what actually gets a real reminder set instead of leaving a
-    // dateless item silently sitting with no reminders at all.
+    // single obvious date the way typed free text often does) — `draftItem(for:)` builds the item
+    // but deliberately doesn't persist it yet, so ReminderEngine.notificationDates has nothing to
+    // schedule against until this review screen actually saves it. Reviewing it here immediately,
+    // the same way "ask every time" AI mode already reviews a freshly-added item before
+    // considering it done, is what gets a real reminder set — and, since the draft is only
+    // persisted once Save/Mark Done is tapped, dismissing this sheet without either just discards
+    // it instead of leaving a blank, unreachable item behind.
     @State private var itemPendingReview: LifeAdminItem?
 
     private var dismissedIDs: Set<String> {
@@ -77,7 +77,7 @@ struct ChecklistView: View {
         .navigationTitle(String(localized: "checklist.title"))
         .sheet(item: $itemPendingReview) { item in
             NavigationStack {
-                ItemDetailView(item: item)
+                ItemDetailView(item: item, isNewDraft: true)
             }
         }
     }
@@ -94,25 +94,14 @@ struct ChecklistView: View {
             Spacer()
             if isCovered == false {
                 Button {
-                    Task {
-                        addingSuggestionID = suggestion.id
-                        let item = await store.addFromChecklistSuggestion(suggestion)
-                        addingSuggestionID = nil
-                        itemPendingReview = item
-                    }
+                    itemPendingReview = store.draftItem(for: suggestion)
                 } label: {
-                    if addingSuggestionID == suggestion.id {
-                        ProgressView()
-                            .frame(width: 44, height: 44)
-                    } else {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title2)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title2)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .disabled(addingSuggestionID != nil)
                 .accessibilityLabel(String(format: String(localized: "checklist.addSuggestion"), suggestionTitle))
             }
         }

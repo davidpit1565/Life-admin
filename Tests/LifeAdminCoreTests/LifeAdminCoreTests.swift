@@ -254,6 +254,27 @@ final class LifeAdminCoreTests: XCTestCase {
      let e = NaturalLanguageParser().parse("חידוש דרכון בעוד 3 ימים", now: now)
      XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: 3, to: now)!))
  }
+ // Regression test for a real bug found by a user: "remind me in 1 hour" wasn't understood as a
+ // relative date at all (only day/week/month/year granularity existed) — the bare "1" was instead
+ // misread as a $1 amount, with no due date set at all, silently defeating the whole reminder.
+ // Hour/minute granularity deliberately does NOT snap to the start of the day like every other
+ // unit here — "in 1 hour" means a specific moment, not "today".
+ func testInNHoursInEnglishIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("Remind me in 1 hour to have lunch", now: now)
+     XCTAssertEqual(e.date, Calendar.current.date(byAdding: .hour, value: 1, to: now))
+     XCTAssertNil(e.amount, "the bare \"1\" in \"1 hour\" must not be misread as a $1 amount")
+ }
+ func testInNMinutesInEnglishIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("Call the pharmacy in 30 minutes", now: now)
+     XCTAssertEqual(e.date, Calendar.current.date(byAdding: .minute, value: 30, to: now))
+ }
+ func testInAnHourInHebrewIsRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("תזכיר לי בעוד שעה להתקשר", now: now)
+     XCTAssertEqual(e.date, Calendar.current.date(byAdding: .hour, value: 1, to: now))
+ }
  func testNextWeekInHebrewIsRecognized() {
      let now = Date(timeIntervalSince1970: 1_700_000_000)
      let e = NaturalLanguageParser().parse("שכירות בעוד שבוע", now: now)

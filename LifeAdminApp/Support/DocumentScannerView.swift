@@ -1,6 +1,5 @@
 import SwiftUI
 import VisionKit
-import Vision
 import UIKit
 
 /// Wraps VisionKit's document scanner and runs on-device text recognition on every scanned page,
@@ -41,7 +40,7 @@ struct DocumentScannerView: UIViewControllerRepresentable {
             }
             let callback = onScanned
             DispatchQueue.global(qos: .userInitiated).async {
-                let recognizedText = images.compactMap(\.cgImage).map(Self.recognizeText).joined(separator: "\n")
+                let recognizedText = images.map(TextRecognizer.recognizeText).joined(separator: "\n")
                 DispatchQueue.main.async {
                     callback(recognizedText, images)
                 }
@@ -54,18 +53,6 @@ struct DocumentScannerView: UIViewControllerRepresentable {
 
         func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFailWithError error: Error) {
             onCancel()
-        }
-
-        private static func recognizeText(in cgImage: CGImage) -> String {
-            var result = ""
-            let request = VNRecognizeTextRequest { request, _ in
-                guard let observations = request.results as? [VNRecognizedTextObservation] else { return }
-                result = observations.compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
-            }
-            request.recognitionLevel = .accurate
-            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-            try? handler.perform([request])
-            return result
         }
     }
 }

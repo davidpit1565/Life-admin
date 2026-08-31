@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 import VisionKit
 import UIKit
 import UniformTypeIdentifiers
@@ -112,8 +113,12 @@ struct RootTabView: View {
         // system's own Photos/Files pickers this app now uses to attach a document, an incoming
         // call banner, Control Center — doesn't force re-authentication on its own. Real
         // re-authentication still only kicks in once the app actually reaches `.background`, below.
+        // `isLocked == false` here matters, not just for correctness: once the real lock screen
+        // is up (or about to come up), it already fully occludes everything on its own — layering
+        // this curtain underneath it too meant two competing pieces of UI updating on the exact
+        // same scenePhase transition that's also supposed to be firing Face ID as fast as possible.
         .overlay {
-            if appLockEnabled, scenePhase != .active {
+            if appLockEnabled, scenePhase != .active, isLocked == false {
                 PrivacyCurtainView()
             }
         }
@@ -299,9 +304,21 @@ private struct ItemRowLink: View {
                 }
                 .tint(.green)
             }
+            // Distinct from Delete: keeps the item (and its history) around, just off every
+            // everyday list — the "archive this without deleting it" pattern Reminders/Todoist
+            // both offer, which this app's data model already had an ItemStatus case for but
+            // nothing ever actually set.
+            if item.status != .archived {
+                Button {
+                    Task { await store.archive(item) }
+                } label: {
+                    Label(String(localized: "itemDetail.archive"), systemImage: "archivebox.fill")
+                }
+                .tint(.gray)
+            }
         }
-        // The same three actions as the swipe gesture, for anyone who didn't know to swipe (or
-        // is holding the phone in a way that makes swiping awkward) — a long press is the other
+        // The same actions as the swipe gesture, for anyone who didn't know to swipe (or is
+        // holding the phone in a way that makes swiping awkward) — a long press is the other
         // standard iOS discovery path for row actions.
         .contextMenu {
             if item.status == .active {
@@ -309,6 +326,13 @@ private struct ItemRowLink: View {
                     Task { await store.markCompleted(item) }
                 } label: {
                     Label(String(localized: "itemDetail.markDone"), systemImage: "checkmark.circle.fill")
+                }
+            }
+            if item.status != .archived {
+                Button {
+                    Task { await store.archive(item) }
+                } label: {
+                    Label(String(localized: "itemDetail.archive"), systemImage: "archivebox.fill")
                 }
             }
             Button(role: .destructive) {
@@ -342,13 +366,14 @@ private enum DateRangeFilter: String, CaseIterable {
 }
 
 private enum ItemSortOrder: String, CaseIterable {
-    case dueDate, alphabetical, amount
+    case dueDate, alphabetical, amount, priority
 
     var localizedLabel: String {
         switch self {
         case .dueDate: return String(localized: "items.sort.dueDate")
         case .alphabetical: return String(localized: "items.sort.alphabetical")
         case .amount: return String(localized: "items.sort.amount")
+        case .priority: return String(localized: "items.sort.priority")
         }
     }
 
@@ -359,6 +384,11 @@ private enum ItemSortOrder: String, CaseIterable {
         case .dueDate: return items.sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
         case .alphabetical: return items.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
         case .amount: return items.sorted { ($0.amount ?? -1) > ($1.amount ?? -1) }
+        // Priority is already the same colored dot shown on every row (ItemRow) — sorting by it
+        // directly surfaces "what's most urgent regardless of its raw due date", independent of
+        // dueDate sort's own ordering (a critical item with no due date at all would otherwise
+        // never rise to the top).
+        case .priority: return items.sorted { $0.priority > $1.priority }
         }
     }
 }
@@ -370,6 +400,12 @@ struct ItemsView: View {
     @State private var selectedPriorities: Set<Priority> = []
     @State private var selectedStatuses: Set<ItemStatus> = []
     @State private var dateRangeFilter: DateRangeFilter?
+    // SearchFilter.hasAttachment/hasPayment already existed and were already covered by
+    // SearchEngine's own tests — they just had no UI anywhere in this menu to actually turn them
+    // on. A plain on/off toggle (not exposing "only without") matches the far more common need:
+    // "show me what I have a receipt for" / "what actually has a dollar amount attached to it".
+    @State private var filterHasAttachment = false
+    @State private var filterHasPayment = false
     @State private var sortOrder: ItemSortOrder = .dueDate
     @State private var selection = Set<UUID>()
     @State private var showingBulkDeleteConfirmation = false
@@ -387,6 +423,8 @@ struct ItemsView: View {
             filter.dueFrom = bounds.from
             filter.dueTo = bounds.to
         }
+        filter.hasAttachment = filterHasAttachment ? true : nil
+        filter.hasPayment = filterHasPayment ? true : nil
         // SearchEngine only filters — without sorting here too, this list showed items in
         // whatever order they were created, not by what's actually coming up next, unlike Home's
         // own "upcoming" list right next to it.
@@ -394,7 +432,7 @@ struct ItemsView: View {
     }
 
     private var hasActiveFilters: Bool {
-        selectedCategories.isEmpty == false || selectedPriorities.isEmpty == false || selectedStatuses.isEmpty == false || dateRangeFilter != nil
+        selectedCategories.isEmpty == false || selectedPriorities.isEmpty == false || selectedStatuses.isEmpty == false || dateRangeFilter != nil || filterHasAttachment || filterHasPayment
     }
 
     var body: some View {
@@ -505,11 +543,13 @@ struct ItemsView: View {
                             }
                         }
                         Menu(String(localized: "items.filterByStatus")) {
-                            // .snoozed and .archived are part of the data model but nothing in the
-                            // app ever sets an item to either — offering them here would let
-                            // someone filter for "Snoozed" and get zero results forever, with no
-                            // way to tell that from "nothing happens to be snoozed right now".
-                            ForEach([ItemStatus.active, .completed], id: \.self) { status in
+                            // .snoozed is part of the data model but nothing in the app ever sets
+                            // an item to it — offering it here would let someone filter for
+                            // "Snoozed" and get zero results forever, with no way to tell that
+                            // from "nothing happens to be snoozed right now". .archived is now
+                            // real (the swipe/context-menu Archive action on ItemRowLink), so it
+                            // belongs here alongside the other statuses someone can actually reach.
+                            ForEach([ItemStatus.active, .completed, .archived], id: \.self) { status in
                                 Button {
                                     toggleStatus(status)
                                 } label: {
@@ -521,12 +561,32 @@ struct ItemsView: View {
                                 }
                             }
                         }
+                        Button {
+                            filterHasAttachment.toggle()
+                        } label: {
+                            if filterHasAttachment {
+                                Label(String(localized: "items.filterHasAttachment"), systemImage: "checkmark")
+                            } else {
+                                Text(String(localized: "items.filterHasAttachment"))
+                            }
+                        }
+                        Button {
+                            filterHasPayment.toggle()
+                        } label: {
+                            if filterHasPayment {
+                                Label(String(localized: "items.filterHasPayment"), systemImage: "checkmark")
+                            } else {
+                                Text(String(localized: "items.filterHasPayment"))
+                            }
+                        }
                         if hasActiveFilters {
                             Button(String(localized: "items.clearFilters"), role: .destructive) {
                                 selectedCategories = []
                                 selectedPriorities = []
                                 selectedStatuses = []
                                 dateRangeFilter = nil
+                                filterHasAttachment = false
+                                filterHasPayment = false
                             }
                         }
                     } label: {
@@ -634,6 +694,16 @@ struct CalendarView: View {
                 .safeAreaInset(edge: .bottom) { Color.clear.frame(height: FABLayout.listClearance) }
             }
             .navigationTitle(String(localized: "tab.calendar"))
+            .toolbar {
+                // Without this, someone who paged several months forward or back (checking a
+                // renewal date, say) had no quick way back — only manually paging the same
+                // distance in reverse, unlike Apple Calendar/Fantastical's own "Today" button.
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(String(localized: "calendar.today")) {
+                        selectedDate = Date()
+                    }
+                }
+            }
         }
     }
 }
@@ -668,45 +738,120 @@ struct InsightsView: View {
         return formatter.string(from: amount as NSDecimalNumber) ?? "\(amount)"
     }
 
+    /// Active items grouped by category — a bar chart's worth of "what's actually piling up",
+    /// deliberately a plain count rather than a total amount: items in different currencies can't
+    /// be summed into one meaningful number the way SpendEngine's own per-currency totals below
+    /// already handle correctly, but a category can always be counted regardless of currency.
+    private var categoryCounts: [(category: LifeCategory, count: Int)] {
+        let active = store.items.filter { $0.status == .active }
+        let grouped = Dictionary(grouping: active, by: \.category)
+        return grouped.map { (category: $0.key, count: $0.value.count) }.sorted { $0.count > $1.count }
+    }
+
+    /// Capped so someone whose items span most of `LifeCategory`'s 18 cases doesn't get a chart
+    /// several hundred points tall crammed into one List row — the categories left out are still
+    /// the smallest ones by definition (`categoryCounts` is sorted descending), so nothing more
+    /// than long-tail detail is what's actually being hidden.
+    private static let maxChartCategories = 8
+    private var chartedCategoryCounts: [(category: LifeCategory, count: Int)] {
+        Array(categoryCounts.prefix(Self.maxChartCategories))
+    }
+
     var body: some View {
         NavigationStack {
-            List {
-                LabeledContent {
-                    Text(store.items.count.formatted())
-                } label: {
-                    Label(String(localized: "insights.total"), systemImage: "tray.full.fill")
-                }
-                LabeledContent {
-                    Text(urgentCount.formatted())
-                        .foregroundStyle(urgentCount > 0 ? .red : .secondary)
-                } label: {
-                    Label(String(localized: "insights.urgent"), systemImage: "exclamationmark.triangle.fill")
-                }
-                LabeledContent {
-                    Text(upcomingWeekCount.formatted())
-                } label: {
-                    Label(String(localized: "insights.dueThisWeek"), systemImage: "calendar.badge.clock")
-                }
-                // Hiding this section entirely whenever nothing has both an amount and a due
-                // date this month looked exactly like the feature didn't exist at all, rather
-                // than like it correctly found nothing to total — showing it with an explicit
-                // zero removes that ambiguity.
-                Section(String(localized: "insights.dueThisMonth")) {
-                    if monthlyTotals.isEmpty {
-                        Text(String(localized: "insights.dueThisMonth.none"))
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(monthlyTotals, id: \.currency) { entry in
-                            LabeledContent(entry.currency.isEmpty ? String(localized: "itemDetail.currency.none") : entry.currency) {
-                                Text(formatted(entry.amount, currency: entry.currency))
+            // A screen that's nothing but a column of zeros (a brand-new install, before adding
+            // a single item) previously looked exactly like the feature was broken or empty —
+            // this is the same "explain what's here and what's still missing" treatment every
+            // other empty state in the app already gets.
+            if store.items.isEmpty {
+                ContentUnavailableView(
+                    String(localized: "insights.empty.title"),
+                    systemImage: "chart.bar.fill",
+                    description: Text(String(localized: "insights.empty.description"))
+                )
+            } else {
+                List {
+                    Text(String(localized: "insights.subtitle"))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .listRowSeparator(.hidden)
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        InsightStatCard(value: store.items.count, label: String(localized: "insights.total"), systemImage: "tray.full.fill", tint: .accentColor)
+                        InsightStatCard(value: urgentCount, label: String(localized: "insights.urgent"), systemImage: "exclamationmark.triangle.fill", tint: urgentCount > 0 ? .red : .secondary)
+                        InsightStatCard(value: upcomingWeekCount, label: String(localized: "insights.dueThisWeek"), systemImage: "calendar.badge.clock", tint: .blue)
+                    }
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    if categoryCounts.isEmpty == false {
+                        Section(String(localized: "insights.byCategory")) {
+                            Chart(chartedCategoryCounts, id: \.category) { entry in
+                                BarMark(
+                                    x: .value("Count", entry.count),
+                                    y: .value("Category", entry.category.displayName)
+                                )
+                                .foregroundStyle(entry.category.tintColor)
+                            }
+                            .frame(height: CGFloat(chartedCategoryCounts.count) * 32 + 20)
+                            // Swift Charts has no built-in VoiceOver readout of its own — this
+                            // gives the same information the bars show visually as one spoken
+                            // summary, rather than a chart VoiceOver can't describe at all.
+                            .accessibilityLabel(Text(chartedCategoryCounts.map { "\($0.category.displayName): \($0.count)" }.joined(separator: ", ")))
+                            if categoryCounts.count > chartedCategoryCounts.count {
+                                Text(String(format: String(localized: "insights.moreCategories"), categoryCounts.count - chartedCategoryCounts.count))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    // Hiding this section entirely whenever nothing has both an amount and a due
+                    // date this month looked exactly like the feature didn't exist at all, rather
+                    // than like it correctly found nothing to total — showing it with an explicit
+                    // zero removes that ambiguity.
+                    Section(String(localized: "insights.dueThisMonth")) {
+                        if monthlyTotals.isEmpty {
+                            Text(String(localized: "insights.dueThisMonth.none"))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(monthlyTotals, id: \.currency) { entry in
+                                LabeledContent(entry.currency.isEmpty ? String(localized: "itemDetail.currency.none") : entry.currency) {
+                                    Text(formatted(entry.amount, currency: entry.currency))
+                                }
                             }
                         }
                     }
                 }
+                .safeAreaInset(edge: .bottom) { Color.clear.frame(height: FABLayout.listClearance) }
             }
-            .navigationTitle(String(localized: "tab.insights"))
-            .safeAreaInset(edge: .bottom) { Color.clear.frame(height: FABLayout.listClearance) }
         }
+        .navigationTitle(String(localized: "tab.insights"))
+    }
+}
+private struct InsightStatCard: View {
+    let value: Int
+    let label: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.title2)
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+            Text(value.formatted())
+                .font(.title2.bold())
+                .foregroundStyle(.primary)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .combine)
     }
 }
 struct SettingsView: View {
@@ -866,11 +1011,13 @@ struct SettingsView: View {
             } message: {
                 Text(String(localized: "settings.deleteAllData.confirmMessage"))
             }
+            // `exit(0)` used to sit behind "Restart Now" here — self-terminating the process is
+            // indistinguishable from a crash to iOS (and to the user, mid-tap, with zero visual
+            // transition), and Apple's own guidelines discourage an app quitting itself. There is
+            // no supported way for an app to relaunch itself, so the honest fix is just telling
+            // the person to close and reopen it themselves, same as this message now says.
             .alert(String(localized: "settings.language.restartTitle"), isPresented: $showingRestartNotice) {
-                Button(String(localized: "settings.language.restartNow"), role: .destructive) {
-                    exit(0)
-                }
-                Button(String(localized: "settings.language.later"), role: .cancel) {}
+                Button(String(localized: "common.ok")) {}
             } message: {
                 Text(String(localized: "settings.language.restartMessage"))
             }
@@ -944,6 +1091,10 @@ struct AddItemView: View {
     @State var text = ""
     @State private var isSaving = false
     @State private var itemPendingReview: LifeAdminItem?
+    // Whether `itemPendingReview` has ever been written to SwiftData yet — false for a brand new
+    // AI/local-parser guess under "ask every time" (persisted only once Save/Mark Done is tapped
+    // there), true when it's really a preview of merging into an existing already-persisted item.
+    @State private var itemPendingReviewIsNewDraft = false
     @State private var showingScanner = false
     @State private var pendingAttachments: [Attachment] = []
     // Recognized text from a scanned document (a passport, an ID card) can contain far more
@@ -968,7 +1119,7 @@ struct AddItemView: View {
     var body: some View {
         NavigationStack {
             if let item = itemPendingReview {
-                ItemDetailView(item: item)
+                ItemDetailView(item: item, isNewDraft: itemPendingReviewIsNewDraft)
             } else {
                 Form {
                     Section(String(localized: "add.justTellMe")) {
@@ -1045,12 +1196,15 @@ struct AddItemView: View {
                                 let outcome = await store.add(text: text, attachments: pendingAttachments, containsScannedText: textIncludesScannedContent)
                                 isSaving = false
                                 switch outcome {
-                                case .pendingReview(let item):
-                                    // "Ask every time" mode leaves the new item in place but
-                                    // pending review — swap this same sheet over to editing it
-                                    // instead of dismissing, rather than silently trusting the
-                                    // AI's guess.
+                                case .pendingReview(let item, let isNewDraft):
+                                    // "Ask every time" mode holds the new item back as an
+                                    // unpersisted draft (or an unapplied merge preview) pending
+                                    // review — swap this same sheet over to editing it instead of
+                                    // dismissing, rather than silently trusting the AI's guess.
+                                    // Nothing is written to SwiftData, notifications, or the
+                                    // calendar until that review screen's own Save/Mark Done runs.
                                     itemPendingReview = item
+                                    itemPendingReviewIsNewDraft = isNewDraft
                                 case .added(let item, let merged):
                                     // Auto mode saves instantly with no review step — without a
                                     // visible "here's what we understood" moment, tapping Save
