@@ -33,6 +33,11 @@ struct ItemDetailView: View {
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var showingFileImporter = false
     @State private var isImportingAttachment = false
+    // Set right before any of save()/markDone()/reopen()/the Delete confirmation actually
+    // commits — lets `.onDisappear` below tell "the user finished with this screen" apart from
+    // "the user swiped it away", so it only cleans up abandoned attachment files in the latter
+    // case (see `discardAbandonedAttachments`).
+    @State private var didFinish = false
     @AppStorage("appLockEnabled") private var appLockEnabled = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // Reset every time this view is freshly opened (a new instance, a new empty Set) rather than
@@ -336,6 +341,14 @@ struct ItemDetailView: View {
             }
         }
         .navigationTitle(title.isEmpty ? item.title : title)
+        // Every attachment source here (Photos, Files, the document scanner) writes its file to
+        // disk the moment it's picked, same timing as AddItemView's own scanner — swiping this
+        // whole screen away instead of tapping Save/Mark Done/Delete would otherwise leave that
+        // file behind forever with nothing left pointing at it.
+        .onDisappear {
+            guard didFinish == false else { return }
+            discardAbandonedAttachments()
+        }
         .sheet(isPresented: $showingContactPicker) {
             ContactPickerView { contact in
                 apply(contact)
@@ -524,6 +537,20 @@ struct ItemDetailView: View {
         }
     }
 
+    /// The mirror image of `deleteFilesForRemovedAttachments`: cleans up on-disk files for
+    /// attachments added during this screen's session (via the photo/file picker or the document
+    /// scanner) that were never actually committed, because the screen was dismissed some other
+    /// way than Save/Mark Done/Delete. Comparing against `item.attachments` — this view's original
+    /// snapshot — rather than the store's current copy is deliberate: it's exactly the set this
+    /// particular session added, regardless of anything else that changed the real item elsewhere
+    /// while this screen was open.
+    private func discardAbandonedAttachments() {
+        let abandoned = attachments.filter { item.attachments.contains($0) == false }
+        for attachment in abandoned {
+            AttachmentStore.shared.delete(attachment)
+        }
+    }
+
     /// Neither picker enforces a size limit of its own — an accidentally-selected multi-page PDF
     /// scan or a RAW/ProRes-adjacent photo could otherwise load tens or hundreds of megabytes
     /// fully into memory (`Data(contentsOf:)`/`loadTransferable` both read the whole file at
@@ -625,12 +652,12 @@ struct ItemDetailView: View {
     }
 
     private func save() async {
+        didFinish = true
         deleteFilesForRemovedAttachments()
         let before = currentItem
         var updated = fieldsApplied(to: before)
         updated.priority = PriorityEngine().priority(for: updated)
         if isNewDraft {
-            ActivityLog.shared.record(String(format: String(localized: "activityLog.addedFromChecklist"), updated.title))
             _ = await store.persistNewItem(updated)
         } else {
             logPriceChangeIfNeeded(before: before, after: updated)
@@ -652,6 +679,7 @@ struct ItemDetailView: View {
     }
 
     private func markDone() async {
+        didFinish = true
         deleteFilesForRemovedAttachments()
         var updated = fieldsApplied(to: currentItem)
         updated.priority = PriorityEngine().priority(for: updated)
@@ -660,7 +688,6 @@ struct ItemDetailView: View {
             // the same `markCompleted` every other "mark done" path uses — that's what schedules
             // the next occurrence for a recurring checklist item (e.g. a suggested monthly bill)
             // instead of duplicating that logic here.
-            ActivityLog.shared.record(String(format: String(localized: "activityLog.addedFromChecklist"), updated.title))
             let persisted = await store.persistNewItem(updated)
             await store.markCompleted(persisted)
         } else {
@@ -669,6 +696,7 @@ struct ItemDetailView: View {
     }
 
     private func reopen() async {
+        didFinish = true
         deleteFilesForRemovedAttachments()
         var updated = fieldsApplied(to: currentItem)
         updated.status = .active

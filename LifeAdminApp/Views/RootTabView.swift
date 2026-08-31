@@ -1091,6 +1091,10 @@ struct AddItemView: View {
     @State var text = ""
     @State private var isSaving = false
     @State private var itemPendingReview: LifeAdminItem?
+    // Whether `itemPendingReview` has ever been written to SwiftData yet — false for a brand new
+    // AI/local-parser guess under "ask every time" (persisted only once Save/Mark Done is tapped
+    // there), true when it's really a preview of merging into an existing already-persisted item.
+    @State private var itemPendingReviewIsNewDraft = false
     @State private var showingScanner = false
     @State private var pendingAttachments: [Attachment] = []
     // Recognized text from a scanned document (a passport, an ID card) can contain far more
@@ -1115,7 +1119,7 @@ struct AddItemView: View {
     var body: some View {
         NavigationStack {
             if let item = itemPendingReview {
-                ItemDetailView(item: item)
+                ItemDetailView(item: item, isNewDraft: itemPendingReviewIsNewDraft)
             } else {
                 Form {
                     Section(String(localized: "add.justTellMe")) {
@@ -1192,12 +1196,15 @@ struct AddItemView: View {
                                 let outcome = await store.add(text: text, attachments: pendingAttachments, containsScannedText: textIncludesScannedContent)
                                 isSaving = false
                                 switch outcome {
-                                case .pendingReview(let item):
-                                    // "Ask every time" mode leaves the new item in place but
-                                    // pending review — swap this same sheet over to editing it
-                                    // instead of dismissing, rather than silently trusting the
-                                    // AI's guess.
+                                case .pendingReview(let item, let isNewDraft):
+                                    // "Ask every time" mode holds the new item back as an
+                                    // unpersisted draft (or an unapplied merge preview) pending
+                                    // review — swap this same sheet over to editing it instead of
+                                    // dismissing, rather than silently trusting the AI's guess.
+                                    // Nothing is written to SwiftData, notifications, or the
+                                    // calendar until that review screen's own Save/Mark Done runs.
                                     itemPendingReview = item
+                                    itemPendingReviewIsNewDraft = isNewDraft
                                 case .added(let item, let merged):
                                     // Auto mode saves instantly with no review step — without a
                                     // visible "here's what we understood" moment, tapping Save

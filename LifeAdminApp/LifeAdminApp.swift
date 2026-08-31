@@ -70,7 +70,14 @@ struct LifeAdminApp: App {
 /// or was already saved as-is — AddItemView uses this to decide whether to show a review screen
 /// or a brief "here's what we understood" confirmation before closing.
 enum AddOutcome {
-    case pendingReview(LifeAdminItem)
+    /// `isNewDraft` is true when this is a brand new, never-persisted item (so the review screen
+    /// must persist it for the first time on Save); false when it's a preview of merging into an
+    /// existing active item that already exists in `ItemStore.items` (so Save should update that
+    /// real item in place instead). Either way nothing is written to SwiftData, scheduled, or
+    /// synced to the calendar until the review screen's own Save/Mark Done actually runs — unlike
+    /// every other outcome below, which is already fully committed by the time AddItemView sees
+    /// it. Swiping this review sheet away without saving must leave no trace behind.
+    case pendingReview(LifeAdminItem, isNewDraft: Bool)
     /// `merged` is true when this text matched an existing active item closely enough to update
     /// it in place instead of creating a near-duplicate — the confirmation banner says so instead
     /// of looking indistinguishable from a brand new item.
@@ -161,7 +168,7 @@ final class ItemStore: ObservableObject {
     /// fields (`ItemDetailView`'s attachment auto-fill: OCR text from a just-added passport/
     /// insurance photo). Goes through the exact same `autonomyMode`/consent gate as every other
     /// AI use in the app — "Off" never reaches Gemini here either, and "Ask me first" still means
-    /// only the local parser runs, same as `addOneEntry`.
+    /// only the local parser runs, same as `buildCandidate`.
     func extractFields(from text: String) async -> ExtractedItem {
         let mode = autonomyMode
         let decision = mode == .disabled ? aiService.extractLocalOnly(text) : await aiService.extract(text)
@@ -180,8 +187,18 @@ final class ItemStore: ObservableObject {
         let mode = containsScannedText ? .disabled : autonomyMode
         let entries = NaturalLanguageParser.splitEntries(text)
         guard entries.count > 1 else {
-            let result = await addOneEntry(text: text, attachments: attachments, mode: mode)
-            return mode == .askEveryTime ? .pendingReview(result.item) : .added(result.item, merged: result.wasMerged)
+            // "Ask every time" builds the candidate but deliberately stops short of persisting it
+            // — see the comment on `AddOutcome.pendingReview`. Every other mode commits right away,
+            // exactly like before.
+            let candidate = await buildCandidate(text: text, attachments: attachments, mode: mode)
+            if mode == .askEveryTime {
+                switch candidate {
+                case .new(let item): return .pendingReview(item, isNewDraft: true)
+                case .merge(let merged): return .pendingReview(merged, isNewDraft: false)
+                }
+            }
+            let result = await commitCandidate(candidate)
+            return .added(result.item, merged: result.wasMerged)
         }
         // A pasted list ("Rent $1200\nGym $40\nNetflix $17") always saves every line directly,
         // regardless of "ask every time" — reviewing N pasted items one at a time would be more
@@ -190,7 +207,8 @@ final class ItemStore: ObservableObject {
         var addedItems: [LifeAdminItem] = []
         for (index, entry) in entries.enumerated() {
             let entryAttachments = index == 0 ? attachments : []
-            addedItems.append(await addOneEntry(text: entry, attachments: entryAttachments, mode: mode).item)
+            let candidate = await buildCandidate(text: entry, attachments: entryAttachments, mode: mode)
+            addedItems.append(await commitCandidate(candidate).item)
         }
         return .addedMultiple(addedItems)
     }
@@ -200,7 +218,16 @@ final class ItemStore: ObservableObject {
         let wasMerged: Bool
     }
 
-    private func addOneEntry(text: String, attachments: [Attachment], mode: AIProcessingMode) async -> AddOneEntryResult {
+    /// Everything `add(text:)` used to decide about one line of input before committing anything:
+    /// either a brand new item, or a computed merge into an existing active item (same `id` as
+    /// that existing item). Building this never touches SwiftData, notifications, or the calendar
+    /// — see `commitCandidate`, the only place that actually does.
+    private enum AddCandidate {
+        case new(LifeAdminItem)
+        case merge(LifeAdminItem)
+    }
+
+    private func buildCandidate(text: String, attachments: [Attachment], mode: AIProcessingMode) async -> AddCandidate {
         let decision = mode == .disabled ? aiService.extractLocalOnly(text) : await aiService.extract(text)
         let extracted = decision.item
         var item = LifeAdminItem(
@@ -238,9 +265,7 @@ final class ItemStore: ObservableObject {
             merged.attachments += item.attachments
             merged.updatedAt = Date()
             merged.priority = PriorityEngine().priority(for: merged)
-            ActivityLog.shared.record(String(format: String(localized: "activityLog.merged"), merged.title))
-            await update(merged)
-            return AddOneEntryResult(item: merged, wasMerged: true)
+            return .merge(merged)
         }
 
         // A recurring bill mentioned again months later rarely repeats the contact info the user
@@ -250,13 +275,24 @@ final class ItemStore: ObservableObject {
             ActivityLog.shared.record(String(format: String(localized: "activityLog.contactAutoFilled"), item.title))
         }
 
-        return AddOneEntryResult(item: await persistNewItem(item), wasMerged: false)
+        return .new(item)
+    }
+
+    private func commitCandidate(_ candidate: AddCandidate) async -> AddOneEntryResult {
+        switch candidate {
+        case .merge(let merged):
+            ActivityLog.shared.record(String(format: String(localized: "activityLog.merged"), merged.title))
+            await update(merged)
+            return AddOneEntryResult(item: merged, wasMerged: true)
+        case .new(let item):
+            return AddOneEntryResult(item: await persistNewItem(item), wasMerged: false)
+        }
     }
 
     /// The second half of adding an item once its title/category/recurrence/etc. are already
-    /// decided — shared by `addOneEntry` (decided by AI/local NL parsing) and `ItemDetailView`
-    /// (saving a checklist-suggested draft for the first time) so persistence, scheduling, and
-    /// calendar sync only exist in one place.
+    /// decided — shared by `commitCandidate` (decided by AI/local NL parsing) and `ItemDetailView`
+    /// (saving a checklist-suggested or "ask every time" draft for the first time) so persistence,
+    /// scheduling, and calendar sync only exist in one place.
     func persistNewItem(_ item: LifeAdminItem) async -> LifeAdminItem {
         let persisted = PersistedItem(item: item)
         modelContext.insert(persisted)
@@ -295,6 +331,13 @@ final class ItemStore: ObservableObject {
             reminderOffsets: ReminderEngine.defaultOffsets(for: suggestion.category)
         )
         item.priority = PriorityEngine().priority(for: item)
+        // Logged here rather than once the draft is actually saved: it's a purely informational
+        // log entry (unlike persistence, scheduling, or calendar sync, it has no real-world
+        // effect to undo), and the alternative — threading "this came from the checklist" all the
+        // way through ItemDetailView's save()/markDone(), which also serves the unrelated "ask
+        // every time" AI review draft — would risk misattributing the wrong entry to the wrong
+        // source.
+        ActivityLog.shared.record(String(format: String(localized: "activityLog.addedFromChecklist"), item.title))
         return item
     }
 
