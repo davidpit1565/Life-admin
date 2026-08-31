@@ -28,6 +28,7 @@
 "settings.importSucceeded" = "%d件の項目をインポートしました。";
 "settings.importNothingNew" = "新しくインポートするものはありません。このファイルの内容はすでに登録済みです。";
 "settings.deleteAIData" = "AIデータを削除";
+"settings.deleteAllData" = "すべてのデータを削除";
 "appLock.toggle" = "Face ID／パスコードを要求";
 "appLock.reason" = "Life Adminのロックを解除";
 "appLock.title" = "Life Adminはロックされています";
@@ -111,6 +112,7 @@
 "itemDetail.deleteConfirm" = "この項目を削除しますか？関連するカレンダーの予定とリマインダーも削除されます。";
 "items.deleteSelectedConfirm" = "%d件の項目を削除しますか？関連するカレンダーの予定とリマインダーも削除されます。";
 "calendar.noItemsThisDay" = "この日に期限のある項目はありません";
+"calendarSync.warning" = "カレンダーに追加されませんでした。設定でカレンダーへのアクセスを許可してください。";
 "notification.digestTitle" = "今日の優先事項";
 "notification.digestOverdue" = "%d件の項目が期限切れです";
 "notification.digestDueToday" = "%d件の項目が本日が期限です";
@@ -177,6 +179,8 @@
 "onboarding.next" = "次へ";
 "onboarding.getStarted" = "はじめる";
 "settings.deleteAIData.confirm" = "AIのアクティビティログを削除しますか？この操作は元に戻せません。";
+"settings.deleteAllData.confirmTitle" = "すべてのデータを削除しますか？";
+"settings.deleteAllData.confirmMessage" = "これにより、追加したすべての請求書、サブスクリプション、予定、項目が完全に削除されます。AIの履歴だけではありません。この操作は元に戻せません。";
 "activityLog.addressUpdateSent" = "住所変更の通知を送信しました: %@";
 "items.filterByStatus" = "状態で絞り込み";
 "itemDetail.markDone" = "完了にする";

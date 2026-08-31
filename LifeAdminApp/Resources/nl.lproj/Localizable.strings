@@ -28,6 +28,7 @@
 "settings.importSucceeded" = "%d item(s) geïmporteerd.";
 "settings.importNothingNew" = "Niets nieuws om te importeren — alles in dat bestand staat hier al.";
 "settings.deleteAIData" = "AI-gegevens verwijderen";
+"settings.deleteAllData" = "Al mijn gegevens verwijderen";
 "appLock.toggle" = "Face ID / toegangscode vereisen";
 "appLock.reason" = "Life Admin ontgrendelen";
 "appLock.title" = "Life Admin is vergrendeld";
@@ -111,6 +112,7 @@
 "itemDetail.deleteConfirm" = "Dit item verwijderen? Hiermee worden ook het bijbehorende agenda-item en de herinnering verwijderd.";
 "items.deleteSelectedConfirm" = "%d items verwijderen? Hiermee worden ook hun agenda-items en herinneringen verwijderd.";
 "calendar.noItemsThisDay" = "Niets vervalt op deze dag";
+"calendarSync.warning" = "Niet toegevoegd aan je agenda — controleer Instellingen om agendatoegang toe te staan.";
 "notification.digestTitle" = "Prioriteiten van vandaag";
 "notification.digestOverdue" = "%d item(s) zijn te laat";
 "notification.digestDueToday" = "%d item(s) vervallen vandaag";
@@ -177,6 +179,8 @@
 "onboarding.next" = "Volgende";
 "onboarding.getStarted" = "Aan de slag";
 "settings.deleteAIData.confirm" = "Het AI-activiteitenlogboek verwijderen? Dit kan niet ongedaan worden gemaakt.";
+"settings.deleteAllData.confirmTitle" = "Al je gegevens verwijderen?";
+"settings.deleteAllData.confirmMessage" = "Dit verwijdert permanent elke rekening, elk abonnement, elke afspraak en elk item dat je hebt toegevoegd — niet alleen de AI-geschiedenis. Dit kan niet ongedaan worden gemaakt.";
 "activityLog.addressUpdateSent" = "Adreswijziging verzonden voor: %@";
 "items.filterByStatus" = "Op status";
 "itemDetail.markDone" = "Markeer als klaar";

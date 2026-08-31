@@ -28,6 +28,7 @@
 "settings.importSucceeded" = "%d élément(s) importé(s).";
 "settings.importNothingNew" = "Rien de nouveau à importer — tout ce fichier est déjà présent ici.";
 "settings.deleteAIData" = "Supprimer les données d'IA";
+"settings.deleteAllData" = "Supprimer toutes mes données";
 "appLock.toggle" = "Exiger Face ID / code d'accès";
 "appLock.reason" = "Déverrouiller Life Admin";
 "appLock.title" = "Life Admin est verrouillée";
@@ -111,6 +112,7 @@
 "itemDetail.deleteConfirm" = "Supprimer cet élément ? Cela supprime aussi son événement de calendrier et son rappel.";
 "items.deleteSelectedConfirm" = "Supprimer %d éléments ? Cela supprime aussi leurs événements de calendrier et rappels.";
 "calendar.noItemsThisDay" = "Rien à échéance ce jour";
+"calendarSync.warning" = "Non ajouté à votre calendrier — vérifiez les réglages pour autoriser l'accès au calendrier.";
 "notification.digestTitle" = "Priorités du jour";
 "notification.digestOverdue" = "%d élément(s) en retard";
 "notification.digestDueToday" = "%d élément(s) à échéance aujourd'hui";
@@ -177,6 +179,8 @@
 "onboarding.next" = "Suivant";
 "onboarding.getStarted" = "Commencer";
 "settings.deleteAIData.confirm" = "Supprimer le journal d'activité de l'IA ? Cette action est irréversible.";
+"settings.deleteAllData.confirmTitle" = "Supprimer toutes vos données ?";
+"settings.deleteAllData.confirmMessage" = "Cette action supprime définitivement toutes les factures, tous les abonnements, rendez-vous et éléments que vous avez ajoutés, pas seulement l'historique de l'IA. Cette action est irréversible.";
 "activityLog.addressUpdateSent" = "Mise à jour d'adresse envoyée pour : %@";
 "items.filterByStatus" = "Par statut";
 "itemDetail.markDone" = "Marquer comme fait";

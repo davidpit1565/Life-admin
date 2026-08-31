@@ -28,6 +28,7 @@
 "settings.importSucceeded" = "Imported %d item(s).";
 "settings.importNothingNew" = "Nothing new to import — everything in that file is already here.";
 "settings.deleteAIData" = "Delete AI data";
+"settings.deleteAllData" = "Delete All My Data";
 "appLock.toggle" = "Require Face ID / Passcode";
 "appLock.reason" = "Unlock Life Admin";
 "appLock.title" = "Life Admin is locked";
@@ -111,6 +112,7 @@
 "itemDetail.deleteConfirm" = "Delete this item? This also removes its calendar event and reminder.";
 "items.deleteSelectedConfirm" = "Delete %d items? This also removes their calendar events and reminders.";
 "calendar.noItemsThisDay" = "Nothing due on this day";
+"calendarSync.warning" = "Not added to your calendar — check Settings to allow calendar access.";
 "notification.digestTitle" = "Today's priorities";
 "notification.digestOverdue" = "%d item(s) are overdue";
 "notification.digestDueToday" = "%d item(s) due today";
@@ -177,6 +179,8 @@
 "onboarding.next" = "Next";
 "onboarding.getStarted" = "Get Started";
 "settings.deleteAIData.confirm" = "Delete the AI activity log? This cannot be undone.";
+"settings.deleteAllData.confirmTitle" = "Delete all your data?";
+"settings.deleteAllData.confirmMessage" = "This permanently deletes every bill, subscription, appointment, and item you've added — not just your AI history. This cannot be undone.";
 "activityLog.addressUpdateSent" = "Address update sent for: %@";
 "items.filterByStatus" = "By Status";
 "itemDetail.markDone" = "Mark as Done";

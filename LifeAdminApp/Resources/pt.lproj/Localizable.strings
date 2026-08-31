@@ -28,6 +28,7 @@
 "settings.importSucceeded" = "%d item(ns) importado(s).";
 "settings.importNothingNew" = "Nada de novo para importar — tudo neste ficheiro já está aqui.";
 "settings.deleteAIData" = "Eliminar dados de IA";
+"settings.deleteAllData" = "Eliminar todos os meus dados";
 "appLock.toggle" = "Exigir Face ID / código";
 "appLock.reason" = "Desbloquear o Life Admin";
 "appLock.title" = "O Life Admin está bloqueado";
@@ -111,6 +112,7 @@
 "itemDetail.deleteConfirm" = "Eliminar este item? Isto também remove o seu evento no calendário e o lembrete.";
 "items.deleteSelectedConfirm" = "Eliminar %d itens? Isto também remove os seus eventos no calendário e lembretes.";
 "calendar.noItemsThisDay" = "Nada a vencer neste dia";
+"calendarSync.warning" = "Não foi adicionado ao seu calendário — verifique as Definições para permitir o acesso ao calendário.";
 "notification.digestTitle" = "Prioridades de hoje";
 "notification.digestOverdue" = "%d item(ns) em atraso";
 "notification.digestDueToday" = "%d item(ns) a vencer hoje";
@@ -177,6 +179,8 @@
 "onboarding.next" = "Seguinte";
 "onboarding.getStarted" = "Começar";
 "settings.deleteAIData.confirm" = "Eliminar o registo de atividade da IA? Esta ação não pode ser anulada.";
+"settings.deleteAllData.confirmTitle" = "Eliminar todos os seus dados?";
+"settings.deleteAllData.confirmMessage" = "Esta ação elimina permanentemente todas as faturas, subscrições, compromissos e itens que adicionou — não apenas o histórico de IA. Esta ação não pode ser anulada.";
 "activityLog.addressUpdateSent" = "Atualização de morada enviada para: %@";
 "items.filterByStatus" = "Por estado";
 "itemDetail.markDone" = "Marcar como concluído";

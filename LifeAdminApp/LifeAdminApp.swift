@@ -217,6 +217,7 @@ final class ItemStore: ObservableObject {
         persisted.calendarEventIdentifier = sync.eventIdentifier
         persisted.reminderIdentifier = sync.reminderIdentifier
         try? modelContext.save()
+        flagCalendarSyncIssueIfNeeded(dueDate: item.dueDate, eventIdentifier: sync.eventIdentifier)
 
         await refreshDigest()
         return AddOneEntryResult(item: item, wasMerged: false)
@@ -244,9 +245,26 @@ final class ItemStore: ObservableObject {
         persisted.calendarEventIdentifier = sync.eventIdentifier
         persisted.reminderIdentifier = sync.reminderIdentifier
         try? modelContext.save()
+        flagCalendarSyncIssueIfNeeded(dueDate: item.dueDate, eventIdentifier: sync.eventIdentifier)
 
         await NotificationScheduler.shared.schedule(for: item)
         await refreshDigest()
+    }
+
+    /// Non-blocking, self-dismissing notice (rendered by RootTabView) for the one case that used
+    /// to fail in total silence: a sync just ran for an item with a due date, produced no calendar
+    /// event, and Calendar access genuinely isn't fully granted. Never fires for an item with no
+    /// due date, or once access is fully granted, so it can't nag someone who never wanted this
+    /// feature synced in the first place.
+    private func flagCalendarSyncIssueIfNeeded(dueDate: Date?, eventIdentifier: String?) {
+        guard dueDate != nil, eventIdentifier == nil, CalendarSyncService.hasFullCalendarAccess() == false else { return }
+        calendarSyncWarningTask?.cancel()
+        calendarSyncWarningVisible = true
+        calendarSyncWarningTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4))
+            guard Task.isCancelled == false else { return }
+            self?.calendarSyncWarningVisible = false
+        }
     }
 
     private func fetchPersisted(_ id: UUID) -> PersistedItem? {
@@ -293,6 +311,11 @@ final class ItemStore: ObservableObject {
     @Published var pendingUndo: LifeAdminItem?
     private var pendingDeletions: [UUID: Task<Void, Never>] = [:]
 
+    /// Drives the brief, self-dismissing "not added to your calendar" banner in RootTabView —
+    /// see `flagCalendarSyncIssueIfNeeded` below.
+    @Published var calendarSyncWarningVisible = false
+    private var calendarSyncWarningTask: Task<Void, Never>?
+
     /// Removes `item` from view immediately, so a swipe-to-delete feels instant, but defers the
     /// destructive part — freeing attachment files, canceling notifications, removing the
     /// SwiftData record — for a few seconds, so `undoDelete` can put it back with nothing lost.
@@ -337,6 +360,37 @@ final class ItemStore: ObservableObject {
         item.attachments.forEach(AttachmentStore.shared.delete)
         await NotificationScheduler.shared.cancel(for: item.id)
         items.removeAll { $0.id == item.id }
+        await refreshDigest()
+    }
+
+    /// Settings > "Delete All My Data" — a full, irreversible wipe of every item, unlike
+    /// `delete(_:)`/`scheduleDelete(_:)` there is no undo. Runs the same per-item cleanup
+    /// `delete(_:)` already does (calendar event/reminder removal, notification cancellation,
+    /// attachment files) for every item, then sweeps the model context directly so every
+    /// `PersistedItem` is gone even if it somehow drifted out of sync with `items`.
+    func deleteAllData() async {
+        // A delete already in its undo window would otherwise still fire after this finishes and
+        // look up a persisted row that's already gone — harmless (its own guards no-op), but
+        // cancelling it here avoids any latent Task outliving a full wipe.
+        pendingDeletions.values.forEach { $0.cancel() }
+        pendingDeletions = [:]
+        pendingUndo = nil
+
+        for item in items {
+            if let persisted = fetchPersisted(item.id) {
+                var cleared = item
+                cleared.dueDate = nil
+                _ = CalendarSyncService.shared.sync(item: cleared, existingEventID: persisted.calendarEventIdentifier, existingReminderID: persisted.reminderIdentifier)
+            }
+            item.attachments.forEach(AttachmentStore.shared.delete)
+            await NotificationScheduler.shared.cancel(for: item.id)
+        }
+
+        let allPersisted = (try? modelContext.fetch(FetchDescriptor<PersistedItem>())) ?? []
+        allPersisted.forEach(modelContext.delete)
+        try? modelContext.save()
+
+        items = []
         await refreshDigest()
     }
 

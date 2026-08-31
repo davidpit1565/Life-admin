@@ -28,6 +28,7 @@
 "settings.importSucceeded" = "已导入 %d 项。";
 "settings.importNothingNew" = "没有新内容可导入——该文件中的内容已全部存在。";
 "settings.deleteAIData" = "删除 AI 数据";
+"settings.deleteAllData" = "删除我的所有数据";
 "appLock.toggle" = "需要 Face ID／密码";
 "appLock.reason" = "解锁 Life Admin";
 "appLock.title" = "Life Admin 已锁定";
@@ -111,6 +112,7 @@
 "itemDetail.deleteConfirm" = "确定删除此事项？相关的日历事件和提醒事项也会一并删除。";
 "items.deleteSelectedConfirm" = "确定删除这 %d 项？相关的日历事件和提醒事项也会一并删除。";
 "calendar.noItemsThisDay" = "这一天没有到期事项";
+"calendarSync.warning" = "未添加到日历 — 请在设置中允许日历访问权限。";
 "notification.digestTitle" = "今日优先事项";
 "notification.digestOverdue" = "有 %d 项已逾期";
 "notification.digestDueToday" = "有 %d 项今天到期";
@@ -177,6 +179,8 @@
 "onboarding.next" = "下一步";
 "onboarding.getStarted" = "开始使用";
 "settings.deleteAIData.confirm" = "要删除 AI 活动记录吗？此操作无法撤销。";
+"settings.deleteAllData.confirmTitle" = "删除所有数据？";
+"settings.deleteAllData.confirmMessage" = "此操作将永久删除您添加的所有账单、订阅、预约和项目，而不仅仅是 AI 记录。此操作无法撤销。";
 "activityLog.addressUpdateSent" = "已发送地址变更通知：%@";
 "items.filterByStatus" = "按状态";
 "itemDetail.markDone" = "标记为完成";

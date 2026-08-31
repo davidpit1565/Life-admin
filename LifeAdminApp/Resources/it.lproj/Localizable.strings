@@ -28,6 +28,7 @@
 "settings.importSucceeded" = "%d elemento/i importato/i.";
 "settings.importNothingNew" = "Niente da importare: tutto ciò che contiene questo file è già presente.";
 "settings.deleteAIData" = "Elimina dati IA";
+"settings.deleteAllData" = "Elimina tutti i miei dati";
 "appLock.toggle" = "Richiedi Face ID / codice";
 "appLock.reason" = "Sblocca Life Admin";
 "appLock.title" = "Life Admin è bloccato";
@@ -111,6 +112,7 @@
 "itemDetail.deleteConfirm" = "Eliminare questa voce? Verranno rimossi anche l'evento in calendario e il promemoria collegati.";
 "items.deleteSelectedConfirm" = "Eliminare %d voci? Verranno rimossi anche i relativi eventi in calendario e promemoria.";
 "calendar.noItemsThisDay" = "Nessuna scadenza in questo giorno";
+"calendarSync.warning" = "Non aggiunto al calendario — controlla le Impostazioni per consentire l'accesso al calendario.";
 "notification.digestTitle" = "Priorità di oggi";
 "notification.digestOverdue" = "%d voce/i scaduta/e";
 "notification.digestDueToday" = "%d voce/i in scadenza oggi";
@@ -177,6 +179,8 @@
 "onboarding.next" = "Avanti";
 "onboarding.getStarted" = "Inizia";
 "settings.deleteAIData.confirm" = "Eliminare il registro attività dell'IA? Questa azione non può essere annullata.";
+"settings.deleteAllData.confirmTitle" = "Eliminare tutti i tuoi dati?";
+"settings.deleteAllData.confirmMessage" = "Questa azione elimina definitivamente ogni bolletta, abbonamento, appuntamento ed elemento aggiunto, non solo la cronologia dell'IA. Questa azione non può essere annullata.";
 "activityLog.addressUpdateSent" = "Aggiornamento di indirizzo inviato per: %@";
 "items.filterByStatus" = "Per stato";
 "itemDetail.markDone" = "Segna come fatto";

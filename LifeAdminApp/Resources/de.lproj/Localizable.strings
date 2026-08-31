@@ -28,6 +28,7 @@
 "settings.importSucceeded" = "%d Eintrag/Einträge importiert.";
 "settings.importNothingNew" = "Nichts Neues zu importieren – alles in dieser Datei ist bereits vorhanden.";
 "settings.deleteAIData" = "KI-Daten löschen";
+"settings.deleteAllData" = "Alle meine Daten löschen";
 "appLock.toggle" = "Face ID / Code erforderlich";
 "appLock.reason" = "Life Admin entsperren";
 "appLock.title" = "Life Admin ist gesperrt";
@@ -111,6 +112,7 @@
 "itemDetail.deleteConfirm" = "Diesen Eintrag löschen? Das entfernt auch den Kalendereintrag und die Erinnerung.";
 "items.deleteSelectedConfirm" = "%d Einträge löschen? Das entfernt auch deren Kalendereinträge und Erinnerungen.";
 "calendar.noItemsThisDay" = "An diesem Tag ist nichts fällig";
+"calendarSync.warning" = "Nicht zu Ihrem Kalender hinzugefügt – prüfen Sie die Einstellungen, um den Kalenderzugriff zu erlauben.";
 "notification.digestTitle" = "Prioritäten für heute";
 "notification.digestOverdue" = "%d Eintrag/Einträge überfällig";
 "notification.digestDueToday" = "%d Eintrag/Einträge heute fällig";
@@ -177,6 +179,8 @@
 "onboarding.next" = "Weiter";
 "onboarding.getStarted" = "Los geht's";
 "settings.deleteAIData.confirm" = "Das KI-Aktivitätsprotokoll löschen? Das kann nicht rückgängig gemacht werden.";
+"settings.deleteAllData.confirmTitle" = "Alle Ihre Daten löschen?";
+"settings.deleteAllData.confirmMessage" = "Dadurch werden dauerhaft alle Rechnungen, Abonnements, Termine und Einträge gelöscht, die Sie hinzugefügt haben – nicht nur der KI-Verlauf. Das kann nicht rückgängig gemacht werden.";
 "activityLog.addressUpdateSent" = "Adressänderung gesendet für: %@";
 "items.filterByStatus" = "Nach Status";
 "itemDetail.markDone" = "Als erledigt markieren";

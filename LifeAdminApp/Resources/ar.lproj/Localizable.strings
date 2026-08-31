@@ -28,6 +28,7 @@
 "settings.importSucceeded" = "تم استيراد %d عنصر/عناصر.";
 "settings.importNothingNew" = "لا يوجد جديد للاستيراد — كل ما في هذا الملف موجود بالفعل هنا.";
 "settings.deleteAIData" = "حذف بيانات الذكاء الاصطناعي";
+"settings.deleteAllData" = "حذف كل بياناتي";
 "appLock.toggle" = "طلب Face ID / رمز الدخول";
 "appLock.reason" = "إلغاء قفل Life Admin";
 "appLock.title" = "تطبيق Life Admin مقفل";
@@ -111,6 +112,7 @@
 "itemDetail.deleteConfirm" = "هل تريد حذف هذا العنصر؟ سيؤدي ذلك أيضًا إلى إزالة حدث التقويم والتذكير المرتبطين به.";
 "items.deleteSelectedConfirm" = "هل تريد حذف %d عنصر/عناصر؟ سيؤدي ذلك أيضًا إلى إزالة أحداث التقويم والتذكيرات الخاصة بها.";
 "calendar.noItemsThisDay" = "لا يوجد شيء مستحق في هذا اليوم";
+"calendarSync.warning" = "لم تتم الإضافة إلى التقويم — تحقق من الإعدادات للسماح بالوصول إلى التقويم.";
 "notification.digestTitle" = "أولويات اليوم";
 "notification.digestOverdue" = "%d عنصر/عناصر متأخرة";
 "notification.digestDueToday" = "%d عنصر/عناصر مستحقة اليوم";
@@ -177,6 +179,8 @@
 "onboarding.next" = "التالي";
 "onboarding.getStarted" = "البدء";
 "settings.deleteAIData.confirm" = "هل تريد حذف سجل نشاط الذكاء الاصطناعي؟ لا يمكن التراجع عن هذا الإجراء.";
+"settings.deleteAllData.confirmTitle" = "هل تريد حذف جميع بياناتك؟";
+"settings.deleteAllData.confirmMessage" = "سيؤدي هذا إلى حذف كل فاتورة واشتراك وموعد وعنصر أضفته نهائيًا — وليس سجل نشاط الذكاء الاصطناعي فقط. لا يمكن التراجع عن هذا الإجراء.";
 "activityLog.addressUpdateSent" = "تم إرسال تحديث العنوان لـ: %@";
 "items.filterByStatus" = "حسب الحالة";
 "itemDetail.markDone" = "وضع علامة كمكتمل";

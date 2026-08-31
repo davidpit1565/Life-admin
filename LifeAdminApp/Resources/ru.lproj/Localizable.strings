@@ -28,6 +28,7 @@
 "settings.importSucceeded" = "Импортировано записей: %d.";
 "settings.importNothingNew" = "Нечего импортировать — всё из этого файла уже есть здесь.";
 "settings.deleteAIData" = "Удалить данные ИИ";
+"settings.deleteAllData" = "Удалить все мои данные";
 "appLock.toggle" = "Требовать Face ID / код";
 "appLock.reason" = "Разблокировать Life Admin";
 "appLock.title" = "Life Admin заблокирован";
@@ -111,6 +112,7 @@
 "itemDetail.deleteConfirm" = "Удалить эту запись? Это также удалит связанное событие в календаре и напоминание.";
 "items.deleteSelectedConfirm" = "Удалить записей: %d? Это также удалит их события в календаре и напоминания.";
 "calendar.noItemsThisDay" = "В этот день ничего не запланировано";
+"calendarSync.warning" = "Не добавлено в календарь — проверьте настройки, чтобы разрешить доступ к календарю.";
 "notification.digestTitle" = "Приоритеты на сегодня";
 "notification.digestOverdue" = "Просрочено записей: %d";
 "notification.digestDueToday" = "Срок сегодня у записей: %d";
@@ -177,6 +179,8 @@
 "onboarding.next" = "Далее";
 "onboarding.getStarted" = "Начать";
 "settings.deleteAIData.confirm" = "Удалить журнал активности ИИ? Это действие нельзя отменить.";
+"settings.deleteAllData.confirmTitle" = "Удалить все ваши данные?";
+"settings.deleteAllData.confirmMessage" = "Это навсегда удалит все счета, подписки, встречи и элементы, которые вы добавили, а не только историю ИИ. Это действие нельзя отменить.";
 "activityLog.addressUpdateSent" = "Уведомление о смене адреса отправлено для: %@";
 "items.filterByStatus" = "По статусу";
 "itemDetail.markDone" = "Отметить как выполнено";

@@ -59,6 +59,13 @@ struct CalendarSyncService {
         return result
     }
 
+    /// Whether Calendar access is fully granted — lets a caller tell a genuine "sync produced no
+    /// event because permission isn't there" apart from an item simply having no due date.
+    /// Static since it only reads a system-wide authorization status, no store instance needed.
+    static func hasFullCalendarAccess() -> Bool {
+        EKEventStore.authorizationStatus(for: .event) == .fullAccess
+    }
+
     private func removeEvent(identifier: String?) {
         guard let identifier, let event = store.event(withIdentifier: identifier) else { return }
         try? store.remove(event, span: .thisEvent, commit: true)

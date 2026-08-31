@@ -60,9 +60,14 @@ struct RootTabView: View {
                 UndoDeleteBanner(item: pendingUndo) { store.undoDelete() }
                     .padding(.bottom, FABLayout.undoBannerBottomPadding)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if store.calendarSyncWarningVisible {
+                CalendarSyncWarningBanner()
+                    .padding(.bottom, FABLayout.undoBannerBottomPadding)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(.default, value: store.pendingUndo?.id)
+        .animation(.default, value: store.calendarSyncWarningVisible)
         .sheet(isPresented: $adding) {
             AddItemView()
         }
@@ -664,6 +669,7 @@ struct SettingsView: View {
     @AppStorage("appLockEnabled") private var appLockEnabled = false
     @State private var showingAIConsentReview = false
     @State private var showingDeleteAIDataConfirmation = false
+    @State private var showingDeleteAllDataConfirmation = false
     @State private var exportFileURL: URL?
     @State private var showingShareSheet = false
     @State private var showingImporter = false
@@ -757,6 +763,9 @@ struct SettingsView: View {
                     Button(String(localized: "settings.deleteAIData"), role: .destructive) {
                         showingDeleteAIDataConfirmation = true
                     }
+                    Button(String(localized: "settings.deleteAllData"), role: .destructive) {
+                        showingDeleteAllDataConfirmation = true
+                    }
                 }
             }.navigationTitle(String(localized: "tab.settings"))
             .sheet(isPresented: $showingAIConsentReview) {
@@ -794,6 +803,17 @@ struct SettingsView: View {
                 Button(String(localized: "settings.deleteAIData"), role: .destructive) {
                     ActivityLog.shared.clear()
                 }
+            }
+            .confirmationDialog(
+                String(localized: "settings.deleteAllData.confirmTitle"),
+                isPresented: $showingDeleteAllDataConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button(String(localized: "settings.deleteAllData"), role: .destructive) {
+                    Task { await store.deleteAllData() }
+                }
+            } message: {
+                Text(String(localized: "settings.deleteAllData.confirmMessage"))
             }
             .alert(String(localized: "settings.language.restartTitle"), isPresented: $showingRestartNotice) {
                 Button(String(localized: "settings.language.restartNow"), role: .destructive) {
@@ -1088,6 +1108,25 @@ private struct MultiAddConfirmationBanner: View {
                 .accessibilityHidden(true)
             Text(String(format: String(localized: "add.confirmation.multiple"), count))
                 .font(.headline)
+            Spacer()
+        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal)
+        .shadow(radius: 4)
+    }
+}
+
+private struct CalendarSyncWarningBanner: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "calendar.badge.exclamationmark")
+                .font(.title2)
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+            Text(String(localized: "calendarSync.warning"))
+                .font(.subheadline)
+                .lineLimit(2)
             Spacer()
         }
         .padding()
