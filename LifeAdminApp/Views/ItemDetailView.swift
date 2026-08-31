@@ -27,6 +27,7 @@ struct ItemDetailView: View {
     @State private var isSaving = false
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var showingFileImporter = false
+    @State private var isImportingAttachment = false
     @AppStorage("appLockEnabled") private var appLockEnabled = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // Reset every time this view is freshly opened (a new instance, a new empty Set) rather than
@@ -207,10 +208,24 @@ struct ItemDetailView: View {
                 PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: 5, matching: .images) {
                     Label(String(localized: "itemDetail.addPhoto"), systemImage: "photo.on.rectangle")
                 }
+                .disabled(isImportingAttachment)
                 Button {
                     showingFileImporter = true
                 } label: {
                     Label(String(localized: "itemDetail.browseFiles"), systemImage: "folder")
+                }
+                .disabled(isImportingAttachment)
+                // A multi-second delay with zero feedback while a large photo/PDF is read, size-
+                // checked, and written through AttachmentStore would otherwise look exactly like
+                // the tap silently didn't register — the same reasoning behind every other
+                // isSaving-style spinner already in this screen and AddItemView's Save button.
+                if isImportingAttachment {
+                    HStack {
+                        ProgressView().controlSize(.small)
+                        Text(String(localized: "itemDetail.addingAttachment"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
 
@@ -302,10 +317,12 @@ struct ItemDetailView: View {
             guard newItems.isEmpty == false else { return }
             let itemsToLoad = newItems
             selectedPhotoItems = []
+            isImportingAttachment = true
             Task {
                 for photoItem in itemsToLoad {
                     await addAttachment(from: photoItem)
                 }
+                isImportingAttachment = false
             }
         }
         .confirmationDialog(

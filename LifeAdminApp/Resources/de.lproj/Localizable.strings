@@ -111,6 +111,7 @@
 "itemDetail.addPhoto" = "Foto hinzufügen";
 "itemDetail.browseFiles" = "Dateien durchsuchen";
 "itemDetail.photoFilename" = "Foto %d";
+"itemDetail.addingAttachment" = "Wird hinzugefügt…";
 "itemDetail.delete" = "Eintrag löschen";
 "itemDetail.deleteConfirm" = "Diesen Eintrag löschen? Das entfernt auch den Kalendereintrag und die Erinnerung.";
 "items.deleteSelectedConfirm" = "%d Einträge löschen? Das entfernt auch deren Kalendereinträge und Erinnerungen.";

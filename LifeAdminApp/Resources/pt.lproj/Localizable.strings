@@ -111,6 +111,7 @@
 "itemDetail.addPhoto" = "Adicionar foto";
 "itemDetail.browseFiles" = "Procurar ficheiros";
 "itemDetail.photoFilename" = "Foto %d";
+"itemDetail.addingAttachment" = "A adicionar…";
 "itemDetail.delete" = "Eliminar item";
 "itemDetail.deleteConfirm" = "Eliminar este item? Isto também remove o seu evento no calendário e o lembrete.";
 "items.deleteSelectedConfirm" = "Eliminar %d itens? Isto também remove os seus eventos no calendário e lembretes.";

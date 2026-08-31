@@ -111,6 +111,7 @@
 "itemDetail.addPhoto" = "Ajouter une photo";
 "itemDetail.browseFiles" = "Parcourir les fichiers";
 "itemDetail.photoFilename" = "Photo %d";
+"itemDetail.addingAttachment" = "Ajout en cours…";
 "itemDetail.delete" = "Supprimer l'élément";
 "itemDetail.deleteConfirm" = "Supprimer cet élément ? Cela supprime aussi son événement de calendrier et son rappel.";
 "items.deleteSelectedConfirm" = "Supprimer %d éléments ? Cela supprime aussi leurs événements de calendrier et rappels.";

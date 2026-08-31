@@ -111,6 +111,7 @@
 "itemDetail.addPhoto" = "新增相片";
 "itemDetail.browseFiles" = "瀏覽檔案";
 "itemDetail.photoFilename" = "相片 %d";
+"itemDetail.addingAttachment" = "新增中…";
 "itemDetail.delete" = "刪除事項";
 "itemDetail.deleteConfirm" = "確定刪除此事項？相關的行事曆事件與提醒事項也會一併刪除。";
 "items.deleteSelectedConfirm" = "確定刪除這 %d 項？相關的行事曆事件與提醒事項也會一併刪除。";

@@ -111,6 +111,7 @@
 "itemDetail.addPhoto" = "Foto toevoegen";
 "itemDetail.browseFiles" = "Bestanden doorbladeren";
 "itemDetail.photoFilename" = "Foto %d";
+"itemDetail.addingAttachment" = "Bezig met toevoegen…";
 "itemDetail.delete" = "Item verwijderen";
 "itemDetail.deleteConfirm" = "Dit item verwijderen? Hiermee worden ook het bijbehorende agenda-item en de herinnering verwijderd.";
 "items.deleteSelectedConfirm" = "%d items verwijderen? Hiermee worden ook hun agenda-items en herinneringen verwijderd.";

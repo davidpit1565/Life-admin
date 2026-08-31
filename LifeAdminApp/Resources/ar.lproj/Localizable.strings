@@ -111,6 +111,7 @@
 "itemDetail.addPhoto" = "إضافة صورة";
 "itemDetail.browseFiles" = "تصفح الملفات";
 "itemDetail.photoFilename" = "صورة %d";
+"itemDetail.addingAttachment" = "جارٍ الإضافة…";
 "itemDetail.delete" = "حذف العنصر";
 "itemDetail.deleteConfirm" = "هل تريد حذف هذا العنصر؟ سيؤدي ذلك أيضًا إلى إزالة حدث التقويم والتذكير المرتبطين به.";
 "items.deleteSelectedConfirm" = "هل تريد حذف %d عنصر/عناصر؟ سيؤدي ذلك أيضًا إلى إزالة أحداث التقويم والتذكيرات الخاصة بها.";

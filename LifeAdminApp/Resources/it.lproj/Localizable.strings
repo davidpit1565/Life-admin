@@ -111,6 +111,7 @@
 "itemDetail.addPhoto" = "Aggiungi foto";
 "itemDetail.browseFiles" = "Sfoglia file";
 "itemDetail.photoFilename" = "Foto %d";
+"itemDetail.addingAttachment" = "Aggiunta in corso…";
 "itemDetail.delete" = "Elimina voce";
 "itemDetail.deleteConfirm" = "Eliminare questa voce? Verranno rimossi anche l'evento in calendario e il promemoria collegati.";
 "items.deleteSelectedConfirm" = "Eliminare %d voci? Verranno rimossi anche i relativi eventi in calendario e promemoria.";

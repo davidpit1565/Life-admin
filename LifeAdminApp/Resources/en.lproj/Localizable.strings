@@ -111,6 +111,7 @@
 "itemDetail.addPhoto" = "Add Photo";
 "itemDetail.browseFiles" = "Browse Files";
 "itemDetail.photoFilename" = "Photo %d";
+"itemDetail.addingAttachment" = "Adding…";
 "itemDetail.delete" = "Delete Item";
 "itemDetail.deleteConfirm" = "Delete this item? This also removes its calendar event and reminder.";
 "items.deleteSelectedConfirm" = "Delete %d items? This also removes their calendar events and reminders.";
