@@ -541,4 +541,74 @@ final class LifeAdminCoreTests: XCTestCase {
      let item = LifeAdminItem(title: "Bank Account", contact: ContactInfo(email: "bank@example.com"))
      XCTAssertNotNil(AddressChangeDraftBuilder().draft(for: item, newAddress: "123 Main St"))
  }
+ // Spanish/French support: parse() understands text in whichever of the app's languages the
+ // user actually typed in, regardless of the app's current display language. Bugs below were
+ // found by a hands-on battery of genuinely varied Spanish/French sentences run through the
+ // real parser, same methodology as the English/Hebrew rounds above.
+ func testSpanishDayDeMonthDateIsRecognized() {
+     let e = NaturalLanguageParser().parse("El seguro de auto se renueva el 15 de agosto, 240 euros")
+     XCTAssertNotNil(e.date)
+     XCTAssertEqual(Calendar.current.component(.month, from: e.date!), 8)
+     XCTAssertEqual(Calendar.current.component(.day, from: e.date!), 15)
+     XCTAssertEqual(e.amount, 240)
+     XCTAssertEqual(e.currency, "EUR")
+     XCTAssertEqual(e.category, LifeCategory.insurance)
+ }
+ func testFrenchDayMonthDateIsRecognized() {
+     let e = NaturalLanguageParser().parse("L'assurance auto se renouvelle le 15 août, 240 euros")
+     XCTAssertNotNil(e.date)
+     XCTAssertEqual(Calendar.current.component(.month, from: e.date!), 8)
+     XCTAssertEqual(Calendar.current.component(.day, from: e.date!), 15)
+ }
+ func testSpanishRecurringDayOfMonthIsNotMisreadAsAnAmount() {
+     let e = NaturalLanguageParser().parse("Netflix se renueva el 1 de cada mes")
+     XCTAssertNil(e.amount)
+     XCTAssertEqual(e.recurring, Recurrence.monthly)
+ }
+ func testFrenchOrdinalDayOfMonthIsNotMisreadAsAnAmount() {
+     let e = NaturalLanguageParser().parse("Netflix se renouvelle le 1er de chaque mois")
+     XCTAssertNil(e.amount)
+     XCTAssertEqual(e.recurring, Recurrence.monthly)
+ }
+ func testSpanishYearsDurationIsNotMisreadAsAnAmount() {
+     let e = NaturalLanguageParser().parse("El pasaporte vence en 2 años")
+     XCTAssertNil(e.amount)
+     XCTAssertNotNil(e.date)
+ }
+ func testFrenchDaysDurationIsNotMisreadAsAnAmount() {
+     let e = NaturalLanguageParser().parse("Facture d'électricité due dans 3 jours, 512 dollars")
+     XCTAssertEqual(e.amount, 512)
+     XCTAssertEqual(e.currency, "USD")
+ }
+ func testSpanishNextWeekdayIsRecognized() {
+     let e = NaturalLanguageParser().parse("Cita con el dentista el próximo martes")
+     XCTAssertNotNil(e.date)
+     XCTAssertEqual(e.category, LifeCategory.appointments)
+ }
+ func testFrenchRelativeDateAndCategoryAreRecognized() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     let e = NaturalLanguageParser().parse("Demain j'ai rendez-vous chez le médecin", now: now)
+     XCTAssertEqual(e.date, Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: 1, to: now)!))
+     XCTAssertEqual(e.category, LifeCategory.appointments)
+ }
+ func testSpanishQuarterlyRecurrenceIsRecognized() {
+     let e = NaturalLanguageParser().parse("Pago trimestral del gimnasio, 150 dólares")
+     XCTAssertEqual(e.recurring, Recurrence.quarterly)
+     XCTAssertEqual(e.category, LifeCategory.memberships)
+ }
+ func testFrenchEverySixMonthsRecurrenceIsRecognized() {
+     let e = NaturalLanguageParser().parse("L'assurance auto se renouvelle tous les six mois")
+     XCTAssertEqual(e.recurring, Recurrence.everySixMonths)
+ }
+ func testSpanishLoanIsRecognizedAsMoneyCategory() {
+     let e = NaturalLanguageParser().parse("Tomé un préstamo para la renovación")
+     XCTAssertEqual(e.category, LifeCategory.money)
+ }
+ func testFrenchBirthdayIsRecognizedAsFamilyCategory() {
+     let e = NaturalLanguageParser().parse("L'anniversaire de maman est le mois prochain")
+     XCTAssertEqual(e.category, LifeCategory.family)
+ }
+ func testSpelledOutEuroIsRecognizedAsEUR() {
+     XCTAssertEqual(NaturalLanguageParser().parse("El seguro cuesta 100 euros").currency, "EUR")
+ }
 }
