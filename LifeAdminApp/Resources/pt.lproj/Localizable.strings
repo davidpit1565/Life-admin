@@ -53,6 +53,8 @@
 "editContact.name" = "Nome";
 "editContact.company" = "Empresa";
 "editContact.email" = "E-mail";
+"editContact.phone" = "Telefone";
+"editContact.call" = "Ligar";
 "notification.reminderTitle" = "Lembrete";
 "insights.total" = "Total de itens";
 "insights.urgent" = "Precisa de atenção";
@@ -63,6 +65,7 @@
 "insights.empty.title" = "Ainda nada para mostrar";
 "insights.empty.description" = "Adicione alguns itens e este ecrã vai preencher-se com estatísticas sobre o que vence e o que se acumula.";
 "insights.byCategory" = "Por categoria";
+"insights.moreCategories" = "+%d mais";
 "editContact.chooseFromContacts" = "Escolher dos Contactos";
 "itemDetail.details" = "Detalhes";
 "itemDetail.title" = "Título";
@@ -120,6 +123,7 @@
 "itemDetail.deleteConfirm" = "Eliminar este item? Isto também remove o seu evento no calendário e o lembrete.";
 "items.deleteSelectedConfirm" = "Eliminar %d itens? Isto também remove os seus eventos no calendário e lembretes.";
 "calendar.noItemsThisDay" = "Nada a vencer neste dia";
+"calendar.today" = "Hoje";
 "calendarSync.warning" = "Não foi adicionado ao seu calendário — verifique as Definições para permitir o acesso ao calendário.";
 "notification.digestTitle" = "Prioridades de hoje";
 "notification.digestOverdue" = "%d item(ns) em atraso";
@@ -161,15 +165,14 @@
 "notification.reminderBodyGeneric" = "Algo precisa da tua atenção — abre o Life Admin para ver os detalhes";
 "settings.language.system" = "Sistema";
 "settings.language.restartTitle" = "É necessário reiniciar";
-"settings.language.restartMessage" = "Reinicia o Life Admin para o veres no novo idioma.";
-"settings.language.restartNow" = "Reiniciar agora";
-"settings.language.later" = "Mais tarde";
+"settings.language.restartMessage" = "Feche e reabra o Life Admin para vê-lo no novo idioma.";
 "notification.digestBodyWithTopItem" = "%@ · Mais urgente: %@";
 "items.filter" = "Filtrar";
 "items.sort" = "Ordenar";
 "items.sort.dueDate" = "Data de vencimento";
 "items.sort.alphabetical" = "Alfabética";
 "items.sort.amount" = "Valor";
+"items.sort.priority" = "Prioridade";
 "items.filterByCategory" = "Por categoria";
 "items.filterByDate" = "Por data de vencimento";
 "items.filterByDate.overdue" = "Em atraso";
@@ -191,7 +194,10 @@
 "settings.deleteAllData.confirmMessage" = "Esta ação elimina permanentemente todas as faturas, subscrições, compromissos e itens que adicionou — não apenas o histórico de IA. Esta ação não pode ser anulada.";
 "activityLog.addressUpdateSent" = "Atualização de morada enviada para: %@";
 "items.filterByStatus" = "Por estado";
+"items.filterHasAttachment" = "Com anexo";
+"items.filterHasPayment" = "Com valor";
 "itemDetail.markDone" = "Marcar como concluído";
+"itemDetail.reopen" = "Reabrir";
 "itemDetail.snooze" = "Adiar";
 "itemDetail.snooze.1day" = "1 dia";
 "itemDetail.snooze.3days" = "3 dias";

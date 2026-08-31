@@ -53,6 +53,8 @@
 "editContact.name" = "Имя";
 "editContact.company" = "Компания";
 "editContact.email" = "Email";
+"editContact.phone" = "Телефон";
+"editContact.call" = "Позвонить";
 "notification.reminderTitle" = "Напоминание";
 "insights.total" = "Всего записей";
 "insights.urgent" = "Требует внимания";
@@ -63,6 +65,7 @@
 "insights.empty.title" = "Пока нечего показывать";
 "insights.empty.description" = "Добавьте несколько записей, и этот экран заполнится статистикой о том, что скоро понадобится оплатить и что накапливается.";
 "insights.byCategory" = "По категориям";
+"insights.moreCategories" = "+ещё %d";
 "editContact.chooseFromContacts" = "Выбрать из контактов";
 "itemDetail.details" = "Детали";
 "itemDetail.title" = "Название";
@@ -120,6 +123,7 @@
 "itemDetail.deleteConfirm" = "Удалить эту запись? Это также удалит связанное событие в календаре и напоминание.";
 "items.deleteSelectedConfirm" = "Удалить записей: %d? Это также удалит их события в календаре и напоминания.";
 "calendar.noItemsThisDay" = "В этот день ничего не запланировано";
+"calendar.today" = "Сегодня";
 "calendarSync.warning" = "Не добавлено в календарь — проверьте настройки, чтобы разрешить доступ к календарю.";
 "notification.digestTitle" = "Приоритеты на сегодня";
 "notification.digestOverdue" = "Просрочено записей: %d";
@@ -161,15 +165,14 @@
 "notification.reminderBodyGeneric" = "Кое-что требует вашего внимания — откройте Life Admin, чтобы узнать подробности";
 "settings.language.system" = "Системный";
 "settings.language.restartTitle" = "Требуется перезапуск";
-"settings.language.restartMessage" = "Перезапустите Life Admin, чтобы увидеть его на новом языке.";
-"settings.language.restartNow" = "Перезапустить сейчас";
-"settings.language.later" = "Позже";
+"settings.language.restartMessage" = "Закройте и снова откройте Life Admin, чтобы увидеть его на новом языке.";
 "notification.digestBodyWithTopItem" = "%@ · Самое срочное: %@";
 "items.filter" = "Фильтр";
 "items.sort" = "Сортировка";
 "items.sort.dueDate" = "По сроку";
 "items.sort.alphabetical" = "По алфавиту";
 "items.sort.amount" = "По сумме";
+"items.sort.priority" = "По приоритету";
 "items.filterByCategory" = "По категории";
 "items.filterByDate" = "По сроку";
 "items.filterByDate.overdue" = "Просроченные";
@@ -191,7 +194,10 @@
 "settings.deleteAllData.confirmMessage" = "Это навсегда удалит все счета, подписки, встречи и элементы, которые вы добавили, а не только историю ИИ. Это действие нельзя отменить.";
 "activityLog.addressUpdateSent" = "Уведомление о смене адреса отправлено для: %@";
 "items.filterByStatus" = "По статусу";
+"items.filterHasAttachment" = "С вложением";
+"items.filterHasPayment" = "С суммой";
 "itemDetail.markDone" = "Отметить как выполнено";
+"itemDetail.reopen" = "Открыть снова";
 "itemDetail.snooze" = "Отложить";
 "itemDetail.snooze.1day" = "1 день";
 "itemDetail.snooze.3days" = "3 дня";

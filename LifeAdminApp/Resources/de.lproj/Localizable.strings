@@ -53,6 +53,8 @@
 "editContact.name" = "Name";
 "editContact.company" = "Unternehmen";
 "editContact.email" = "E-Mail";
+"editContact.phone" = "Telefon";
+"editContact.call" = "Anrufen";
 "notification.reminderTitle" = "Erinnerung";
 "insights.total" = "Einträge gesamt";
 "insights.urgent" = "Braucht Aufmerksamkeit";
@@ -63,6 +65,7 @@
 "insights.empty.title" = "Noch nichts anzuzeigen";
 "insights.empty.description" = "Füge ein paar Einträge hinzu, und dieser Bildschirm füllt sich mit Statistiken darüber, was fällig ist und was sich ansammelt.";
 "insights.byCategory" = "Nach Kategorie";
+"insights.moreCategories" = "+%d weitere";
 "editContact.chooseFromContacts" = "Aus Kontakten wählen";
 "itemDetail.details" = "Details";
 "itemDetail.title" = "Titel";
@@ -120,6 +123,7 @@
 "itemDetail.deleteConfirm" = "Diesen Eintrag löschen? Das entfernt auch den Kalendereintrag und die Erinnerung.";
 "items.deleteSelectedConfirm" = "%d Einträge löschen? Das entfernt auch deren Kalendereinträge und Erinnerungen.";
 "calendar.noItemsThisDay" = "An diesem Tag ist nichts fällig";
+"calendar.today" = "Heute";
 "calendarSync.warning" = "Nicht zu Ihrem Kalender hinzugefügt – prüfen Sie die Einstellungen, um den Kalenderzugriff zu erlauben.";
 "notification.digestTitle" = "Prioritäten für heute";
 "notification.digestOverdue" = "%d Eintrag/Einträge überfällig";
@@ -161,15 +165,14 @@
 "notification.reminderBodyGeneric" = "Etwas braucht deine Aufmerksamkeit — öffne Life Admin für Details";
 "settings.language.system" = "System";
 "settings.language.restartTitle" = "Neustart erforderlich";
-"settings.language.restartMessage" = "Starte Life Admin neu, um es in der neuen Sprache zu sehen.";
-"settings.language.restartNow" = "Jetzt neu starten";
-"settings.language.later" = "Später";
+"settings.language.restartMessage" = "Schließe Life Admin und öffne es erneut, um es in der neuen Sprache zu sehen.";
 "notification.digestBodyWithTopItem" = "%@ · Am dringendsten: %@";
 "items.filter" = "Filter";
 "items.sort" = "Sortieren";
 "items.sort.dueDate" = "Fälligkeitsdatum";
 "items.sort.alphabetical" = "Alphabetisch";
 "items.sort.amount" = "Betrag";
+"items.sort.priority" = "Priorität";
 "items.filterByCategory" = "Nach Kategorie";
 "items.filterByDate" = "Nach Fälligkeitsdatum";
 "items.filterByDate.overdue" = "Überfällig";
@@ -191,7 +194,10 @@
 "settings.deleteAllData.confirmMessage" = "Dadurch werden dauerhaft alle Rechnungen, Abonnements, Termine und Einträge gelöscht, die Sie hinzugefügt haben – nicht nur der KI-Verlauf. Das kann nicht rückgängig gemacht werden.";
 "activityLog.addressUpdateSent" = "Adressänderung gesendet für: %@";
 "items.filterByStatus" = "Nach Status";
+"items.filterHasAttachment" = "Mit Anhang";
+"items.filterHasPayment" = "Mit Betrag";
 "itemDetail.markDone" = "Als erledigt markieren";
+"itemDetail.reopen" = "Wieder öffnen";
 "itemDetail.snooze" = "Zurückstellen";
 "itemDetail.snooze.1day" = "1 Tag";
 "itemDetail.snooze.3days" = "3 Tage";

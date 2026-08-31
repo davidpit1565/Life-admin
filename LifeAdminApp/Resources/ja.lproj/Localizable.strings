@@ -53,6 +53,8 @@
 "editContact.name" = "名前";
 "editContact.company" = "会社名";
 "editContact.email" = "メールアドレス";
+"editContact.phone" = "電話番号";
+"editContact.call" = "発信";
 "notification.reminderTitle" = "リマインダー";
 "insights.total" = "項目の合計";
 "insights.urgent" = "対応が必要";
@@ -63,6 +65,7 @@
 "insights.empty.title" = "表示する項目がまだありません";
 "insights.empty.description" = "項目をいくつか追加すると、期限が近いものや増えているものの統計がこの画面に表示されます。";
 "insights.byCategory" = "カテゴリ別";
+"insights.moreCategories" = "他%d件";
 "editContact.chooseFromContacts" = "連絡先から選択";
 "itemDetail.details" = "詳細";
 "itemDetail.title" = "タイトル";
@@ -120,6 +123,7 @@
 "itemDetail.deleteConfirm" = "この項目を削除しますか？関連するカレンダーの予定とリマインダーも削除されます。";
 "items.deleteSelectedConfirm" = "%d件の項目を削除しますか？関連するカレンダーの予定とリマインダーも削除されます。";
 "calendar.noItemsThisDay" = "この日に期限のある項目はありません";
+"calendar.today" = "今日";
 "calendarSync.warning" = "カレンダーに追加されませんでした。設定でカレンダーへのアクセスを許可してください。";
 "notification.digestTitle" = "今日の優先事項";
 "notification.digestOverdue" = "%d件の項目が期限切れです";
@@ -161,15 +165,14 @@
 "notification.reminderBodyGeneric" = "確認が必要な項目があります — 詳細はLife Adminを開いてご確認ください";
 "settings.language.system" = "システム設定に従う";
 "settings.language.restartTitle" = "再起動が必要です";
-"settings.language.restartMessage" = "新しい言語で表示するには、Life Adminを再起動してください。";
-"settings.language.restartNow" = "今すぐ再起動";
-"settings.language.later" = "後で";
+"settings.language.restartMessage" = "Life Adminを閉じて再度開くと、新しい言語で表示されます。";
 "notification.digestBodyWithTopItem" = "%@ ・最優先: %@";
 "items.filter" = "絞り込み";
 "items.sort" = "並べ替え";
 "items.sort.dueDate" = "期限";
 "items.sort.alphabetical" = "アルファベット順";
 "items.sort.amount" = "金額";
+"items.sort.priority" = "優先度";
 "items.filterByCategory" = "カテゴリで絞り込み";
 "items.filterByDate" = "期限で絞り込み";
 "items.filterByDate.overdue" = "期限切れ";
@@ -191,7 +194,10 @@
 "settings.deleteAllData.confirmMessage" = "これにより、追加したすべての請求書、サブスクリプション、予定、項目が完全に削除されます。AIの履歴だけではありません。この操作は元に戻せません。";
 "activityLog.addressUpdateSent" = "住所変更の通知を送信しました: %@";
 "items.filterByStatus" = "状態で絞り込み";
+"items.filterHasAttachment" = "添付ファイルあり";
+"items.filterHasPayment" = "金額あり";
 "itemDetail.markDone" = "完了にする";
+"itemDetail.reopen" = "再開する";
 "itemDetail.snooze" = "スヌーズ";
 "itemDetail.snooze.1day" = "1日";
 "itemDetail.snooze.3days" = "3日";

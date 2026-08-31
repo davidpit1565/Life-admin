@@ -53,6 +53,8 @@
 "editContact.name" = "姓名";
 "editContact.company" = "公司";
 "editContact.email" = "邮箱";
+"editContact.phone" = "电话";
+"editContact.call" = "拨打";
 "notification.reminderTitle" = "提醒";
 "insights.total" = "事项总数";
 "insights.urgent" = "需要关注";
@@ -63,6 +65,7 @@
 "insights.empty.title" = "暂时没有可显示的内容";
 "insights.empty.description" = "添加几个事项后，此页面将显示即将到期和累积事项的统计信息。";
 "insights.byCategory" = "按类别";
+"insights.moreCategories" = "还有%d个";
 "editContact.chooseFromContacts" = "从通讯录选择";
 "itemDetail.details" = "详情";
 "itemDetail.title" = "标题";
@@ -120,6 +123,7 @@
 "itemDetail.deleteConfirm" = "确定删除此事项？相关的日历事件和提醒事项也会一并删除。";
 "items.deleteSelectedConfirm" = "确定删除这 %d 项？相关的日历事件和提醒事项也会一并删除。";
 "calendar.noItemsThisDay" = "这一天没有到期事项";
+"calendar.today" = "今天";
 "calendarSync.warning" = "未添加到日历 — 请在设置中允许日历访问权限。";
 "notification.digestTitle" = "今日优先事项";
 "notification.digestOverdue" = "有 %d 项已逾期";
@@ -161,15 +165,14 @@
 "notification.reminderBodyGeneric" = "有事项需要你关注——打开 Life Admin 查看详情";
 "settings.language.system" = "跟随系统";
 "settings.language.restartTitle" = "需要重启";
-"settings.language.restartMessage" = "重启 Life Admin 才能看到新语言。";
-"settings.language.restartNow" = "立即重启";
-"settings.language.later" = "稍后";
+"settings.language.restartMessage" = "关闭并重新打开 Life Admin 即可以新语言显示。";
 "notification.digestBodyWithTopItem" = "%@ · 最紧急：%@";
 "items.filter" = "筛选";
 "items.sort" = "排序";
 "items.sort.dueDate" = "到期日";
 "items.sort.alphabetical" = "按字母顺序";
 "items.sort.amount" = "按金额";
+"items.sort.priority" = "按优先级";
 "items.filterByCategory" = "按分类";
 "items.filterByDate" = "按到期日";
 "items.filterByDate.overdue" = "已逾期";
@@ -191,7 +194,10 @@
 "settings.deleteAllData.confirmMessage" = "此操作将永久删除您添加的所有账单、订阅、预约和项目，而不仅仅是 AI 记录。此操作无法撤销。";
 "activityLog.addressUpdateSent" = "已发送地址变更通知：%@";
 "items.filterByStatus" = "按状态";
+"items.filterHasAttachment" = "有附件";
+"items.filterHasPayment" = "有金额";
 "itemDetail.markDone" = "标记为完成";
+"itemDetail.reopen" = "重新开启";
 "itemDetail.snooze" = "延后";
 "itemDetail.snooze.1day" = "1天";
 "itemDetail.snooze.3days" = "3天";

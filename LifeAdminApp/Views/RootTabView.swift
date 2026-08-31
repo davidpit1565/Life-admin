@@ -347,13 +347,14 @@ private enum DateRangeFilter: String, CaseIterable {
 }
 
 private enum ItemSortOrder: String, CaseIterable {
-    case dueDate, alphabetical, amount
+    case dueDate, alphabetical, amount, priority
 
     var localizedLabel: String {
         switch self {
         case .dueDate: return String(localized: "items.sort.dueDate")
         case .alphabetical: return String(localized: "items.sort.alphabetical")
         case .amount: return String(localized: "items.sort.amount")
+        case .priority: return String(localized: "items.sort.priority")
         }
     }
 
@@ -364,6 +365,11 @@ private enum ItemSortOrder: String, CaseIterable {
         case .dueDate: return items.sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
         case .alphabetical: return items.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
         case .amount: return items.sorted { ($0.amount ?? -1) > ($1.amount ?? -1) }
+        // Priority is already the same colored dot shown on every row (ItemRow) — sorting by it
+        // directly surfaces "what's most urgent regardless of its raw due date", independent of
+        // dueDate sort's own ordering (a critical item with no due date at all would otherwise
+        // never rise to the top).
+        case .priority: return items.sorted { $0.priority > $1.priority }
         }
     }
 }
@@ -375,6 +381,12 @@ struct ItemsView: View {
     @State private var selectedPriorities: Set<Priority> = []
     @State private var selectedStatuses: Set<ItemStatus> = []
     @State private var dateRangeFilter: DateRangeFilter?
+    // SearchFilter.hasAttachment/hasPayment already existed and were already covered by
+    // SearchEngine's own tests — they just had no UI anywhere in this menu to actually turn them
+    // on. A plain on/off toggle (not exposing "only without") matches the far more common need:
+    // "show me what I have a receipt for" / "what actually has a dollar amount attached to it".
+    @State private var filterHasAttachment = false
+    @State private var filterHasPayment = false
     @State private var sortOrder: ItemSortOrder = .dueDate
     @State private var selection = Set<UUID>()
     @State private var showingBulkDeleteConfirmation = false
@@ -392,6 +404,8 @@ struct ItemsView: View {
             filter.dueFrom = bounds.from
             filter.dueTo = bounds.to
         }
+        filter.hasAttachment = filterHasAttachment ? true : nil
+        filter.hasPayment = filterHasPayment ? true : nil
         // SearchEngine only filters — without sorting here too, this list showed items in
         // whatever order they were created, not by what's actually coming up next, unlike Home's
         // own "upcoming" list right next to it.
@@ -399,7 +413,7 @@ struct ItemsView: View {
     }
 
     private var hasActiveFilters: Bool {
-        selectedCategories.isEmpty == false || selectedPriorities.isEmpty == false || selectedStatuses.isEmpty == false || dateRangeFilter != nil
+        selectedCategories.isEmpty == false || selectedPriorities.isEmpty == false || selectedStatuses.isEmpty == false || dateRangeFilter != nil || filterHasAttachment || filterHasPayment
     }
 
     var body: some View {
@@ -526,12 +540,32 @@ struct ItemsView: View {
                                 }
                             }
                         }
+                        Button {
+                            filterHasAttachment.toggle()
+                        } label: {
+                            if filterHasAttachment {
+                                Label(String(localized: "items.filterHasAttachment"), systemImage: "checkmark")
+                            } else {
+                                Text(String(localized: "items.filterHasAttachment"))
+                            }
+                        }
+                        Button {
+                            filterHasPayment.toggle()
+                        } label: {
+                            if filterHasPayment {
+                                Label(String(localized: "items.filterHasPayment"), systemImage: "checkmark")
+                            } else {
+                                Text(String(localized: "items.filterHasPayment"))
+                            }
+                        }
                         if hasActiveFilters {
                             Button(String(localized: "items.clearFilters"), role: .destructive) {
                                 selectedCategories = []
                                 selectedPriorities = []
                                 selectedStatuses = []
                                 dateRangeFilter = nil
+                                filterHasAttachment = false
+                                filterHasPayment = false
                             }
                         }
                     } label: {
@@ -639,6 +673,16 @@ struct CalendarView: View {
                 .safeAreaInset(edge: .bottom) { Color.clear.frame(height: FABLayout.listClearance) }
             }
             .navigationTitle(String(localized: "tab.calendar"))
+            .toolbar {
+                // Without this, someone who paged several months forward or back (checking a
+                // renewal date, say) had no quick way back — only manually paging the same
+                // distance in reverse, unlike Apple Calendar/Fantastical's own "Today" button.
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(String(localized: "calendar.today")) {
+                        selectedDate = Date()
+                    }
+                }
+            }
         }
     }
 }
@@ -683,6 +727,15 @@ struct InsightsView: View {
         return grouped.map { (category: $0.key, count: $0.value.count) }.sorted { $0.count > $1.count }
     }
 
+    /// Capped so someone whose items span most of `LifeCategory`'s 18 cases doesn't get a chart
+    /// several hundred points tall crammed into one List row — the categories left out are still
+    /// the smallest ones by definition (`categoryCounts` is sorted descending), so nothing more
+    /// than long-tail detail is what's actually being hidden.
+    private static let maxChartCategories = 8
+    private var chartedCategoryCounts: [(category: LifeCategory, count: Int)] {
+        Array(categoryCounts.prefix(Self.maxChartCategories))
+    }
+
     var body: some View {
         NavigationStack {
             // A screen that's nothing but a column of zeros (a brand-new install, before adding
@@ -711,18 +764,23 @@ struct InsightsView: View {
                     .listRowBackground(Color.clear)
                     if categoryCounts.isEmpty == false {
                         Section(String(localized: "insights.byCategory")) {
-                            Chart(categoryCounts, id: \.category) { entry in
+                            Chart(chartedCategoryCounts, id: \.category) { entry in
                                 BarMark(
                                     x: .value("Count", entry.count),
                                     y: .value("Category", entry.category.displayName)
                                 )
                                 .foregroundStyle(entry.category.tintColor)
                             }
-                            .frame(height: CGFloat(categoryCounts.count) * 32 + 20)
+                            .frame(height: CGFloat(chartedCategoryCounts.count) * 32 + 20)
                             // Swift Charts has no built-in VoiceOver readout of its own — this
                             // gives the same information the bars show visually as one spoken
                             // summary, rather than a chart VoiceOver can't describe at all.
-                            .accessibilityLabel(Text(categoryCounts.map { "\($0.category.displayName): \($0.count)" }.joined(separator: ", ")))
+                            .accessibilityLabel(Text(chartedCategoryCounts.map { "\($0.category.displayName): \($0.count)" }.joined(separator: ", ")))
+                            if categoryCounts.count > chartedCategoryCounts.count {
+                                Text(String(format: String(localized: "insights.moreCategories"), categoryCounts.count - chartedCategoryCounts.count))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                     // Hiding this section entirely whenever nothing has both an amount and a due
@@ -932,11 +990,13 @@ struct SettingsView: View {
             } message: {
                 Text(String(localized: "settings.deleteAllData.confirmMessage"))
             }
+            // `exit(0)` used to sit behind "Restart Now" here — self-terminating the process is
+            // indistinguishable from a crash to iOS (and to the user, mid-tap, with zero visual
+            // transition), and Apple's own guidelines discourage an app quitting itself. There is
+            // no supported way for an app to relaunch itself, so the honest fix is just telling
+            // the person to close and reopen it themselves, same as this message now says.
             .alert(String(localized: "settings.language.restartTitle"), isPresented: $showingRestartNotice) {
-                Button(String(localized: "settings.language.restartNow"), role: .destructive) {
-                    exit(0)
-                }
-                Button(String(localized: "settings.language.later"), role: .cancel) {}
+                Button(String(localized: "common.ok")) {}
             } message: {
                 Text(String(localized: "settings.language.restartMessage"))
             }

@@ -21,6 +21,7 @@ struct ItemDetailView: View {
     @State private var name: String
     @State private var company: String
     @State private var email: String
+    @State private var phone: String
     @State private var attachments: [Attachment]
     @State private var showingContactPicker = false
     @State private var showingDeleteConfirmation = false
@@ -48,6 +49,7 @@ struct ItemDetailView: View {
         _name = State(initialValue: item.contact?.name ?? "")
         _company = State(initialValue: item.contact?.company ?? "")
         _email = State(initialValue: item.contact?.email ?? "")
+        _phone = State(initialValue: item.contact?.phone ?? "")
         _attachments = State(initialValue: item.attachments)
     }
 
@@ -143,6 +145,19 @@ struct ItemDetailView: View {
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                // "Call customer service" is one of the single most common follow-ups on a bill or
+                // insurance item — a phone field with no way to actually place the call from here
+                // would just mean copy-pasting the number into the Phone app anyway.
+                HStack {
+                    TextField(String(localized: "editContact.phone"), text: $phone)
+                        .keyboardType(.phonePad)
+                    if let callURL {
+                        Link(destination: callURL) {
+                            Image(systemName: "phone.fill")
+                        }
+                        .accessibilityLabel(String(localized: "editContact.call"))
+                    }
+                }
             }
 
             Section(String(localized: "itemDetail.notes")) {
@@ -266,6 +281,24 @@ struct ItemDetailView: View {
                         }
                         .disabled(isSaving)
                     }
+                }
+            } else if item.status == .completed {
+                // A fat-fingered "Mark Done" (or simply changing your mind) otherwise had no way
+                // back except Delete — permanently losing the item instead of just undoing a
+                // status change. Reopening goes through the same `save()`/store.update path as
+                // every other edit, so it also correctly re-schedules a reminder if there's still
+                // a due date, rather than leaving the item active but silently unreminded.
+                Section {
+                    Button {
+                        isSaving = true
+                        Task {
+                            await reopen()
+                            dismiss()
+                        }
+                    } label: {
+                        Label(String(localized: "itemDetail.reopen"), systemImage: "arrow.uturn.backward.circle.fill")
+                    }
+                    .disabled(isSaving)
                 }
             }
 
@@ -408,11 +441,21 @@ struct ItemDetailView: View {
         return "\(isolatedCode) – \(name)"
     }
 
+    /// `nil` for anything empty or that doesn't produce a valid `tel:` URL — the tap-to-call
+    /// button itself is only shown when this is non-nil, so a garbled or empty phone field just
+    /// silently has no call button rather than one that fails when tapped.
+    private var callURL: URL? {
+        let trimmed = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return nil }
+        return URL(string: "tel:\(trimmed.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? trimmed)")
+    }
+
     private func apply(_ contact: CNContact) {
         let fullName = [contact.givenName, contact.familyName].filter { $0.isEmpty == false }.joined(separator: " ")
         if fullName.isEmpty == false { name = fullName }
         if contact.organizationName.isEmpty == false { company = contact.organizationName }
         if let firstEmail = contact.emailAddresses.first?.value as String? { email = firstEmail }
+        if let firstPhone = contact.phoneNumbers.first?.value.stringValue, firstPhone.isEmpty == false { phone = firstPhone }
     }
 
     private func fieldsApplied(to base: LifeAdminItem) -> LifeAdminItem {
@@ -444,9 +487,11 @@ struct ItemDetailView: View {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedCompany = company.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        updated.contact = (trimmedName.isEmpty && trimmedCompany.isEmpty && trimmedEmail.isEmpty) ? nil : ContactInfo(
+        let trimmedPhone = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.contact = (trimmedName.isEmpty && trimmedCompany.isEmpty && trimmedEmail.isEmpty && trimmedPhone.isEmpty) ? nil : ContactInfo(
             name: trimmedName.isEmpty ? nil : trimmedName,
             company: trimmedCompany.isEmpty ? nil : trimmedCompany,
+            phone: trimmedPhone.isEmpty ? nil : trimmedPhone,
             email: trimmedEmail.isEmpty ? nil : trimmedEmail
         )
         updated.updatedAt = Date()
@@ -601,5 +646,13 @@ struct ItemDetailView: View {
         var updated = fieldsApplied(to: currentItem)
         updated.priority = PriorityEngine().priority(for: updated)
         await store.markCompleted(updated)
+    }
+
+    private func reopen() async {
+        deleteFilesForRemovedAttachments()
+        var updated = fieldsApplied(to: currentItem)
+        updated.status = .active
+        updated.priority = PriorityEngine().priority(for: updated)
+        await store.update(updated)
     }
 }

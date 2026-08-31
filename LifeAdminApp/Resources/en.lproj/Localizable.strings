@@ -53,6 +53,8 @@
 "editContact.name" = "Name";
 "editContact.company" = "Company";
 "editContact.email" = "Email";
+"editContact.phone" = "Phone";
+"editContact.call" = "Call";
 "notification.reminderTitle" = "Reminder";
 "insights.total" = "Total items";
 "insights.urgent" = "Needs attention";
@@ -63,6 +65,7 @@
 "insights.empty.title" = "Nothing to show yet";
 "insights.empty.description" = "Add a few items and this screen will fill in with stats about what's due and what's piling up.";
 "insights.byCategory" = "By Category";
+"insights.moreCategories" = "+%d more";
 "editContact.chooseFromContacts" = "Choose from Contacts";
 "itemDetail.details" = "Details";
 "itemDetail.title" = "Title";
@@ -120,6 +123,7 @@
 "itemDetail.deleteConfirm" = "Delete this item? This also removes its calendar event and reminder.";
 "items.deleteSelectedConfirm" = "Delete %d items? This also removes their calendar events and reminders.";
 "calendar.noItemsThisDay" = "Nothing due on this day";
+"calendar.today" = "Today";
 "calendarSync.warning" = "Not added to your calendar — check Settings to allow calendar access.";
 "notification.digestTitle" = "Today's priorities";
 "notification.digestOverdue" = "%d item(s) are overdue";
@@ -161,15 +165,14 @@
 "notification.reminderBodyGeneric" = "Something needs your attention — open Life Admin for details";
 "settings.language.system" = "System";
 "settings.language.restartTitle" = "Restart Needed";
-"settings.language.restartMessage" = "Restart Life Admin to see it in the new language.";
-"settings.language.restartNow" = "Restart Now";
-"settings.language.later" = "Later";
+"settings.language.restartMessage" = "Close and reopen Life Admin to see it in the new language.";
 "notification.digestBodyWithTopItem" = "%@ · Most urgent: %@";
 "items.filter" = "Filter";
 "items.sort" = "Sort";
 "items.sort.dueDate" = "Due Date";
 "items.sort.alphabetical" = "Alphabetical";
 "items.sort.amount" = "Amount";
+"items.sort.priority" = "Priority";
 "items.filterByCategory" = "By Category";
 "items.filterByDate" = "By Due Date";
 "items.filterByDate.overdue" = "Overdue";
@@ -191,7 +194,10 @@
 "settings.deleteAllData.confirmMessage" = "This permanently deletes every bill, subscription, appointment, and item you've added — not just your AI history. This cannot be undone.";
 "activityLog.addressUpdateSent" = "Address update sent for: %@";
 "items.filterByStatus" = "By Status";
+"items.filterHasAttachment" = "Has an Attachment";
+"items.filterHasPayment" = "Has an Amount";
 "itemDetail.markDone" = "Mark as Done";
+"itemDetail.reopen" = "Reopen";
 "itemDetail.snooze" = "Snooze";
 "itemDetail.snooze.1day" = "1 day";
 "itemDetail.snooze.3days" = "3 days";

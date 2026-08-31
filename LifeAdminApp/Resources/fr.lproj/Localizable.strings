@@ -53,6 +53,8 @@
 "editContact.name" = "Nom";
 "editContact.company" = "Société";
 "editContact.email" = "E-mail";
+"editContact.phone" = "Téléphone";
+"editContact.call" = "Appeler";
 "notification.reminderTitle" = "Rappel";
 "insights.total" = "Éléments au total";
 "insights.urgent" = "Nécessite une attention";
@@ -63,6 +65,7 @@
 "insights.empty.title" = "Rien à afficher pour l'instant";
 "insights.empty.description" = "Ajoutez quelques éléments et cet écran se remplira de statistiques sur ce qui est dû et ce qui s'accumule.";
 "insights.byCategory" = "Par catégorie";
+"insights.moreCategories" = "+%d de plus";
 "editContact.chooseFromContacts" = "Choisir dans Contacts";
 "itemDetail.details" = "Détails";
 "itemDetail.title" = "Titre";
@@ -120,6 +123,7 @@
 "itemDetail.deleteConfirm" = "Supprimer cet élément ? Cela supprime aussi son événement de calendrier et son rappel.";
 "items.deleteSelectedConfirm" = "Supprimer %d éléments ? Cela supprime aussi leurs événements de calendrier et rappels.";
 "calendar.noItemsThisDay" = "Rien à échéance ce jour";
+"calendar.today" = "Aujourd'hui";
 "calendarSync.warning" = "Non ajouté à votre calendrier — vérifiez les réglages pour autoriser l'accès au calendrier.";
 "notification.digestTitle" = "Priorités du jour";
 "notification.digestOverdue" = "%d élément(s) en retard";
@@ -161,15 +165,14 @@
 "notification.reminderBodyGeneric" = "Quelque chose nécessite votre attention — ouvrez Life Admin pour plus de détails";
 "settings.language.system" = "Système";
 "settings.language.restartTitle" = "Redémarrage nécessaire";
-"settings.language.restartMessage" = "Redémarrez Life Admin pour le voir dans la nouvelle langue.";
-"settings.language.restartNow" = "Redémarrer maintenant";
-"settings.language.later" = "Plus tard";
+"settings.language.restartMessage" = "Fermez puis rouvrez Life Admin pour la voir dans la nouvelle langue.";
 "notification.digestBodyWithTopItem" = "%@ · Le plus urgent : %@";
 "items.filter" = "Filtre";
 "items.sort" = "Trier";
 "items.sort.dueDate" = "Date d'échéance";
 "items.sort.alphabetical" = "Alphabétique";
 "items.sort.amount" = "Montant";
+"items.sort.priority" = "Priorité";
 "items.filterByCategory" = "Par catégorie";
 "items.filterByDate" = "Par date d'échéance";
 "items.filterByDate.overdue" = "En retard";
@@ -191,7 +194,10 @@
 "settings.deleteAllData.confirmMessage" = "Cette action supprime définitivement toutes les factures, tous les abonnements, rendez-vous et éléments que vous avez ajoutés, pas seulement l'historique de l'IA. Cette action est irréversible.";
 "activityLog.addressUpdateSent" = "Mise à jour d'adresse envoyée pour : %@";
 "items.filterByStatus" = "Par statut";
+"items.filterHasAttachment" = "Avec pièce jointe";
+"items.filterHasPayment" = "Avec montant";
 "itemDetail.markDone" = "Marquer comme fait";
+"itemDetail.reopen" = "Rouvrir";
 "itemDetail.snooze" = "Reporter";
 "itemDetail.snooze.1day" = "1 jour";
 "itemDetail.snooze.3days" = "3 jours";

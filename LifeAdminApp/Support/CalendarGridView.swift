@@ -24,6 +24,19 @@ struct CalendarGridView: UIViewRepresentable {
         let daysToReload = context.coordinator.markedDays.union(markedDays)
         context.coordinator.markedDays = markedDays
         uiView.reloadDecorations(forDateComponents: Array(daysToReload), animated: false)
+
+        // Keeps the visibly-displayed month in sync with `selectedDate` for any change that
+        // didn't come from tapping a day in this same grid — most notably CalendarView's "Today"
+        // button, which otherwise had no way to actually scroll the calendar back to the current
+        // month: updating the @Binding alone doesn't move UICalendarView's own displayed page.
+        // Guarded by `lastSyncedDate` so an unrelated re-render (e.g. markedDays changing after
+        // an item is added elsewhere) doesn't re-trigger the scroll animation for no reason.
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: selectedDate)
+        if context.coordinator.lastSyncedDate != components {
+            context.coordinator.lastSyncedDate = components
+            uiView.setVisibleDateComponents(components, animated: true)
+            (uiView.selectionBehavior as? UICalendarSelectionSingleDate)?.setSelected(components, animated: true)
+        }
     }
 
     func makeCoordinator() -> Coordinator {
@@ -33,10 +46,12 @@ struct CalendarGridView: UIViewRepresentable {
     final class Coordinator: NSObject, UICalendarViewDelegate, UICalendarSelectionSingleDateDelegate {
         var selectedDate: Binding<Date>
         var markedDays: Set<DateComponents>
+        var lastSyncedDate: DateComponents?
 
         init(selectedDate: Binding<Date>, markedDays: Set<DateComponents>) {
             self.selectedDate = selectedDate
             self.markedDays = markedDays
+            self.lastSyncedDate = Calendar.current.dateComponents([.year, .month, .day], from: selectedDate.wrappedValue)
         }
 
         func calendarView(_ calendarView: UICalendarView, decorationFor dateComponents: DateComponents) -> UICalendarView.Decoration? {
@@ -51,6 +66,10 @@ struct CalendarGridView: UIViewRepresentable {
 
         func dateSelection(_ selection: UICalendarSelectionSingleDate, didSelectDate dateComponents: DateComponents?) {
             guard let dateComponents, let date = Calendar.current.date(from: dateComponents) else { return }
+            // Normalized to the same year/month/day-only shape updateUIView compares against —
+            // recording it here avoids that redundantly re-issuing the exact same
+            // setVisibleDateComponents/setSelected calls right back at the grid on the next render.
+            lastSyncedDate = Calendar.current.dateComponents([.year, .month, .day], from: date)
             selectedDate.wrappedValue = date
         }
     }

@@ -53,6 +53,8 @@
 "editContact.name" = "Nome";
 "editContact.company" = "Azienda";
 "editContact.email" = "Email";
+"editContact.phone" = "Telefono";
+"editContact.call" = "Chiama";
 "notification.reminderTitle" = "Promemoria";
 "insights.total" = "Voci totali";
 "insights.urgent" = "Richiede attenzione";
@@ -63,6 +65,7 @@
 "insights.empty.title" = "Ancora niente da mostrare";
 "insights.empty.description" = "Aggiungi qualche elemento e questa schermata si riempirà di statistiche su cosa scade e cosa si accumula.";
 "insights.byCategory" = "Per categoria";
+"insights.moreCategories" = "+%d altre";
 "editContact.chooseFromContacts" = "Scegli dai Contatti";
 "itemDetail.details" = "Dettagli";
 "itemDetail.title" = "Titolo";
@@ -120,6 +123,7 @@
 "itemDetail.deleteConfirm" = "Eliminare questa voce? Verranno rimossi anche l'evento in calendario e il promemoria collegati.";
 "items.deleteSelectedConfirm" = "Eliminare %d voci? Verranno rimossi anche i relativi eventi in calendario e promemoria.";
 "calendar.noItemsThisDay" = "Nessuna scadenza in questo giorno";
+"calendar.today" = "Oggi";
 "calendarSync.warning" = "Non aggiunto al calendario — controlla le Impostazioni per consentire l'accesso al calendario.";
 "notification.digestTitle" = "Priorità di oggi";
 "notification.digestOverdue" = "%d voce/i scaduta/e";
@@ -161,15 +165,14 @@
 "notification.reminderBodyGeneric" = "C'è qualcosa che richiede la tua attenzione — apri Life Admin per i dettagli";
 "settings.language.system" = "Sistema";
 "settings.language.restartTitle" = "Riavvio necessario";
-"settings.language.restartMessage" = "Riavvia Life Admin per vederlo nella nuova lingua.";
-"settings.language.restartNow" = "Riavvia ora";
-"settings.language.later" = "Più tardi";
+"settings.language.restartMessage" = "Chiudi e riapri Life Admin per vederla nella nuova lingua.";
 "notification.digestBodyWithTopItem" = "%@ · Più urgente: %@";
 "items.filter" = "Filtra";
 "items.sort" = "Ordina";
 "items.sort.dueDate" = "Data di scadenza";
 "items.sort.alphabetical" = "Alfabetico";
 "items.sort.amount" = "Importo";
+"items.sort.priority" = "Priorità";
 "items.filterByCategory" = "Per categoria";
 "items.filterByDate" = "Per data di scadenza";
 "items.filterByDate.overdue" = "Scaduto";
@@ -191,7 +194,10 @@
 "settings.deleteAllData.confirmMessage" = "Questa azione elimina definitivamente ogni bolletta, abbonamento, appuntamento ed elemento aggiunto, non solo la cronologia dell'IA. Questa azione non può essere annullata.";
 "activityLog.addressUpdateSent" = "Aggiornamento di indirizzo inviato per: %@";
 "items.filterByStatus" = "Per stato";
+"items.filterHasAttachment" = "Con allegato";
+"items.filterHasPayment" = "Con importo";
 "itemDetail.markDone" = "Segna come fatto";
+"itemDetail.reopen" = "Riapri";
 "itemDetail.snooze" = "Rimanda";
 "itemDetail.snooze.1day" = "1 giorno";
 "itemDetail.snooze.3days" = "3 giorni";
