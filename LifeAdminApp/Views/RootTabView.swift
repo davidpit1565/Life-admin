@@ -112,8 +112,12 @@ struct RootTabView: View {
         // system's own Photos/Files pickers this app now uses to attach a document, an incoming
         // call banner, Control Center — doesn't force re-authentication on its own. Real
         // re-authentication still only kicks in once the app actually reaches `.background`, below.
+        // `isLocked == false` here matters, not just for correctness: once the real lock screen
+        // is up (or about to come up), it already fully occludes everything on its own — layering
+        // this curtain underneath it too meant two competing pieces of UI updating on the exact
+        // same scenePhase transition that's also supposed to be firing Face ID as fast as possible.
         .overlay {
-            if appLockEnabled, scenePhase != .active {
+            if appLockEnabled, scenePhase != .active, isLocked == false {
                 PrivacyCurtainView()
             }
         }
