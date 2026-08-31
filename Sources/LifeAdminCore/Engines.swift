@@ -58,7 +58,9 @@ public struct LifeEventDetector: Sendable {
 }
 public struct SearchFilter: Sendable { public var query: String = ""; public var categories: Set<LifeCategory> = []; public var statuses: Set<ItemStatus> = []; public var priorities: Set<Priority> = []; public var hasAttachment: Bool?; public var hasPayment: Bool?; public var dueFrom: Date?; public var dueTo: Date?; public init() {} }
 public struct SearchEngine { public init() {} ; public func search(_ items: [LifeAdminItem], filter: SearchFilter) -> [LifeAdminItem] { items.filter { item in let hay=[item.title,item.description,item.notes,item.contact?.name,item.contact?.company,item.amount.map(String.init(describing:)),item.currency,item.tags.joined(separator:" ")].compactMap{$0}.joined(separator:" ").localizedCaseInsensitiveContains(filter.query) || filter.query.isEmpty; return hay && (filter.categories.isEmpty || filter.categories.contains(item.category)) && (filter.statuses.isEmpty || filter.statuses.contains(item.status)) && (filter.priorities.isEmpty || filter.priorities.contains(item.priority)) && (filter.hasAttachment == nil || filter.hasAttachment == !(item.attachments.isEmpty)) && (filter.hasPayment == nil || filter.hasPayment == (item.amount != nil)) && (filter.dueFrom == nil || (item.dueDate != nil && item.dueDate! >= filter.dueFrom!)) && (filter.dueTo == nil || (item.dueDate != nil && item.dueDate! <= filter.dueTo!)) } } }
-public struct DuplicateDetector { public init() {} ; public func isLikelyDuplicate(_ a: LifeAdminItem, _ b: LifeAdminItem) -> Bool { let title = a.title.lowercased() == b.title.lowercased(); let company = a.contact?.company?.lowercased() == b.contact?.company?.lowercased() && a.contact?.company != nil; let amount = a.amount == b.amount && a.amount != nil; let closeDate = abs((a.dueDate ?? .distantPast).timeIntervalSince(b.dueDate ?? .distantFuture)) < 86400*3; return (title && (closeDate || amount)) || (company && closeDate) } }
+// `amount` also requires matching currency — otherwise a 100 EUR item and an unrelated 100 ILS
+// item would compare equal on the raw `Decimal` alone and get flagged as the same bill.
+public struct DuplicateDetector { public init() {} ; public func isLikelyDuplicate(_ a: LifeAdminItem, _ b: LifeAdminItem) -> Bool { let title = a.title.lowercased() == b.title.lowercased(); let company = a.contact?.company?.lowercased() == b.contact?.company?.lowercased() && a.contact?.company != nil; let amount = a.amount == b.amount && a.amount != nil && a.currency == b.currency; let closeDate = abs((a.dueDate ?? .distantPast).timeIntervalSince(b.dueDate ?? .distantFuture)) < 86400*3; return (title && (closeDate || amount)) || (company && closeDate) } }
 public struct DigestEngine: Sendable {
     public init() {}
 
@@ -121,7 +123,12 @@ public struct RecurrenceEngine: Sendable {
         case .everyTwoMonths: return monthlyAdvance(from: date, months: 2, calendar: calendar, anchorDay: anchorDay)
         case .quarterly: return monthlyAdvance(from: date, months: 3, calendar: calendar, anchorDay: anchorDay)
         case .everySixMonths: return monthlyAdvance(from: date, months: 6, calendar: calendar, anchorDay: anchorDay)
-        case .yearly: return calendar.date(byAdding: .year, value: 1, to: date)
+        // Reuses the exact same month-count-and-reclamp math as the monthly-family cases (12
+        // months is a year) rather than a bare `.year` addition — a birthday or anniversary
+        // anchored on Feb 29 otherwise clamps to Feb 28 the first non-leap year and then, with a
+        // plain year addition, *stays* Feb 28 forever, never snapping back on the next leap year
+        // the way `anchorDay` already correctly handles for e.g. a Jan-31 monthly bill.
+        case .yearly: return monthlyAdvance(from: date, months: 12, calendar: calendar, anchorDay: anchorDay)
         }
     }
 
@@ -231,7 +238,7 @@ public struct ImportExportEngine {
     }
 
     public func exportCSV(_ items: [LifeAdminItem]) -> String {
-        let header = "Title,Category,Status,Priority,DueDate,Amount,Currency"
+        let header = "Title,Category,Status,Priority,DueDate,Amount,Currency,PreviousAmount"
         let rows = items.map { item in
             [
                 csvField(item.title),
@@ -240,7 +247,11 @@ public struct ImportExportEngine {
                 csvField(item.priority.rawValue),
                 csvField(item.dueDate?.ISO8601Format() ?? ""),
                 csvField(item.amount.map(String.init(describing:)) ?? ""),
-                csvField(item.currency ?? "")
+                csvField(item.currency ?? ""),
+                // A renewal costing more than the cycle it replaced was otherwise invisible in an
+                // exported backup entirely — the raw prior amount (not just a percentage) so
+                // whatever tool opens this CSV can compute its own comparison however it likes.
+                csvField(item.previousAmount.map(String.init(describing:)) ?? "")
             ].joined(separator: ",")
         }
         // Excel only renders a CSV as UTF-8 (Hebrew titles included) when it opens with a UTF-8

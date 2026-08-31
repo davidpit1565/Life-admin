@@ -192,6 +192,7 @@
 "itemDetail.snooze.3days" = "3 ימים";
 "itemDetail.snooze.1week" = "שבוע";
 "activityLog.recurrenceCreated" = "נוצרה הפעם הבאה של פריט חזרתי: %@";
+"activityLog.priceChanged" = "המחיר השתנה ב-%+d%% עבור: %@";
 "checklist.passport" = "דרכון";
 "checklist.driverLicense" = "רישיון נהיגה";
 "checklist.carInsurance" = "ביטוח רכב";
@@ -224,4 +225,6 @@
 "itemDetail.attachmentLocked" = "קובץ מצורף נעול. הקש כדי לפתוח עם Face ID או Touch ID.";
 "itemDetail.priceIncreased" = "עלה ב-%d%% מהפעם הקודמת";
 "itemDetail.priceDecreased" = "ירד ב-%d%% מהפעם הקודמת";
+"itemDetail.priceChangeUpCompact" = "+%d%%";
+"itemDetail.priceChangeDownCompact" = "-%d%%";
 "itemDetail.scamWarning" = "זה נראה כאילו עשוי להכיל שפה של הונאה/פישינג - בדוק שוב לפני שאתה משלם.";

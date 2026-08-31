@@ -192,6 +192,7 @@
 "itemDetail.snooze.3days" = "3 أيام";
 "itemDetail.snooze.1week" = "أسبوع واحد";
 "activityLog.recurrenceCreated" = "تم إنشاء الموعد التالي: %@";
+"activityLog.priceChanged" = "تغيّر السعر بنسبة %+d%% لـ: %@";
 "checklist.passport" = "جواز السفر";
 "checklist.driverLicense" = "رخصة القيادة";
 "checklist.carInsurance" = "تأمين السيارة";
@@ -224,4 +225,6 @@
 "itemDetail.attachmentLocked" = "مرفق مقفل. اضغط لإلغاء القفل باستخدام Face ID أو Touch ID.";
 "itemDetail.priceIncreased" = "ارتفع بنسبة %d%% عن المرة السابقة";
 "itemDetail.priceDecreased" = "انخفض بنسبة %d%% عن المرة السابقة";
+"itemDetail.priceChangeUpCompact" = "+%d%%";
+"itemDetail.priceChangeDownCompact" = "-%d%%";
 "itemDetail.scamWarning" = "يبدو أن هذا قد يحتوي على لغة تصيد احتيالي/احتيال - تحقق مرة أخرى قبل الدفع.";

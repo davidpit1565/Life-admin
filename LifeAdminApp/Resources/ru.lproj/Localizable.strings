@@ -192,6 +192,7 @@
 "itemDetail.snooze.3days" = "3 дня";
 "itemDetail.snooze.1week" = "1 неделя";
 "activityLog.recurrenceCreated" = "Создано следующее повторение: %@";
+"activityLog.priceChanged" = "Цена изменилась на %+d%% для: %@";
 "checklist.passport" = "Паспорт";
 "checklist.driverLicense" = "Водительские права";
 "checklist.carInsurance" = "Автостраховка";
@@ -224,4 +225,6 @@
 "itemDetail.attachmentLocked" = "Заблокированное вложение. Нажмите, чтобы разблокировать с помощью Face ID или Touch ID.";
 "itemDetail.priceIncreased" = "На %d%% больше, чем в прошлый раз";
 "itemDetail.priceDecreased" = "На %d%% меньше, чем в прошлый раз";
+"itemDetail.priceChangeUpCompact" = "+%d%%";
+"itemDetail.priceChangeDownCompact" = "-%d%%";
 "itemDetail.scamWarning" = "Похоже, здесь может быть язык фишинга/мошенничества — перепроверьте перед оплатой.";

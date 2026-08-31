@@ -192,6 +192,7 @@
 "itemDetail.snooze.3days" = "3 dagen";
 "itemDetail.snooze.1week" = "1 week";
 "activityLog.recurrenceCreated" = "Volgende herhaling aangemaakt: %@";
+"activityLog.priceChanged" = "Prijswijziging van %+d%% voor: %@";
 "checklist.passport" = "Paspoort";
 "checklist.driverLicense" = "Rijbewijs";
 "checklist.carInsurance" = "Autoverzekering";
@@ -224,4 +225,6 @@
 "itemDetail.attachmentLocked" = "Vergrendelde bijlage. Tik om te ontgrendelen met Face ID of Touch ID.";
 "itemDetail.priceIncreased" = "%d%% hoger dan de vorige keer";
 "itemDetail.priceDecreased" = "%d%% lager dan de vorige keer";
+"itemDetail.priceChangeUpCompact" = "+%d%%";
+"itemDetail.priceChangeDownCompact" = "-%d%%";
 "itemDetail.scamWarning" = "Dit lijkt mogelijk phishing-/oplichtingstaal te bevatten — controleer dit voordat je betaalt.";

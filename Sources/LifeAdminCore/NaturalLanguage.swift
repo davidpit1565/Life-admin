@@ -624,12 +624,22 @@ public struct NaturalLanguageParser: Sendable {
         "final notice", "legal action", "risk of arrest", "unusual activity detected",
         "act now", "immediately or your", "failure to pay will result in",
         "החשבון שלך יושעה", "החשבון ייסגר", "החשבון נפרץ", "הודעה אחרונה", "צעדים משפטיים",
-        "סכנת מעצר", "פעילות חשודה זוהתה", "פעל מיד", "אי תשלום יגרור"
+        "סכנת מעצר", "פעילות חשודה זוהתה", "פעל מיד", "אי תשלום יגרור",
+        "su cuenta será suspendida", "su cuenta será cerrada", "su cuenta ha sido comprometida",
+        "aviso final", "acciones legales", "riesgo de arresto", "actividad inusual detectada",
+        "actúe ahora", "inmediatamente o su", "el incumplimiento del pago resultará en",
+        "votre compte sera suspendu", "votre compte sera fermé", "votre compte a été compromis",
+        "dernier avis", "poursuites judiciaires", "risque d'arrestation", "activité inhabituelle détectée",
+        "agissez maintenant", "immédiatement ou votre", "le non-paiement entraînera"
     ]
     private static let phishingActionPhrases: [String] = [
         "verify your account", "confirm your payment details", "confirm your password",
         "click here to avoid", "click the link below", "update your billing information now",
-        "אמת את החשבון שלך", "אשר את פרטי התשלום", "אשר את הסיסמה שלך", "לחץ כאן כדי למנוע", "לחץ על הקישור"
+        "אמת את החשבון שלך", "אשר את פרטי התשלום", "אשר את הסיסמה שלך", "לחץ כאן כדי למנוע", "לחץ על הקישור",
+        "verifique su cuenta", "confirme los datos de su pago", "confirme su contraseña",
+        "haga clic aquí para evitar", "haga clic en el enlace", "actualice su información de facturación ahora",
+        "vérifiez votre compte", "confirmez vos informations de paiement", "confirmez votre mot de passe",
+        "cliquez ici pour éviter", "cliquez sur le lien", "mettez à jour vos informations de facturation maintenant"
     ]
     static func detectsScamLanguage(in lower: String) -> Bool {
         urgencyOrThreatPhrases.contains { lower.contains($0) } && phishingActionPhrases.contains { lower.contains($0) }

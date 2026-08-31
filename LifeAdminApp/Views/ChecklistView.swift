@@ -11,6 +11,14 @@ struct ChecklistView: View {
     @EnvironmentObject var store: ItemStore
     @AppStorage("checklistDismissedIDs") private var dismissedIDsRaw = ""
     @State private var addingSuggestionID: String?
+    // A suggestion carries no due date of its own (a passport or a car insurance renewal has no
+    // single obvious date the way typed free text often does) — `addFromChecklistSuggestion`
+    // already persists the item exactly like every other "just tell me" add, but with no due date
+    // set, ReminderEngine.notificationDates has nothing to schedule against. Reviewing it here
+    // immediately, the same way "ask every time" AI mode already reviews a freshly-added item
+    // before considering it done, is what actually gets a real reminder set instead of leaving a
+    // dateless item silently sitting with no reminders at all.
+    @State private var itemPendingReview: LifeAdminItem?
 
     private var dismissedIDs: Set<String> {
         Set(dismissedIDsRaw.split(separator: ",").map(String.init))
@@ -67,6 +75,11 @@ struct ChecklistView: View {
             }
         }
         .navigationTitle(String(localized: "checklist.title"))
+        .sheet(item: $itemPendingReview) { item in
+            NavigationStack {
+                ItemDetailView(item: item)
+            }
+        }
     }
 
     @ViewBuilder
@@ -83,8 +96,9 @@ struct ChecklistView: View {
                 Button {
                     Task {
                         addingSuggestionID = suggestion.id
-                        _ = await store.addFromChecklistSuggestion(suggestion)
+                        let item = await store.addFromChecklistSuggestion(suggestion)
                         addingSuggestionID = nil
+                        itemPendingReview = item
                     }
                 } label: {
                     if addingSuggestionID == suggestion.id {

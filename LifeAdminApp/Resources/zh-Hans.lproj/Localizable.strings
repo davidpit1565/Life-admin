@@ -192,6 +192,7 @@
 "itemDetail.snooze.3days" = "3天";
 "itemDetail.snooze.1week" = "1周";
 "activityLog.recurrenceCreated" = "已创建下一次事项：%@";
+"activityLog.priceChanged" = "价格变化了%+d%%：%@";
 "checklist.passport" = "护照";
 "checklist.driverLicense" = "驾照";
 "checklist.carInsurance" = "汽车保险";
@@ -224,4 +225,6 @@
 "itemDetail.attachmentLocked" = "已锁定的附件。点按以使用面容ID或触控ID解锁。";
 "itemDetail.priceIncreased" = "比上次上涨%d%%";
 "itemDetail.priceDecreased" = "比上次下降%d%%";
+"itemDetail.priceChangeUpCompact" = "+%d%%";
+"itemDetail.priceChangeDownCompact" = "-%d%%";
 "itemDetail.scamWarning" = "这看起来可能包含钓鱼/诈骗用语 - 付款前请再次确认。";

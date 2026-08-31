@@ -192,6 +192,7 @@
 "itemDetail.snooze.3days" = "3 dias";
 "itemDetail.snooze.1week" = "1 semana";
 "activityLog.recurrenceCreated" = "Próxima ocorrência criada: %@";
+"activityLog.priceChanged" = "O preço mudou %+d%% para: %@";
 "checklist.passport" = "Passaporte";
 "checklist.driverLicense" = "Carteira de Motorista";
 "checklist.carInsurance" = "Seguro de Carro";
@@ -224,4 +225,6 @@
 "itemDetail.attachmentLocked" = "Anexo bloqueado. Toque para desbloquear com Face ID ou Touch ID.";
 "itemDetail.priceIncreased" = "Subiu %d%% desde a última vez";
 "itemDetail.priceDecreased" = "Caiu %d%% desde a última vez";
+"itemDetail.priceChangeUpCompact" = "+%d%%";
+"itemDetail.priceChangeDownCompact" = "-%d%%";
 "itemDetail.scamWarning" = "Isso parece conter linguagem de phishing/golpe — verifique antes de pagar.";

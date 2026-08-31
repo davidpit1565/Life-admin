@@ -64,10 +64,26 @@ final class LifeAdminCoreTests: XCTestCase {
      XCTAssertTrue(SearchEngine().search([tooLate, noDueDate], filter: f).isEmpty)
  }
  func testDuplicateDetection() { let d=Date(); let a=LifeAdminItem(title:"Car Insurance", dueDate:d, amount:840); let b=LifeAdminItem(title:"car insurance", dueDate:d.addingTimeInterval(60), amount:840); XCTAssertTrue(DuplicateDetector().isLikelyDuplicate(a,b)) }
+ // Regression test for a real bug: matching on the raw Decimal `amount` alone let two same-titled
+ // items months apart (so the date-proximity signal is out) get flagged as duplicates purely
+ // because "100 == 100" — ignoring that they're denominated in different currencies entirely.
+ func testDuplicateDetectionRequiresMatchingCurrencyNotJustAmount() {
+     let now = Date()
+     let a = LifeAdminItem(title: "Invoice", dueDate: now, amount: 100, currency: "EUR")
+     let b = LifeAdminItem(title: "Invoice", dueDate: now.addingTimeInterval(86400 * 30), amount: 100, currency: "ILS")
+     XCTAssertFalse(DuplicateDetector().isLikelyDuplicate(a, b))
+ }
  func testImportExport() throws { let e=ImportExportEngine(); let data=try e.exportJSON([LifeAdminItem(title:"Gym")]); XCTAssertEqual(try e.importJSON(data).first?.title, "Gym") }
  func testCSVExport() { XCTAssertTrue(ImportExportEngine().exportCSV([LifeAdminItem(title:"Gym")]).contains("Title")) }
  func testCSVExportEscapesCommaInTitle() { let csv=ImportExportEngine().exportCSV([LifeAdminItem(title:"Insurance, Inc.")]); XCTAssertTrue(csv.contains("\"Insurance, Inc.\"")) }
  func testCSVExportNeutralizesFormulaInjection() { let csv=ImportExportEngine().exportCSV([LifeAdminItem(title:"=HYPERLINK(\"http://evil.example\")")]); XCTAssertTrue(csv.contains("\"'=HYPERLINK(\"\"http://evil.example\"\")\"")) }
+ func testCSVExportIncludesPreviousAmountColumn() {
+     var item = LifeAdminItem(title: "Car Insurance", amount: 920)
+     item.previousAmount = 800
+     let csv = ImportExportEngine().exportCSV([item])
+     XCTAssertTrue(csv.contains("PreviousAmount"))
+     XCTAssertTrue(csv.contains("800"))
+ }
  func testNaturalLanguageCurrency() { let e=NaturalLanguageParser().parse("My car insurance costs €840 and renews every March 18."); XCTAssertEqual(e.category, .insurance); XCTAssertEqual(e.currency, "EUR"); XCTAssertEqual(e.recurring, .yearly) }
  func testAIJSONParsing() throws { let json=#"{"title":"Passport","category":"travel","currency":"EUR","confidence":0.8}"#.data(using:.utf8)!; XCTAssertEqual(try AIJSONValidator().decode(json).title, "Passport") }
  func testAIJSONFailure() { let json=#"{"confidence":2}"#.data(using:.utf8)!; XCTAssertThrowsError(try AIJSONValidator().decode(json)) }
@@ -454,6 +470,21 @@ final class LifeAdminCoreTests: XCTestCase {
      let next = RecurrenceEngine().nextOccurrence(of: item, calendar: cal)
      XCTAssertEqual(cal.dateComponents([.year, .month, .day], from: next!.dueDate!), DateComponents(year: 2029, month: 2, day: 28))
  }
+ // Regression test for a real bug: .yearly used to advance with a bare `calendar.date(byAdding:
+ // .year, ...)`, which keeps whatever day the clamped date landed on (28) forever, instead of
+ // re-checking the real anchor day (29) the way the monthly-family cases already do. Chaining
+ // through to the next leap year confirms it snaps back to Feb 29 instead of staying stuck on 28.
+ func testYearlyRecurrenceReturnsToLeapDayOnTheNextLeapYear() {
+     var cal = Calendar(identifier: .gregorian)
+     cal.timeZone = TimeZone(identifier: "UTC")!
+     let feb29 = cal.date(from: DateComponents(year: 2028, month: 2, day: 29))!
+     var item = LifeAdminItem(title: "Anniversary reminder", dueDate: feb29, recurrence: .yearly)
+     for _ in 0..<4 {
+         item = RecurrenceEngine().nextOccurrence(of: item, calendar: cal)!
+     }
+     // 2028 (29) -> 2029 (28) -> 2030 (28) -> 2031 (28) -> 2032 (29, a leap year again)
+     XCTAssertEqual(cal.dateComponents([.year, .month, .day], from: item.dueDate!), DateComponents(year: 2032, month: 2, day: 29))
+ }
 
  // MARK: - Model invariants (Models.swift / Engines.swift)
 
@@ -644,6 +675,22 @@ final class LifeAdminCoreTests: XCTestCase {
      let suggestions = ChecklistEngine().outstandingSuggestions(items: [], dismissedIDs: ["passport"])
      XCTAssertFalse(suggestions.contains { $0.id == "passport" })
  }
+ // Regression test for a real bug: a `.completed` item used to count as coverage exactly like an
+ // `.active` one. That's harmless for a recurring suggestion (completing it immediately creates a
+ // fresh active occurrence via RecurrenceEngine.nextOccurrence), but a one-off suggestion like
+ // "passport" (suggestedRecurrence: .none) has no next occurrence — so a completed passport item
+ // used to hide the suggestion forever, even long after that passport actually expired again.
+ func testCompletedOneOffItemDoesNotPermanentlyCoverItsSuggestion() {
+     var item = LifeAdminItem(title: "Passport", category: .travel)
+     item.status = .completed
+     let suggestions = ChecklistEngine().outstandingSuggestions(items: [item])
+     XCTAssertTrue(suggestions.contains { $0.id == "passport" })
+ }
+ func testActiveItemStillCoversItsSuggestion() {
+     let item = LifeAdminItem(title: "Passport", category: .travel, status: .active)
+     let suggestions = ChecklistEngine().outstandingSuggestions(items: [item])
+     XCTAssertFalse(suggestions.contains { $0.id == "passport" })
+ }
  // ReminderEngine.defaultOffsets: a one-size-fits-all lead time doesn't fit what these
  // categories actually involve (see the doc comment on defaultOffsets itself).
  func testDefaultOffsetsGiveLongLeadTimeForInsuranceAndTravel() {
@@ -703,5 +750,13 @@ final class LifeAdminCoreTests: XCTestCase {
  func testOrdinaryReminderDoesNotTriggerScamFlag() {
      let e = NaturalLanguageParser().parse("Car insurance renews August 15th, $240")
      XCTAssertNotEqual(e.scamRiskDetected, true)
+ }
+ func testSpanishUrgencyPlusPhishingActionTriggersScamFlag() {
+     let e = NaturalLanguageParser().parse("Su cuenta será suspendida - verifique su cuenta ahora")
+     XCTAssertEqual(e.scamRiskDetected, true)
+ }
+ func testFrenchUrgencyPlusPhishingActionTriggersScamFlag() {
+     let e = NaturalLanguageParser().parse("Votre compte sera suspendu - vérifiez votre compte maintenant")
+     XCTAssertEqual(e.scamRiskDetected, true)
  }
 }

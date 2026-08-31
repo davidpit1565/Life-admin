@@ -491,9 +491,24 @@ struct ItemDetailView: View {
 
     private func save() async {
         deleteFilesForRemovedAttachments()
-        var updated = fieldsApplied(to: currentItem)
+        let before = currentItem
+        var updated = fieldsApplied(to: before)
         updated.priority = PriorityEngine().priority(for: updated)
+        logPriceChangeIfNeeded(before: before, after: updated)
         await store.update(updated)
+    }
+
+    /// Until now, a renewal costing more than last time was only ever visible by reopening this
+    /// exact edit screen and reading `priceChangeDescription` above — nowhere else in the app
+    /// (the item list row aside) recorded that it happened at all. Logging it here, keyed to the
+    /// edit that actually introduces the new amount rather than to `previousAmount`/`amount`
+    /// simply differing, means re-saving the same item again and again without touching the
+    /// amount doesn't write the same "price changed" entry into the log every time.
+    private func logPriceChangeIfNeeded(before: LifeAdminItem, after: LifeAdminItem) {
+        guard before.amount != after.amount, let percent = RecurrenceEngine().priceChangePercent(for: after) else { return }
+        let rounded = Int(percent.rounded())
+        guard rounded != 0 else { return }
+        ActivityLog.shared.record(String(format: String(localized: "activityLog.priceChanged"), rounded, after.title))
     }
 
     private func markDone() async {

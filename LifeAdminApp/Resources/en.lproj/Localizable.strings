@@ -192,6 +192,7 @@
 "itemDetail.snooze.3days" = "3 days";
 "itemDetail.snooze.1week" = "1 week";
 "activityLog.recurrenceCreated" = "Created the next occurrence: %@";
+"activityLog.priceChanged" = "Price changed by %+d%% for: %@";
 "checklist.passport" = "Passport";
 "checklist.driverLicense" = "Driver's License";
 "checklist.carInsurance" = "Car Insurance";
@@ -224,4 +225,6 @@
 "itemDetail.attachmentLocked" = "Locked attachment. Tap to unlock with Face ID or Touch ID.";
 "itemDetail.priceIncreased" = "Up %d%% from last time";
 "itemDetail.priceDecreased" = "Down %d%% from last time";
+"itemDetail.priceChangeUpCompact" = "+%d%%";
+"itemDetail.priceChangeDownCompact" = "-%d%%";
 "itemDetail.scamWarning" = "This looks like it might contain phishing/scam language — double-check before paying.";

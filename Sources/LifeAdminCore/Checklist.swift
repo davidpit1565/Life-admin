@@ -57,12 +57,19 @@ public struct ChecklistSuggestion: Identifiable, Codable, Equatable, Sendable {
 public struct ChecklistEngine: Sendable {
     public init() {}
 
-    /// A suggestion counts as covered by any active item sharing its category — and, when the
-    /// suggestion lists keywords (needed to tell "car insurance" apart from "home insurance",
-    /// both `.insurance`), by one of those keywords actually appearing in that item's title.
+    /// A suggestion counts as covered by any active (or snoozed) item sharing its category — and,
+    /// when the suggestion lists keywords (needed to tell "car insurance" apart from "home
+    /// insurance", both `.insurance`), by one of those keywords actually appearing in that item's
+    /// title. A `.completed` item does NOT count, alongside the already-excluded `.archived`:
+    /// for a recurring suggestion (car insurance renews yearly) completing it immediately creates
+    /// a fresh active occurrence via `RecurrenceEngine.nextOccurrence`, so coverage never actually
+    /// lapses — but a one-off suggestion (`suggestedRecurrence: .none`, e.g. passport, ID card,
+    /// will) has no next occurrence to fall back on, and treating its now-completed, never-to-
+    /// recur item as still "covering" it would mean the checklist can never again ask about
+    /// renewing a passport that expired years ago.
     public func isCovered(_ suggestion: ChecklistSuggestion, by items: [LifeAdminItem]) -> Bool {
         items.contains { item in
-            guard item.status != .archived, item.category == suggestion.category else { return false }
+            guard item.status == .active || item.status == .snoozed, item.category == suggestion.category else { return false }
             guard suggestion.matchKeywords.isEmpty == false else { return true }
             let title = item.title.lowercased()
             return suggestion.matchKeywords.contains { title.contains($0) }

@@ -192,6 +192,7 @@
 "itemDetail.snooze.3days" = "3日";
 "itemDetail.snooze.1week" = "1週間";
 "activityLog.recurrenceCreated" = "次回分を作成しました: %@";
+"activityLog.priceChanged" = "価格が%+d%%変化しました: %@";
 "checklist.passport" = "パスポート";
 "checklist.driverLicense" = "運転免許証";
 "checklist.carInsurance" = "自動車保険";
@@ -224,4 +225,6 @@
 "itemDetail.attachmentLocked" = "ロックされた添付ファイル。Face IDまたはTouch IDでロック解除するにはタップしてください。";
 "itemDetail.priceIncreased" = "前回より%d%%上昇";
 "itemDetail.priceDecreased" = "前回より%d%%下降";
+"itemDetail.priceChangeUpCompact" = "+%d%%";
+"itemDetail.priceChangeDownCompact" = "-%d%%";
 "itemDetail.scamWarning" = "フィッシング詐欺の可能性がある表現が含まれているようです。支払う前によく確認してください。";
