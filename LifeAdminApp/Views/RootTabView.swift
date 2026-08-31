@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 import VisionKit
 import UIKit
 import UniformTypeIdentifiers
@@ -672,45 +673,106 @@ struct InsightsView: View {
         return formatter.string(from: amount as NSDecimalNumber) ?? "\(amount)"
     }
 
+    /// Active items grouped by category — a bar chart's worth of "what's actually piling up",
+    /// deliberately a plain count rather than a total amount: items in different currencies can't
+    /// be summed into one meaningful number the way SpendEngine's own per-currency totals below
+    /// already handle correctly, but a category can always be counted regardless of currency.
+    private var categoryCounts: [(category: LifeCategory, count: Int)] {
+        let active = store.items.filter { $0.status == .active }
+        let grouped = Dictionary(grouping: active, by: \.category)
+        return grouped.map { (category: $0.key, count: $0.value.count) }.sorted { $0.count > $1.count }
+    }
+
     var body: some View {
         NavigationStack {
-            List {
-                LabeledContent {
-                    Text(store.items.count.formatted())
-                } label: {
-                    Label(String(localized: "insights.total"), systemImage: "tray.full.fill")
-                }
-                LabeledContent {
-                    Text(urgentCount.formatted())
-                        .foregroundStyle(urgentCount > 0 ? .red : .secondary)
-                } label: {
-                    Label(String(localized: "insights.urgent"), systemImage: "exclamationmark.triangle.fill")
-                }
-                LabeledContent {
-                    Text(upcomingWeekCount.formatted())
-                } label: {
-                    Label(String(localized: "insights.dueThisWeek"), systemImage: "calendar.badge.clock")
-                }
-                // Hiding this section entirely whenever nothing has both an amount and a due
-                // date this month looked exactly like the feature didn't exist at all, rather
-                // than like it correctly found nothing to total — showing it with an explicit
-                // zero removes that ambiguity.
-                Section(String(localized: "insights.dueThisMonth")) {
-                    if monthlyTotals.isEmpty {
-                        Text(String(localized: "insights.dueThisMonth.none"))
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(monthlyTotals, id: \.currency) { entry in
-                            LabeledContent(entry.currency.isEmpty ? String(localized: "itemDetail.currency.none") : entry.currency) {
-                                Text(formatted(entry.amount, currency: entry.currency))
+            // A screen that's nothing but a column of zeros (a brand-new install, before adding
+            // a single item) previously looked exactly like the feature was broken or empty —
+            // this is the same "explain what's here and what's still missing" treatment every
+            // other empty state in the app already gets.
+            if store.items.isEmpty {
+                ContentUnavailableView(
+                    String(localized: "insights.empty.title"),
+                    systemImage: "chart.bar.fill",
+                    description: Text(String(localized: "insights.empty.description"))
+                )
+            } else {
+                List {
+                    Text(String(localized: "insights.subtitle"))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .listRowSeparator(.hidden)
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        InsightStatCard(value: store.items.count, label: String(localized: "insights.total"), systemImage: "tray.full.fill", tint: .accentColor)
+                        InsightStatCard(value: urgentCount, label: String(localized: "insights.urgent"), systemImage: "exclamationmark.triangle.fill", tint: urgentCount > 0 ? .red : .secondary)
+                        InsightStatCard(value: upcomingWeekCount, label: String(localized: "insights.dueThisWeek"), systemImage: "calendar.badge.clock", tint: .blue)
+                    }
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    if categoryCounts.isEmpty == false {
+                        Section(String(localized: "insights.byCategory")) {
+                            Chart(categoryCounts, id: \.category) { entry in
+                                BarMark(
+                                    x: .value("Count", entry.count),
+                                    y: .value("Category", entry.category.displayName)
+                                )
+                                .foregroundStyle(entry.category.tintColor)
+                            }
+                            .frame(height: CGFloat(categoryCounts.count) * 32 + 20)
+                            // Swift Charts has no built-in VoiceOver readout of its own — this
+                            // gives the same information the bars show visually as one spoken
+                            // summary, rather than a chart VoiceOver can't describe at all.
+                            .accessibilityLabel(Text(categoryCounts.map { "\($0.category.displayName): \($0.count)" }.joined(separator: ", ")))
+                        }
+                    }
+                    // Hiding this section entirely whenever nothing has both an amount and a due
+                    // date this month looked exactly like the feature didn't exist at all, rather
+                    // than like it correctly found nothing to total — showing it with an explicit
+                    // zero removes that ambiguity.
+                    Section(String(localized: "insights.dueThisMonth")) {
+                        if monthlyTotals.isEmpty {
+                            Text(String(localized: "insights.dueThisMonth.none"))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(monthlyTotals, id: \.currency) { entry in
+                                LabeledContent(entry.currency.isEmpty ? String(localized: "itemDetail.currency.none") : entry.currency) {
+                                    Text(formatted(entry.amount, currency: entry.currency))
+                                }
                             }
                         }
                     }
                 }
+                .safeAreaInset(edge: .bottom) { Color.clear.frame(height: FABLayout.listClearance) }
             }
-            .navigationTitle(String(localized: "tab.insights"))
-            .safeAreaInset(edge: .bottom) { Color.clear.frame(height: FABLayout.listClearance) }
         }
+        .navigationTitle(String(localized: "tab.insights"))
+    }
+}
+private struct InsightStatCard: View {
+    let value: Int
+    let label: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.title2)
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+            Text(value.formatted())
+                .font(.title2.bold())
+                .foregroundStyle(.primary)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .combine)
     }
 }
 struct SettingsView: View {

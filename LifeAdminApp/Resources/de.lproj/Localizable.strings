@@ -59,6 +59,10 @@
 "insights.dueThisWeek" = "Diese Woche fällig";
 "insights.dueThisMonth" = "Diesen Monat fällig";
 "insights.dueThisMonth.none" = "Nichts mit Betrag und Fälligkeitsdatum in diesem Monat";
+"insights.subtitle" = "Ein schneller Überblick über alles, was du verfolgst.";
+"insights.empty.title" = "Noch nichts anzuzeigen";
+"insights.empty.description" = "Füge ein paar Einträge hinzu, und dieser Bildschirm füllt sich mit Statistiken darüber, was fällig ist und was sich ansammelt.";
+"insights.byCategory" = "Nach Kategorie";
 "editContact.chooseFromContacts" = "Aus Kontakten wählen";
 "itemDetail.details" = "Details";
 "itemDetail.title" = "Titel";

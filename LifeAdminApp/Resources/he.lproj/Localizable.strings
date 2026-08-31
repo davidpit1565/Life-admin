@@ -59,6 +59,10 @@
 "insights.dueThisWeek" = "מתאריך השבוע";
 "insights.dueThisMonth" = "לתשלום החודש";
 "insights.dueThisMonth.none" = "אין שום דבר עם סכום ותאריך יעד החודש";
+"insights.subtitle" = "מבט מהיר על כל מה שאתה עוקב אחריו.";
+"insights.empty.title" = "אין עדיין מה להציג";
+"insights.empty.description" = "הוסף כמה פריטים והמסך הזה יתמלא בנתונים על מה שצריך לשלם ומה מצטבר.";
+"insights.byCategory" = "לפי קטגוריה";
 "editContact.chooseFromContacts" = "בחר מאנשי הקשר";
 "itemDetail.details" = "פרטים";
 "itemDetail.title" = "כותרת";

@@ -59,6 +59,10 @@
 "insights.dueThisWeek" = "本週到期";
 "insights.dueThisMonth" = "本月到期";
 "insights.dueThisMonth.none" = "本月沒有含金額與到期日的事項";
+"insights.subtitle" = "快速瀏覽你正在追蹤的所有內容。";
+"insights.empty.title" = "暫時沒有可顯示的內容";
+"insights.empty.description" = "新增幾個事項後，這個畫面就會顯示即將到期與累積事項的統計資料。";
+"insights.byCategory" = "依類別";
 "editContact.chooseFromContacts" = "從聯絡人選擇";
 "itemDetail.details" = "詳細資料";
 "itemDetail.title" = "標題";

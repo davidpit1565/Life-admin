@@ -59,6 +59,10 @@
 "insights.dueThisWeek" = "In scadenza questa settimana";
 "insights.dueThisMonth" = "In scadenza questo mese";
 "insights.dueThisMonth.none" = "Nessuna voce con importo e scadenza questo mese";
+"insights.subtitle" = "Una rapida panoramica di tutto ciò che stai monitorando.";
+"insights.empty.title" = "Ancora niente da mostrare";
+"insights.empty.description" = "Aggiungi qualche elemento e questa schermata si riempirà di statistiche su cosa scade e cosa si accumula.";
+"insights.byCategory" = "Per categoria";
 "editContact.chooseFromContacts" = "Scegli dai Contatti";
 "itemDetail.details" = "Dettagli";
 "itemDetail.title" = "Titolo";

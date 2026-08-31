@@ -59,6 +59,10 @@
 "insights.dueThisWeek" = "Vence esta semana";
 "insights.dueThisMonth" = "Vence este mês";
 "insights.dueThisMonth.none" = "Nenhum item com valor e data de vencimento este mês";
+"insights.subtitle" = "Uma visão rápida de tudo o que está a acompanhar.";
+"insights.empty.title" = "Ainda nada para mostrar";
+"insights.empty.description" = "Adicione alguns itens e este ecrã vai preencher-se com estatísticas sobre o que vence e o que se acumula.";
+"insights.byCategory" = "Por categoria";
 "editContact.chooseFromContacts" = "Escolher dos Contactos";
 "itemDetail.details" = "Detalhes";
 "itemDetail.title" = "Título";

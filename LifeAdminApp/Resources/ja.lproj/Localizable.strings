@@ -59,6 +59,10 @@
 "insights.dueThisWeek" = "今週が期限";
 "insights.dueThisMonth" = "今月が期限";
 "insights.dueThisMonth.none" = "今月は金額と期限がある項目がありません";
+"insights.subtitle" = "管理しているすべての項目のクイック概要です。";
+"insights.empty.title" = "表示する項目がまだありません";
+"insights.empty.description" = "項目をいくつか追加すると、期限が近いものや増えているものの統計がこの画面に表示されます。";
+"insights.byCategory" = "カテゴリ別";
 "editContact.chooseFromContacts" = "連絡先から選択";
 "itemDetail.details" = "詳細";
 "itemDetail.title" = "タイトル";

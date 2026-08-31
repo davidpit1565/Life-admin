@@ -59,6 +59,10 @@
 "insights.dueThisWeek" = "Срок на этой неделе";
 "insights.dueThisMonth" = "Срок в этом месяце";
 "insights.dueThisMonth.none" = "В этом месяце нет записей с суммой и сроком";
+"insights.subtitle" = "Быстрый обзор всего, что вы отслеживаете.";
+"insights.empty.title" = "Пока нечего показывать";
+"insights.empty.description" = "Добавьте несколько записей, и этот экран заполнится статистикой о том, что скоро понадобится оплатить и что накапливается.";
+"insights.byCategory" = "По категориям";
 "editContact.chooseFromContacts" = "Выбрать из контактов";
 "itemDetail.details" = "Детали";
 "itemDetail.title" = "Название";

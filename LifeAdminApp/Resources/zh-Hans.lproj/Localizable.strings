@@ -59,6 +59,10 @@
 "insights.dueThisWeek" = "本周到期";
 "insights.dueThisMonth" = "本月到期";
 "insights.dueThisMonth.none" = "本月没有含金额和到期日的事项";
+"insights.subtitle" = "快速概览你正在追踪的所有内容。";
+"insights.empty.title" = "暂时没有可显示的内容";
+"insights.empty.description" = "添加几个事项后，此页面将显示即将到期和累积事项的统计信息。";
+"insights.byCategory" = "按类别";
 "editContact.chooseFromContacts" = "从通讯录选择";
 "itemDetail.details" = "详情";
 "itemDetail.title" = "标题";

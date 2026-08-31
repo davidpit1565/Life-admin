@@ -59,6 +59,10 @@
 "insights.dueThisWeek" = "مستحق هذا الأسبوع";
 "insights.dueThisMonth" = "مستحق هذا الشهر";
 "insights.dueThisMonth.none" = "لا يوجد عنصر بمبلغ وتاريخ استحقاق هذا الشهر";
+"insights.subtitle" = "نظرة سريعة على كل ما تتابعه.";
+"insights.empty.title" = "لا يوجد شيء لعرضه بعد";
+"insights.empty.description" = "أضف بعض العناصر وستمتلئ هذه الشاشة بإحصاءات حول ما هو مستحق وما يتراكم.";
+"insights.byCategory" = "حسب الفئة";
 "editContact.chooseFromContacts" = "الاختيار من جهات الاتصال";
 "itemDetail.details" = "التفاصيل";
 "itemDetail.title" = "العنوان";

@@ -59,6 +59,10 @@
 "insights.dueThisWeek" = "Due this week";
 "insights.dueThisMonth" = "Due this month";
 "insights.dueThisMonth.none" = "Nothing with an amount and a due date this month";
+"insights.subtitle" = "A quick overview of everything you're tracking.";
+"insights.empty.title" = "Nothing to show yet";
+"insights.empty.description" = "Add a few items and this screen will fill in with stats about what's due and what's piling up.";
+"insights.byCategory" = "By Category";
 "editContact.chooseFromContacts" = "Choose from Contacts";
 "itemDetail.details" = "Details";
 "itemDetail.title" = "Title";

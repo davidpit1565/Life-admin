@@ -59,6 +59,10 @@
 "insights.dueThisWeek" = "Vervalt deze week";
 "insights.dueThisMonth" = "Vervalt deze maand";
 "insights.dueThisMonth.none" = "Geen items met een bedrag en vervaldatum deze maand";
+"insights.subtitle" = "Een snel overzicht van alles wat je bijhoudt.";
+"insights.empty.title" = "Nog niets om te tonen";
+"insights.empty.description" = "Voeg een paar items toe en dit scherm vult zich met statistieken over wat vervalt en wat zich opstapelt.";
+"insights.byCategory" = "Per categorie";
 "editContact.chooseFromContacts" = "Kiezen uit Contacten";
 "itemDetail.details" = "Details";
 "itemDetail.title" = "Titel";
