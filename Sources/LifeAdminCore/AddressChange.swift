@@ -36,6 +36,10 @@ public struct AddressChangeDraftBuilder: Sendable {
     public func draft(for item: LifeAdminItem, newAddress: String) -> AddressChangeMessage? {
         guard let email = item.contact?.email, email.isEmpty == false else { return nil }
         let trimmedAddress = newAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A blank (or whitespace-only) address would still build and could still get sent — a
+        // real email telling a real vendor "update my address on file to: <nothing>" — so this
+        // bails out the same way a missing recipient email already does above.
+        guard trimmedAddress.isEmpty == false else { return nil }
         let recipientName = item.contact?.name ?? item.contact?.company
         let greeting = recipientName.map { "Hello \($0)," } ?? "Hello,"
         let subject = "Address update – \(item.title)"

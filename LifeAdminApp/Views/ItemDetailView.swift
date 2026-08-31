@@ -246,12 +246,17 @@ struct ItemDetailView: View {
 
     /// The next 3 dates this recurrence would actually land on, chained from the current due
     /// date — reuses RecurrenceEngine.nextDueDate directly rather than a second implementation
-    /// of the same schedule math that could quietly drift out of sync with it.
+    /// of the same schedule math that could quietly drift out of sync with it. The anchor day is
+    /// fixed once from the due date shown here, not re-derived from each chained date in turn —
+    /// otherwise a monthly recurrence anchored on the 31st would clamp to the 30th at the first
+    /// short month and never show the 31st again, the same drift RecurrenceEngine itself guards
+    /// against for the item's real, persisted occurrences.
     private var upcomingOccurrences: [Date] {
         var dates: [Date] = []
         var current = dueDate
+        let anchorDay = Calendar.current.component(.day, from: dueDate)
         for _ in 0..<3 {
-            guard let next = RecurrenceEngine().nextDueDate(after: current, recurrence: recurrence) else { break }
+            guard let next = RecurrenceEngine().nextDueDate(after: current, recurrence: recurrence, anchorDay: anchorDay) else { break }
             dates.append(next)
             current = next
         }
@@ -293,6 +298,11 @@ struct ItemDetailView: View {
         // already hidden in that case, but the state variable could otherwise still hold a
         // stale value from before "Has due date" was turned off.
         updated.recurrence = hasDueDate ? recurrence : .none
+        // Re-derived from whatever due date is on screen right now rather than left as
+        // whatever it was on `base` — otherwise editing an existing recurring item's due date
+        // to a different day of the month would silently keep recurring on the OLD day, since
+        // RecurrenceEngine only re-derives this itself the first time it's nil.
+        updated.recurrenceAnchorDay = hasDueDate ? Calendar.current.component(.day, from: dueDate) : nil
         // .decimalPad shows the device's own locale-appropriate separator (e.g. "," in many
         // European locales) — parsing with Decimal(string:) alone only ever accepts ".", silently
         // dropping the amount entirely for anyone whose keyboard shows anything else.

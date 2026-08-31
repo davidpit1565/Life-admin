@@ -418,4 +418,127 @@ final class LifeAdminCoreTests: XCTestCase {
      XCTAssertEqual(NaturalLanguageParser().parse("working from home today").category, LifeCategory.other)
      XCTAssertEqual(NaturalLanguageParser().parse("school starts next week").category, LifeCategory.other)
  }
+
+ // MARK: - Recurrence month-end drift (Engines.swift)
+
+ func testMonthlyRecurrenceAnchoredOnJan31RollsToFeb28() {
+     var cal = Calendar(identifier: .gregorian)
+     cal.timeZone = TimeZone(identifier: "UTC")!
+     let jan31 = cal.date(from: DateComponents(year: 2026, month: 1, day: 31))!
+     let item = LifeAdminItem(title: "Rent", dueDate: jan31, recurrence: .monthly)
+     let next = RecurrenceEngine().nextOccurrence(of: item, calendar: cal)
+     XCTAssertEqual(cal.dateComponents([.year, .month, .day], from: next!.dueDate!), DateComponents(year: 2026, month: 2, day: 28))
+ }
+
+ func testMonthlyRecurrenceAnchoredOnJan31ReturnsToThe31stOnceALongMonthComesAround() {
+     // The real-world bug: chaining "+1 month" off the already-clamped Feb 28 date gives Mar 28,
+     // not Mar 31, and every later month inherits that shrunken day forever — a bill due on the
+     // 31st silently and permanently drifts to the 28th. Carrying the intended day separately
+     // (recurrenceAnchorDay) must snap the date back to the 31st the moment March comes around.
+     var cal = Calendar(identifier: .gregorian)
+     cal.timeZone = TimeZone(identifier: "UTC")!
+     let jan31 = cal.date(from: DateComponents(year: 2026, month: 1, day: 31))!
+     var item = LifeAdminItem(title: "Rent", dueDate: jan31, recurrence: .monthly)
+     for _ in 0..<2 {
+         item = RecurrenceEngine().nextOccurrence(of: item, calendar: cal)!
+     }
+     // Jan 31 -> Feb 28 -> Mar 31 (not Mar 28)
+     XCTAssertEqual(cal.dateComponents([.year, .month, .day], from: item.dueDate!), DateComponents(year: 2026, month: 3, day: 31))
+ }
+
+ func testYearlyRecurrenceOnLeapDayClampsToFeb28InANonLeapYear() {
+     var cal = Calendar(identifier: .gregorian)
+     cal.timeZone = TimeZone(identifier: "UTC")!
+     let feb29 = cal.date(from: DateComponents(year: 2028, month: 2, day: 29))!
+     let item = LifeAdminItem(title: "Anniversary reminder", dueDate: feb29, recurrence: .yearly)
+     let next = RecurrenceEngine().nextOccurrence(of: item, calendar: cal)
+     XCTAssertEqual(cal.dateComponents([.year, .month, .day], from: next!.dueDate!), DateComponents(year: 2029, month: 2, day: 28))
+ }
+
+ // MARK: - Model invariants (Models.swift / Engines.swift)
+
+ func testNegativeAmountIsRejected() {
+     XCTAssertThrowsError(try ItemValidator().validate(LifeAdminItem(title: "Refund", amount: -50, currency: "USD")))
+ }
+
+ func testNegativeAttachmentSizeIsRejected() {
+     let a = Attachment(filename: "bad.pdf", mimeType: "application/pdf", sizeBytes: -1, localPath: "/x")
+     XCTAssertThrowsError(try ItemValidator().validate(LifeAdminItem(title: "Policy", attachments: [a])))
+ }
+
+ func testCodableRoundTripPreservesEveryPopulatedOptionalField() throws {
+     let attachment = Attachment(filename: "policy.pdf", mimeType: "application/pdf", sizeBytes: 1024, localPath: "/local/policy.pdf")
+     let contact = ContactInfo(name: "Dana", company: "Acme", phone: "050-1234567", email: "dana@acme.com", website: "https://acme.com", notes: "Ask for Dana")
+     let full = LifeAdminItem(
+         title: "Car Insurance", description: "Annual policy", category: .insurance, status: .snoozed,
+         priority: .high, priorityOverride: .critical, dueDate: Date(timeIntervalSince1970: 1_700_000_000),
+         endDate: Date(timeIntervalSince1970: 1_800_000_000), amount: 840.50, currency: "ILS",
+         recurrence: .yearly, recurrenceRule: "FREQ=YEARLY", recurrenceAnchorDay: 31,
+         reminderOffsets: [30, 7, 1], notes: "Renew early", tags: ["car", "insurance"],
+         attachments: [attachment], contact: contact, location: "Home",
+         createdAt: Date(timeIntervalSince1970: 1_600_000_000), updatedAt: Date(timeIntervalSince1970: 1_650_000_000)
+     )
+     let decodedFull = try JSONDecoder().decode(LifeAdminItem.self, from: JSONEncoder().encode(full))
+     XCTAssertEqual(decodedFull, full)
+
+     let empty = LifeAdminItem(title: "Minimal")
+     let decodedEmpty = try JSONDecoder().decode(LifeAdminItem.self, from: JSONEncoder().encode(empty))
+     XCTAssertEqual(decodedEmpty, empty)
+ }
+
+ func testOldExportWithoutRecurrenceAnchorDayFieldStillDecodes() {
+     // Backward compatibility: a backup exported before recurrenceAnchorDay existed has no such
+     // key at all. It must still decode (as nil), not fail to import.
+     let json = #"[{"id":"\#(UUID().uuidString)","title":"Gym","category":"other","status":"active","priority":"low","recurrence":"none","reminderOffsets":[],"tags":[],"attachments":[],"createdAt":"2024-01-01T00:00:00Z","updatedAt":"2024-01-01T00:00:00Z"}]"#.data(using: .utf8)!
+     XCTAssertNoThrow(try ImportExportEngine().importJSON(json))
+ }
+
+ // MARK: - ImportExportEngine edge cases (Engines.swift)
+
+ func testCSVExportStartsWithUTF8BOMSoExcelRendersHebrewCorrectly() {
+     let csv = ImportExportEngine().exportCSV([LifeAdminItem(title: "שכר דירה")])
+     XCTAssertTrue(csv.hasPrefix("\u{FEFF}"))
+     XCTAssertTrue(csv.contains("שכר דירה"))
+ }
+
+ func testImportRejectsDuplicateIDs() throws {
+     let e = ImportExportEngine()
+     let a = LifeAdminItem(title: "Gym")
+     var b = LifeAdminItem(title: "Netflix")
+     b.id = a.id
+     let data = try e.exportJSON([a, b])
+     XCTAssertThrowsError(try e.importJSON(data))
+ }
+
+ func testImportOfEmptyDataThrowsFriendlyErrorNotARawDecodingError() {
+     XCTAssertThrowsError(try ImportExportEngine().importJSON(Data())) { error in
+         XCTAssertTrue(error is LifeAdminError)
+     }
+ }
+
+ func testImportAtExactlyTheCapSucceeds() throws {
+     let e = ImportExportEngine()
+     let items = (0..<ImportExportEngine.maxImportItemCount).map { LifeAdminItem(title: "Item \($0)") }
+     let data = try e.exportJSON(items)
+     XCTAssertEqual(try e.importJSON(data).count, ImportExportEngine.maxImportItemCount)
+ }
+
+ func testImportOneOverTheCapThrows() throws {
+     let e = ImportExportEngine()
+     let items = (0...ImportExportEngine.maxImportItemCount).map { LifeAdminItem(title: "Item \($0)") }
+     let data = try e.exportJSON(items)
+     XCTAssertThrowsError(try e.importJSON(data))
+ }
+
+ // MARK: - AddressChangeDraftBuilder (AddressChange.swift)
+
+ func testAddressChangeDraftIsNotBuiltForABlankNewAddress() {
+     let item = LifeAdminItem(title: "Bank Account", contact: ContactInfo(email: "bank@example.com"))
+     XCTAssertNil(AddressChangeDraftBuilder().draft(for: item, newAddress: "   "))
+ }
+
+ func testAddressChangeDraftIsBuiltForANonBlankNewAddress() {
+     let item = LifeAdminItem(title: "Bank Account", contact: ContactInfo(email: "bank@example.com"))
+     XCTAssertNotNil(AddressChangeDraftBuilder().draft(for: item, newAddress: "123 Main St"))
+ }
 }
