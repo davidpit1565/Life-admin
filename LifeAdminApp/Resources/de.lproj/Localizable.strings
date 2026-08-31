@@ -216,3 +216,5 @@
 "checklist.notRelevant" = "Nicht Relevant";
 "home.checklistTeaser" = "%d vorgeschlagene Erinnerungen, die du noch nicht hinzugefügt hast";
 "activityLog.addedFromChecklist" = "Aus vorgeschlagenen Erinnerungen hinzugefügt: %@";
+"notification.checklistNudgeTitle" = "Vorgeschlagene Erinnerungen";
+"notification.checklistNudgeBody" = "Du hast noch ein paar wichtige Erinnerungen, die du nicht hinzugefügt hast.";

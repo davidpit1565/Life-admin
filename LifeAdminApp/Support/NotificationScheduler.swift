@@ -97,6 +97,41 @@ struct NotificationScheduler {
         try? await center.add(request)
     }
 
+    /// A weekly, genuinely repeating nudge for outstanding checklist suggestions — deliberately
+    /// not daily (nobody wants to be reminded every day about a passport reminder they haven't
+    /// added yet), and deliberately a fixed `repeats: true` weekday/hour trigger rather than the
+    /// one-shot-rescheduled-on-every-change approach `scheduleDailyDigest` uses above: recomputing
+    /// this every time any item changes would keep pushing "next week" further away for an active
+    /// user, and it would never actually fire. The trade-off is that its body can't safely name a
+    /// live count (a repeating trigger's content is fixed at schedule time, so a number here would
+    /// go stale) — it stays generic, and the app itself shows the real, current list.
+    private static let checklistNudgeIdentifier = "checklist-nudge"
+
+    func scheduleChecklistNudge(hasOutstandingSuggestions: Bool) async {
+        guard hasOutstandingSuggestions else {
+            center.removePendingNotificationRequests(withIdentifiers: [Self.checklistNudgeIdentifier])
+            return
+        }
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .authorized else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = String(localized: "notification.checklistNudgeTitle")
+        content.body = String(localized: "notification.checklistNudgeBody")
+        content.sound = .default
+
+        var components = DateComponents()
+        components.weekday = 1 // Sunday
+        components.hour = 10
+        components.minute = 0
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+        let request = UNNotificationRequest(identifier: Self.checklistNudgeIdentifier, content: content, trigger: trigger)
+        // Re-adding under the same identifier each time this runs is idempotent — a
+        // weekday/hour-only trigger always resolves to the same next occurrence regardless of how
+        // often it's (re)scheduled, unlike a relative "N days from now" trigger would.
+        try? await center.add(request)
+    }
+
     private func digestBody(_ summary: DigestEngine.Summary) -> String {
         let countPhrase: String
         if summary.overdueCount > 0 {

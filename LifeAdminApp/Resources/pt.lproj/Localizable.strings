@@ -216,3 +216,5 @@
 "checklist.notRelevant" = "Não Aplicável";
 "home.checklistTeaser" = "%d lembretes sugeridos que você ainda não adicionou";
 "activityLog.addedFromChecklist" = "Adicionado a partir dos lembretes sugeridos: %@";
+"notification.checklistNudgeTitle" = "Lembretes Sugeridos";
+"notification.checklistNudgeBody" = "Você ainda tem alguns lembretes importantes que não adicionou.";

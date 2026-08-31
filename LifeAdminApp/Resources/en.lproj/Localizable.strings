@@ -216,3 +216,5 @@
 "checklist.notRelevant" = "Not Relevant";
 "home.checklistTeaser" = "%d suggested reminders you haven't added yet";
 "activityLog.addedFromChecklist" = "Added from suggested reminders: %@";
+"notification.checklistNudgeTitle" = "Suggested Reminders";
+"notification.checklistNudgeBody" = "You still have a few important reminders you haven't added yet.";

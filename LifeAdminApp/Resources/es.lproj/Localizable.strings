@@ -216,3 +216,5 @@
 "checklist.notRelevant" = "No Aplica";
 "home.checklistTeaser" = "%d recordatorios sugeridos que aún no has agregado";
 "activityLog.addedFromChecklist" = "Agregado desde recordatorios sugeridos: %@";
+"notification.checklistNudgeTitle" = "Recordatorios Sugeridos";
+"notification.checklistNudgeBody" = "Todavía tienes algunos recordatorios importantes que no has agregado.";

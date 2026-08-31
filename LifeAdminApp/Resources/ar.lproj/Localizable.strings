@@ -216,3 +216,5 @@
 "checklist.notRelevant" = "غير ذي صلة";
 "home.checklistTeaser" = "%d تذكيرات مقترحة لم تضفها بعد";
 "activityLog.addedFromChecklist" = "أُضيف من التذكيرات المقترحة: %@";
+"notification.checklistNudgeTitle" = "تذكيرات مقترحة";
+"notification.checklistNudgeBody" = "لا يزال لديك بعض التذكيرات المهمة التي لم تضفها بعد.";

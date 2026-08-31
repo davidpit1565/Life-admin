@@ -216,3 +216,5 @@
 "checklist.notRelevant" = "不相关";
 "home.checklistTeaser" = "有%d条建议提醒你还没有添加";
 "activityLog.addedFromChecklist" = "从建议提醒中添加：%@";
+"notification.checklistNudgeTitle" = "建议提醒";
+"notification.checklistNudgeBody" = "你还有一些重要的提醒事项尚未添加。";

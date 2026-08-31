@@ -216,3 +216,5 @@
 "checklist.notRelevant" = "Non Rilevante";
 "home.checklistTeaser" = "%d promemoria suggeriti che non hai ancora aggiunto";
 "activityLog.addedFromChecklist" = "Aggiunto dai promemoria suggeriti: %@";
+"notification.checklistNudgeTitle" = "Promemoria Suggeriti";
+"notification.checklistNudgeBody" = "Hai ancora alcuni promemoria importanti che non hai aggiunto.";

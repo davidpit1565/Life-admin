@@ -216,3 +216,5 @@
 "checklist.notRelevant" = "Неактуально";
 "home.checklistTeaser" = "%d рекомендуемых напоминаний, которые вы ещё не добавили";
 "activityLog.addedFromChecklist" = "Добавлено из рекомендуемых напоминаний: %@";
+"notification.checklistNudgeTitle" = "Рекомендуемые напоминания";
+"notification.checklistNudgeBody" = "У вас всё ещё есть несколько важных напоминаний, которые вы не добавили.";

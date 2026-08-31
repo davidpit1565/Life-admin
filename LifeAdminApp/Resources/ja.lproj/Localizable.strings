@@ -216,3 +216,5 @@
 "checklist.notRelevant" = "関係ない";
 "home.checklistTeaser" = "まだ追加していないおすすめのリマインダーが%d件あります";
 "activityLog.addedFromChecklist" = "おすすめのリマインダーから追加: %@";
+"notification.checklistNudgeTitle" = "おすすめのリマインダー";
+"notification.checklistNudgeBody" = "まだ追加していない重要なリマインダーがいくつかあります。";

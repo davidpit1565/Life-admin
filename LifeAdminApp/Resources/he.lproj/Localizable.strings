@@ -216,3 +216,5 @@
 "checklist.notRelevant" = "לא רלוונטי";
 "home.checklistTeaser" = "%d תזכורות מומלצות שעדיין לא הוספת";
 "activityLog.addedFromChecklist" = "נוסף מהתזכורות המומלצות: %@";
+"notification.checklistNudgeTitle" = "תזכורות מומלצות";
+"notification.checklistNudgeBody" = "עדיין יש לך כמה תזכורות חשובות שלא הוספת.";

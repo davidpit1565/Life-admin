@@ -250,6 +250,12 @@ final class ItemStore: ObservableObject {
 
     private func refreshDigest() async {
         await NotificationScheduler.shared.scheduleDailyDigest(items: items)
+        // Reads the same UserDefaults key ChecklistView's own @AppStorage writes to — ItemStore
+        // isn't a View and can't use the property wrapper itself, but it's the identical
+        // underlying storage, so the two always agree on what's been dismissed.
+        let dismissedIDs = Set((UserDefaults.standard.string(forKey: "checklistDismissedIDs") ?? "").split(separator: ",").map(String.init))
+        let hasOutstanding = ChecklistEngine().outstandingSuggestions(items: items, dismissedIDs: dismissedIDs).isEmpty == false
+        await NotificationScheduler.shared.scheduleChecklistNudge(hasOutstandingSuggestions: hasOutstanding)
     }
 
     func update(_ item: LifeAdminItem) async {

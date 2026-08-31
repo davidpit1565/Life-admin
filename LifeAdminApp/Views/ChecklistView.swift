@@ -20,6 +20,12 @@ struct ChecklistView: View {
         var ids = dismissedIDs
         ids.insert(suggestion.id)
         dismissedIDsRaw = ids.sorted().joined(separator: ",")
+        // Dismissing the very last outstanding suggestion should cancel the weekly nudge right
+        // away rather than leaving it scheduled until the next item add/edit happens to
+        // re-evaluate it (ItemStore only re-checks this as a side effect of its own changes, and
+        // dismissing here never goes through ItemStore at all).
+        let stillOutstanding = ChecklistEngine().outstandingSuggestions(items: store.items, dismissedIDs: ids).isEmpty == false
+        Task { await NotificationScheduler.shared.scheduleChecklistNudge(hasOutstandingSuggestions: stillOutstanding) }
     }
 
     private var outstanding: [ChecklistSuggestion] {
