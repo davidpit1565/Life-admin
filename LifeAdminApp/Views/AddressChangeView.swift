@@ -44,6 +44,11 @@ struct AddressChangeView: View {
                                 Spacer()
                                 Image(systemName: selectedItemIDs.contains(item.id) ? "checkmark.circle.fill" : "circle")
                                     .foregroundStyle(selectedItemIDs.contains(item.id) ? Color.accentColor : Color.secondary)
+                                    // Purely decorative: the selection state it shows is already
+                                    // conveyed to VoiceOver via .isSelected below. Without this,
+                                    // the symbol's own name ("Checkmark, circle, fill" / "Circle")
+                                    // gets announced on every row on top of that.
+                                    .accessibilityHidden(true)
                             }
                         }
                         .buttonStyle(.plain)

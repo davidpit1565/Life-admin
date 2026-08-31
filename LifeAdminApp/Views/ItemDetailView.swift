@@ -135,7 +135,12 @@ struct ItemDetailView: View {
                         }
                     }
                     .onDelete { offsets in
-                        for index in offsets { AttachmentStore.shared.delete(attachments[index]) }
+                        // Only remove from this screen's own draft state here — the file on disk
+                        // isn't deleted until Save/Mark Done actually commits the change (see
+                        // deleteFilesForRemovedAttachments()). Deleting it immediately meant
+                        // backing out without saving still permanently destroyed the photo, unlike
+                        // every other edit on this screen (title, notes, category, …), which stays
+                        // safely discardable until Save is tapped.
                         attachments.remove(atOffsets: offsets)
                     }
                 }
@@ -281,7 +286,7 @@ struct ItemDetailView: View {
     private func fieldsApplied(to base: LifeAdminItem) -> LifeAdminItem {
         var updated = base
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        updated.title = trimmedTitle.isEmpty ? item.title : trimmedTitle
+        updated.title = trimmedTitle.isEmpty ? base.title : trimmedTitle
         updated.category = category
         updated.dueDate = hasDueDate ? dueDate : nil
         // Recurrence is meaningless without a due date to recur from — the picker itself is
@@ -311,14 +316,37 @@ struct ItemDetailView: View {
         return updated
     }
 
+    // `item` is only ever the snapshot this view was created with — if a notification action
+    // (e.g. "Mark Done" tapped on this same item's own banner) mutates the store while this
+    // screen is still open, building on that stale snapshot would silently overwrite whatever
+    // just happened (reviving a just-completed item back to active, dropping a snooze) the
+    // moment this screen's own Save/Mark Done runs. Basing edits on the store's current copy
+    // instead means only fields this form actually touches change; anything else reflects
+    // whatever most recently happened elsewhere.
+    private var currentItem: LifeAdminItem {
+        store.items.first(where: { $0.id == item.id }) ?? item
+    }
+
+    /// Deletes the on-disk file for any attachment the user swiped away on this screen — deferred
+    /// until here (rather than at the moment of the swipe) so the removal only actually happens
+    /// once it's committed via Save/Mark Done, matching every other edit on this form.
+    private func deleteFilesForRemovedAttachments() {
+        let removed = item.attachments.filter { attachments.contains($0) == false }
+        for attachment in removed {
+            AttachmentStore.shared.delete(attachment)
+        }
+    }
+
     private func save() async {
-        var updated = fieldsApplied(to: item)
+        deleteFilesForRemovedAttachments()
+        var updated = fieldsApplied(to: currentItem)
         updated.priority = PriorityEngine().priority(for: updated)
         await store.update(updated)
     }
 
     private func markDone() async {
-        var updated = fieldsApplied(to: item)
+        deleteFilesForRemovedAttachments()
+        var updated = fieldsApplied(to: currentItem)
         updated.priority = PriorityEngine().priority(for: updated)
         await store.markCompleted(updated)
     }
