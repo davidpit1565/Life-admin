@@ -451,11 +451,18 @@ struct ItemDetailView: View {
         }
     }
 
+    /// Neither picker enforces a size limit of its own — an accidentally-selected multi-page PDF
+    /// scan or a RAW/ProRes-adjacent photo could otherwise load tens or hundreds of megabytes
+    /// fully into memory (`Data(contentsOf:)`/`loadTransferable` both read the whole file at
+    /// once) for something that only ever needs to hold a passport photo or a policy PDF. 25 MB
+    /// comfortably fits any real document or photo this app's use case involves.
+    private static let maxAttachmentBytes = 25 * 1024 * 1024
+
     /// A library photo's `supportedContentTypes` reflects whatever the source file actually is
     /// (often HEIC on a modern iPhone, not JPEG) — reading that instead of assuming JPEG keeps
     /// both the saved bytes and their declared mimeType/extension honest about the real format.
     private func addAttachment(from photoItem: PhotosPickerItem) async {
-        guard let data = try? await photoItem.loadTransferable(type: Data.self) else { return }
+        guard let data = try? await photoItem.loadTransferable(type: Data.self), data.count <= Self.maxAttachmentBytes else { return }
         let contentType = photoItem.supportedContentTypes.first
         let fileExtension = contentType?.preferredFilenameExtension ?? "jpg"
         let mimeType = contentType?.preferredMIMEType ?? "image/jpeg"
@@ -467,10 +474,14 @@ struct ItemDetailView: View {
 
     /// `FileImportPicker` hands back a URL to a local copy already inside this app's sandbox
     /// (`asCopy: true`), so this only needs to read it and hand the bytes to the same
-    /// `AttachmentStore` every other attachment source goes through.
+    /// `AttachmentStore` every other attachment source goes through. That copy lives outside
+    /// `AttachmentStore`'s own protected, backup-excluded directory (it's the system's plain,
+    /// unprotected /tmp), so it's removed here the moment its bytes are safely persisted through
+    /// AttachmentStore, rather than left for the system to eventually reclaim on its own schedule.
     private func addAttachment(fromFileAt url: URL) {
         showingFileImporter = false
-        guard let data = try? Data(contentsOf: url) else { return }
+        defer { try? FileManager.default.removeItem(at: url) }
+        guard let data = try? Data(contentsOf: url), data.count <= Self.maxAttachmentBytes else { return }
         let fileExtension = url.pathExtension.isEmpty ? "dat" : url.pathExtension
         let mimeType = UTType(filenameExtension: fileExtension)?.preferredMIMEType ?? "application/octet-stream"
         if let attachment = AttachmentStore.shared.save(data: data, filename: url.lastPathComponent, mimeType: mimeType, fileExtension: fileExtension) {
