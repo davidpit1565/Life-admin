@@ -9,6 +9,10 @@ struct ItemDetailView: View {
     @EnvironmentObject var store: ItemStore
     @Environment(\.dismiss) var dismiss
     let item: LifeAdminItem
+    // True only for a checklist-suggested draft that has never been written to SwiftData yet
+    // (see `ItemStore.draftItem(for:)`) — lets `save()`/`markDone()` persist it for the first
+    // time instead of updating an item that doesn't exist in `store.items` yet.
+    let isNewDraft: Bool
 
     @State private var title: String
     @State private var category: LifeCategory
@@ -36,8 +40,9 @@ struct ItemDetailView: View {
     // the item is opened, not stay revealed forever once unlocked once.
     @State private var revealedAttachmentIDs: Set<UUID> = []
 
-    init(item: LifeAdminItem) {
+    init(item: LifeAdminItem, isNewDraft: Bool = false) {
         self.item = item
+        self.isNewDraft = isNewDraft
         _title = State(initialValue: item.title)
         _category = State(initialValue: item.category)
         _hasDueDate = State(initialValue: item.dueDate != nil)
@@ -624,8 +629,13 @@ struct ItemDetailView: View {
         let before = currentItem
         var updated = fieldsApplied(to: before)
         updated.priority = PriorityEngine().priority(for: updated)
-        logPriceChangeIfNeeded(before: before, after: updated)
-        await store.update(updated)
+        if isNewDraft {
+            ActivityLog.shared.record(String(format: String(localized: "activityLog.addedFromChecklist"), updated.title))
+            _ = await store.persistNewItem(updated)
+        } else {
+            logPriceChangeIfNeeded(before: before, after: updated)
+            await store.update(updated)
+        }
     }
 
     /// Until now, a renewal costing more than last time was only ever visible by reopening this
@@ -645,7 +655,17 @@ struct ItemDetailView: View {
         deleteFilesForRemovedAttachments()
         var updated = fieldsApplied(to: currentItem)
         updated.priority = PriorityEngine().priority(for: updated)
-        await store.markCompleted(updated)
+        if isNewDraft {
+            // Persist first (so the item actually exists in `store.items`), then run it through
+            // the same `markCompleted` every other "mark done" path uses — that's what schedules
+            // the next occurrence for a recurring checklist item (e.g. a suggested monthly bill)
+            // instead of duplicating that logic here.
+            ActivityLog.shared.record(String(format: String(localized: "activityLog.addedFromChecklist"), updated.title))
+            let persisted = await store.persistNewItem(updated)
+            await store.markCompleted(persisted)
+        } else {
+            await store.markCompleted(updated)
+        }
     }
 
     private func reopen() async {

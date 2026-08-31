@@ -254,10 +254,10 @@ final class ItemStore: ObservableObject {
     }
 
     /// The second half of adding an item once its title/category/recurrence/etc. are already
-    /// decided — shared by `addOneEntry` (decided by AI/local NL parsing) and
-    /// `addFromChecklistSuggestion` (decided directly from a `ChecklistSuggestion`, no parsing
-    /// involved) so persistence, scheduling, and calendar sync only exist in one place.
-    private func persistNewItem(_ item: LifeAdminItem) async -> LifeAdminItem {
+    /// decided — shared by `addOneEntry` (decided by AI/local NL parsing) and `ItemDetailView`
+    /// (saving a checklist-suggested draft for the first time) so persistence, scheduling, and
+    /// calendar sync only exist in one place.
+    func persistNewItem(_ item: LifeAdminItem) async -> LifeAdminItem {
         let persisted = PersistedItem(item: item)
         modelContext.insert(persisted)
         try? modelContext.save()
@@ -277,12 +277,17 @@ final class ItemStore: ObservableObject {
         return item
     }
 
-    /// Adds an item straight from a tapped checklist suggestion — bypasses AI/local NL parsing
+    /// Builds an item straight from a tapped checklist suggestion — bypasses AI/local NL parsing
     /// entirely, unlike `add(text:)`, since the category and recurrence are already known from the
     /// suggestion itself. That's not just simpler: NaturalLanguageParser only deeply understands
     /// recurrence phrasing in English/Hebrew/Spanish/French, so generating a sentence and parsing
     /// it back would silently lose the intended recurrence in the app's other locales.
-    func addFromChecklistSuggestion(_ suggestion: ChecklistSuggestion) async -> LifeAdminItem {
+    ///
+    /// Deliberately does NOT persist: the returned item is only a draft handed to the review
+    /// sheet. Persisting here would leave a blank, hard-to-find item behind whenever the user
+    /// dismisses that sheet without saving — `ItemDetailView` persists it (via `persistNewItem`)
+    /// only once the user actually taps Save or Mark Done.
+    func draftItem(for suggestion: ChecklistSuggestion) -> LifeAdminItem {
         var item = LifeAdminItem(
             title: NSLocalizedString(suggestion.titleKey, comment: ""),
             category: suggestion.category,
@@ -290,8 +295,7 @@ final class ItemStore: ObservableObject {
             reminderOffsets: ReminderEngine.defaultOffsets(for: suggestion.category)
         )
         item.priority = PriorityEngine().priority(for: item)
-        ActivityLog.shared.record(String(format: String(localized: "activityLog.addedFromChecklist"), item.title))
-        return await persistNewItem(item)
+        return item
     }
 
     private func refreshDigest() async {
