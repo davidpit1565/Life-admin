@@ -538,14 +538,17 @@ struct ItemDetailView: View {
     }
 
     /// The mirror image of `deleteFilesForRemovedAttachments`: cleans up on-disk files for
-    /// attachments added during this screen's session (via the photo/file picker or the document
-    /// scanner) that were never actually committed, because the screen was dismissed some other
-    /// way than Save/Mark Done/Delete. Comparing against `item.attachments` — this view's original
-    /// snapshot — rather than the store's current copy is deliberate: it's exactly the set this
-    /// particular session added, regardless of anything else that changed the real item elsewhere
-    /// while this screen was open.
+    /// attachments that aren't actually committed anywhere, because the screen was dismissed some
+    /// other way than Save/Mark Done/Delete. Deliberately compares against what's REALLY currently
+    /// persisted (`store.items`), not `item.attachments` (this view's initial snapshot): for an
+    /// `isNewDraft` item — or a checklist/"ask every time" merge preview, whose `item.attachments`
+    /// already includes files an eventual Save would add but a real update() hasn't applied yet —
+    /// nothing in `item.attachments` is actually safe on its own. A never-persisted draft has no
+    /// entry in `store.items` at all, so every current attachment counts as abandoned; an existing
+    /// item being edited keeps only its real stored attachments as the safe baseline.
     private func discardAbandonedAttachments() {
-        let abandoned = attachments.filter { item.attachments.contains($0) == false }
+        let committedAttachments = store.items.first(where: { $0.id == item.id })?.attachments ?? []
+        let abandoned = attachments.filter { committedAttachments.contains($0) == false }
         for attachment in abandoned {
             AttachmentStore.shared.delete(attachment)
         }
