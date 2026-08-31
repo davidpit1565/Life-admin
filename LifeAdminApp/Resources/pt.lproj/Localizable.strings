@@ -218,3 +218,4 @@
 "activityLog.addedFromChecklist" = "Adicionado a partir dos lembretes sugeridos: %@";
 "notification.checklistNudgeTitle" = "Lembretes Sugeridos";
 "notification.checklistNudgeBody" = "Você ainda tem alguns lembretes importantes que não adicionou.";
+"itemDetail.attachmentLocked" = "Anexo bloqueado. Toque para desbloquear com Face ID ou Touch ID.";

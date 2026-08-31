@@ -218,3 +218,4 @@
 "activityLog.addedFromChecklist" = "Aus vorgeschlagenen Erinnerungen hinzugefügt: %@";
 "notification.checklistNudgeTitle" = "Vorgeschlagene Erinnerungen";
 "notification.checklistNudgeBody" = "Du hast noch ein paar wichtige Erinnerungen, die du nicht hinzugefügt hast.";
+"itemDetail.attachmentLocked" = "Gesperrter Anhang. Tippen, um mit Face ID oder Touch ID zu entsperren.";

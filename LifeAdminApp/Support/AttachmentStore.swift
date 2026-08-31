@@ -41,6 +41,15 @@ struct AttachmentStore {
         // since boot, so this matches the app's own opt-in Face ID lock semantics instead:
         // unreadable whenever the device itself is locked.
         guard (try? data.write(to: url, options: .completeFileProtection)) != nil else { return nil }
+        // Photographed IDs and insurance cards have no business riding along in an iCloud device
+        // backup just because everything else in the app's container does by default — this is
+        // guidance to the system rather than a guarantee (Apple's own docs note routine file
+        // operations can reset it), so it's a defense-in-depth layer on top of file protection
+        // above, never a substitute for it.
+        var fileURL = url
+        var resourceValues = URLResourceValues()
+        resourceValues.isExcludedFromBackup = true
+        try? fileURL.setResourceValues(resourceValues)
         return Attachment(id: id, filename: filename, mimeType: "image/jpeg", sizeBytes: data.count, localPath: storedFilename)
     }
 

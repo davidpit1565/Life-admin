@@ -218,3 +218,4 @@
 "activityLog.addedFromChecklist" = "Добавлено из рекомендуемых напоминаний: %@";
 "notification.checklistNudgeTitle" = "Рекомендуемые напоминания";
 "notification.checklistNudgeBody" = "У вас всё ещё есть несколько важных напоминаний, которые вы не добавили.";
+"itemDetail.attachmentLocked" = "Заблокированное вложение. Нажмите, чтобы разблокировать с помощью Face ID или Touch ID.";

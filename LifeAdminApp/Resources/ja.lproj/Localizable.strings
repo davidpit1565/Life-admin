@@ -218,3 +218,4 @@
 "activityLog.addedFromChecklist" = "おすすめのリマインダーから追加: %@";
 "notification.checklistNudgeTitle" = "おすすめのリマインダー";
 "notification.checklistNudgeBody" = "まだ追加していない重要なリマインダーがいくつかあります。";
+"itemDetail.attachmentLocked" = "ロックされた添付ファイル。Face IDまたはTouch IDでロック解除するにはタップしてください。";

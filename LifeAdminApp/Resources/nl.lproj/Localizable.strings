@@ -218,3 +218,4 @@
 "activityLog.addedFromChecklist" = "Toegevoegd vanuit voorgestelde herinneringen: %@";
 "notification.checklistNudgeTitle" = "Voorgestelde Herinneringen";
 "notification.checklistNudgeBody" = "Je hebt nog een paar belangrijke herinneringen die je niet hebt toegevoegd.";
+"itemDetail.attachmentLocked" = "Vergrendelde bijlage. Tik om te ontgrendelen met Face ID of Touch ID.";

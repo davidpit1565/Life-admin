@@ -23,6 +23,11 @@ struct ItemDetailView: View {
     @State private var showingContactPicker = false
     @State private var showingDeleteConfirmation = false
     @State private var isSaving = false
+    @AppStorage("appLockEnabled") private var appLockEnabled = false
+    // Reset every time this view is freshly opened (a new instance, a new empty Set) rather than
+    // persisted anywhere — a photographed passport or insurance card should ask again next time
+    // the item is opened, not stay revealed forever once unlocked once.
+    @State private var revealedAttachmentIDs: Set<UUID> = []
 
     init(item: LifeAdminItem) {
         self.item = item
@@ -126,8 +131,36 @@ struct ItemDetailView: View {
                     ForEach(attachments) { attachment in
                         HStack {
                             if let uiImage = UIImage(contentsOfFile: AttachmentStore.shared.url(for: attachment).path) {
+                                // Only actually gates anything when the user opted into App Lock —
+                                // requiring Face ID to see a photo in an app that otherwise has no
+                                // lock at all would be a jarring, unexplained inconsistency rather
+                                // than an extra layer of the security they already asked for.
+                                let isRevealed = appLockEnabled == false || revealedAttachmentIDs.contains(attachment.id)
                                 Image(uiImage: uiImage).resizable().scaledToFill()
                                     .frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 6))
+                                    .blur(radius: isRevealed ? 0 : 12)
+                                    .overlay {
+                                        if isRevealed == false {
+                                            Image(systemName: "lock.fill")
+                                                .foregroundStyle(.white)
+                                                .accessibilityHidden(true)
+                                        }
+                                    }
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        guard isRevealed == false else { return }
+                                        Task {
+                                            // A device that can't verify identity at all (no
+                                            // passcode set) must never be treated as "revealed" —
+                                            // the same nil-handling rule AppLockService's own
+                                            // documentation calls for everywhere else it's used.
+                                            if await AppLockService.shared.authenticate() == true {
+                                                revealedAttachmentIDs.insert(attachment.id)
+                                            }
+                                        }
+                                    }
+                                    .accessibilityLabel(isRevealed ? Text(attachment.filename) : Text(String(localized: "itemDetail.attachmentLocked")))
+                                    .accessibilityAddTraits(isRevealed ? [] : .isButton)
                             } else {
                                 Image(systemName: "doc.fill").foregroundStyle(.secondary)
                             }

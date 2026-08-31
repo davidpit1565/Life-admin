@@ -218,3 +218,4 @@
 "activityLog.addedFromChecklist" = "Agregado desde recordatorios sugeridos: %@";
 "notification.checklistNudgeTitle" = "Recordatorios Sugeridos";
 "notification.checklistNudgeBody" = "Todavía tienes algunos recordatorios importantes que no has agregado.";
+"itemDetail.attachmentLocked" = "Archivo adjunto bloqueado. Toca para desbloquear con Face ID o Touch ID.";

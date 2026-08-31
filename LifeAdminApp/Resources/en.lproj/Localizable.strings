@@ -218,3 +218,4 @@
 "activityLog.addedFromChecklist" = "Added from suggested reminders: %@";
 "notification.checklistNudgeTitle" = "Suggested Reminders";
 "notification.checklistNudgeBody" = "You still have a few important reminders you haven't added yet.";
+"itemDetail.attachmentLocked" = "Locked attachment. Tap to unlock with Face ID or Touch ID.";

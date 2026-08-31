@@ -218,3 +218,4 @@
 "activityLog.addedFromChecklist" = "從建議提醒中添加：%@";
 "notification.checklistNudgeTitle" = "建議提醒";
 "notification.checklistNudgeBody" = "你還有一些重要的提醒事項尚未添加。";
+"itemDetail.attachmentLocked" = "已鎖定的附件。點按以使用Face ID或Touch ID解鎖。";

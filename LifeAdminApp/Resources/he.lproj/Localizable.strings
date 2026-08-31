@@ -218,3 +218,4 @@
 "activityLog.addedFromChecklist" = "נוסף מהתזכורות המומלצות: %@";
 "notification.checklistNudgeTitle" = "תזכורות מומלצות";
 "notification.checklistNudgeBody" = "עדיין יש לך כמה תזכורות חשובות שלא הוספת.";
+"itemDetail.attachmentLocked" = "קובץ מצורף נעול. הקש כדי לפתוח עם Face ID או Touch ID.";

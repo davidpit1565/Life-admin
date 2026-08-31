@@ -218,3 +218,4 @@
 "activityLog.addedFromChecklist" = "أُضيف من التذكيرات المقترحة: %@";
 "notification.checklistNudgeTitle" = "تذكيرات مقترحة";
 "notification.checklistNudgeBody" = "لا يزال لديك بعض التذكيرات المهمة التي لم تضفها بعد.";
+"itemDetail.attachmentLocked" = "مرفق مقفل. اضغط لإلغاء القفل باستخدام Face ID أو Touch ID.";
