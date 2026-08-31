@@ -219,3 +219,6 @@
 "notification.checklistNudgeTitle" = "Voorgestelde Herinneringen";
 "notification.checklistNudgeBody" = "Je hebt nog een paar belangrijke herinneringen die je niet hebt toegevoegd.";
 "itemDetail.attachmentLocked" = "Vergrendelde bijlage. Tik om te ontgrendelen met Face ID of Touch ID.";
+"itemDetail.priceIncreased" = "%d%% hoger dan de vorige keer";
+"itemDetail.priceDecreased" = "%d%% lager dan de vorige keer";
+"itemDetail.scamWarning" = "Dit lijkt mogelijk phishing-/oplichtingstaal te bevatten — controleer dit voordat je betaalt.";

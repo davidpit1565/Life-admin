@@ -219,3 +219,6 @@
 "notification.checklistNudgeTitle" = "おすすめのリマインダー";
 "notification.checklistNudgeBody" = "まだ追加していない重要なリマインダーがいくつかあります。";
 "itemDetail.attachmentLocked" = "ロックされた添付ファイル。Face IDまたはTouch IDでロック解除するにはタップしてください。";
+"itemDetail.priceIncreased" = "前回より%d%%上昇";
+"itemDetail.priceDecreased" = "前回より%d%%下降";
+"itemDetail.scamWarning" = "フィッシング詐欺の可能性がある表現が含まれているようです。支払う前によく確認してください。";

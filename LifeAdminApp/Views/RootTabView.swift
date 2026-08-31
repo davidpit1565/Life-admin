@@ -31,6 +31,7 @@ struct RootTabView: View {
     @State private var firstRunStep: FirstRunStep?
     @State private var isLocked = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         TabView {
@@ -66,8 +67,8 @@ struct RootTabView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.default, value: store.pendingUndo?.id)
-        .animation(.default, value: store.calendarSyncWarningVisible)
+        .animation(reduceMotion ? nil : .default, value: store.pendingUndo?.id)
+        .animation(reduceMotion ? nil : .default, value: store.calendarSyncWarningVisible)
         .sheet(isPresented: $adding) {
             AddItemView()
         }
@@ -921,6 +922,7 @@ struct AddItemView: View {
     @State private var confirmedItem: LifeAdminItem?
     @State private var confirmedItemWasMerged = false
     @State private var confirmedCount: Int?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// A handful of ready-made examples spanning different categories — tapping one fills the
     /// text box with exactly what to type, so a first-time (or simply overwhelmed) user can see
@@ -1022,14 +1024,14 @@ struct AddItemView: View {
                                     // visible "here's what we understood" moment, tapping Save
                                     // just closes the screen with no sign anything happened at
                                     // all, which reads as broken rather than automatic.
-                                    withAnimation {
+                                    withAnimation(reduceMotion ? nil : .default) {
                                         confirmedItem = item
                                         confirmedItemWasMerged = merged
                                     }
                                     try? await Task.sleep(for: .seconds(1.2))
                                     dismiss()
                                 case .addedMultiple(let addedItems):
-                                    withAnimation { confirmedCount = addedItems.count }
+                                    withAnimation(reduceMotion ? nil : .default) { confirmedCount = addedItems.count }
                                     try? await Task.sleep(for: .seconds(1.2))
                                     dismiss()
                                 }
@@ -1147,9 +1149,11 @@ private struct CalendarSyncWarningBanner: View {
                 .font(.title2)
                 .foregroundStyle(.orange)
                 .accessibilityHidden(true)
+            // No line limit — at the largest accessibility Dynamic Type sizes this message (the
+            // one time this banner appears at all) must stay fully readable rather than getting
+            // cut off, exactly for the low-vision users who need it most.
             Text(String(localized: "calendarSync.warning"))
                 .font(.subheadline)
-                .lineLimit(2)
             Spacer()
         }
         .padding()
@@ -1165,9 +1169,10 @@ private struct UndoDeleteBanner: View {
 
     var body: some View {
         HStack(spacing: 12) {
+            // No line limit, same reasoning as CalendarSyncWarningBanner above — a long item
+            // title at the largest accessibility text sizes must wrap, not vanish mid-word.
             Text(String(format: String(localized: "items.deletedToast"), item.title))
                 .font(.subheadline)
-                .lineLimit(1)
             Spacer()
             Button(String(localized: "common.undo"), action: onUndo)
                 .font(.subheadline.bold())

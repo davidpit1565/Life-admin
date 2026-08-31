@@ -24,6 +24,7 @@ struct ItemDetailView: View {
     @State private var showingDeleteConfirmation = false
     @State private var isSaving = false
     @AppStorage("appLockEnabled") private var appLockEnabled = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // Reset every time this view is freshly opened (a new instance, a new empty Set) rather than
     // persisted anywhere — a photographed passport or insurance card should ask again next time
     // the item is opened, not stay revealed forever once unlocked once.
@@ -47,6 +48,15 @@ struct ItemDetailView: View {
 
     var body: some View {
         Form {
+            // A heuristic, not a guarantee (see NaturalLanguageParser.detectsScamLanguage) — the
+            // wording says "double-check", not "this is a scam", since it can be wrong in both
+            // directions.
+            if item.tags.contains(NaturalLanguageParser.scamRiskTag) {
+                Section {
+                    Label(String(localized: "itemDetail.scamWarning"), systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                }
+            }
             Section(String(localized: "itemDetail.details")) {
                 TextField(String(localized: "itemDetail.title"), text: $title)
                 Picker(String(localized: "itemDetail.category"), selection: $category) {
@@ -57,7 +67,7 @@ struct ItemDetailView: View {
             }
 
             Section(String(localized: "itemDetail.dueDate")) {
-                Toggle(String(localized: "itemDetail.hasDueDate"), isOn: $hasDueDate.animation())
+                Toggle(String(localized: "itemDetail.hasDueDate"), isOn: $hasDueDate.animation(reduceMotion ? nil : .default))
                 if hasDueDate {
                     DatePicker(String(localized: "itemDetail.dueDate"), selection: $dueDate, displayedComponents: [.date, .hourAndMinute])
                     // Recurrence with no due date to recur from is exactly the same trap as
@@ -92,6 +102,14 @@ struct ItemDetailView: View {
             Section(String(localized: "itemDetail.amount")) {
                 TextField(String(localized: "itemDetail.amount"), text: $amountText)
                     .keyboardType(.decimalPad)
+                // A renewal quietly costing more than last time is exactly the kind of thing
+                // this app exists to catch — surfaced right where the number is being looked at,
+                // not buried somewhere it'd only be found by comparing old records by hand.
+                if let priceChangeDescription {
+                    Text(priceChangeDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 // A free-text currency field meant typing a typo (or the wrong case) silently
                 // dropped the whole currency on save with zero explanation — Locale.commonISOCurrencyCodes
                 // doesn't match "usd" or "dolars". A picker can't produce an invalid value at all.
@@ -276,6 +294,22 @@ struct ItemDetailView: View {
         SnoozeOption(days: 3, label: String(localized: "itemDetail.snooze.3days")),
         SnoozeOption(days: 7, label: String(localized: "itemDetail.snooze.1week"))
     ]
+
+    /// A renewal costing more than the cycle it replaced — RecurrenceEngine.nextOccurrence carries
+    /// the prior amount forward specifically so this can be caught, rather than a price increase
+    /// quietly blending into "just this year's number". Reads the live, still-being-edited
+    /// `amountText` (not `item.amount`) so typing in the new renewal price updates this
+    /// immediately, before Save.
+    private var priceChangeDescription: String? {
+        guard let previous = item.previousAmount, previous != 0,
+              let current = Decimal(string: amountText.trimmingCharacters(in: .whitespacesAndNewlines), locale: Locale.current),
+              current != previous else { return nil }
+        let percent = Double(truncating: ((current - previous) / previous * 100) as NSDecimalNumber)
+        let roundedPercent = abs(Int(percent.rounded()))
+        return percent > 0
+            ? String(format: String(localized: "itemDetail.priceIncreased"), roundedPercent)
+            : String(format: String(localized: "itemDetail.priceDecreased"), roundedPercent)
+    }
 
     /// The next 3 dates this recurrence would actually land on, chained from the current due
     /// date — reuses RecurrenceEngine.nextDueDate directly rather than a second implementation

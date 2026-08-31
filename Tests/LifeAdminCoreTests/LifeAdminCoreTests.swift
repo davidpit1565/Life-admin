@@ -644,4 +644,64 @@ final class LifeAdminCoreTests: XCTestCase {
      let suggestions = ChecklistEngine().outstandingSuggestions(items: [], dismissedIDs: ["passport"])
      XCTAssertFalse(suggestions.contains { $0.id == "passport" })
  }
+ // ReminderEngine.defaultOffsets: a one-size-fits-all lead time doesn't fit what these
+ // categories actually involve (see the doc comment on defaultOffsets itself).
+ func testDefaultOffsetsGiveLongLeadTimeForInsuranceAndTravel() {
+     XCTAssertEqual(ReminderEngine.defaultOffsets(for: .insurance), [90, 30, 7, 1])
+     XCTAssertEqual(ReminderEngine.defaultOffsets(for: .travel), [90, 30, 7, 1])
+     XCTAssertEqual(ReminderEngine.defaultOffsets(for: .documents), [90, 30, 7, 1])
+     XCTAssertEqual(ReminderEngine.defaultOffsets(for: .warranties), [90, 30, 7, 1])
+ }
+ func testDefaultOffsetsGiveShortLeadTimeForSubscriptionsAndMemberships() {
+     XCTAssertEqual(ReminderEngine.defaultOffsets(for: .subscriptions), [3, 1])
+     XCTAssertEqual(ReminderEngine.defaultOffsets(for: .memberships), [3, 1])
+ }
+ func testDefaultOffsetsFallBackToAModerateWindow() {
+     XCTAssertEqual(ReminderEngine.defaultOffsets(for: .bills), [30, 7])
+     XCTAssertEqual(ReminderEngine.defaultOffsets(for: .other), [30, 7])
+ }
+ // RecurrenceEngine.nextOccurrence / priceChangePercent: catching a renewal that quietly costs
+ // more than the cycle it replaced.
+ func testNextOccurrenceCarriesForwardThePreviousAmountForComparison() {
+     let item = LifeAdminItem(title: "Car Insurance", category: .insurance, dueDate: Date(), amount: 800, currency: "ILS", recurrence: .yearly)
+     let next = RecurrenceEngine().nextOccurrence(of: item)
+     XCTAssertEqual(next?.previousAmount, 800)
+     // The starting guess for the new cycle's amount is last time's — it hasn't diverged yet.
+     XCTAssertEqual(next?.amount, 800)
+ }
+ func testPriceChangePercentDetectsAnIncrease() {
+     var item = LifeAdminItem(title: "Car Insurance", amount: 920)
+     item.previousAmount = 800
+     XCTAssertEqual(RecurrenceEngine().priceChangePercent(for: item) ?? 0, 15, accuracy: 0.01)
+ }
+ func testPriceChangePercentDetectsADecrease() {
+     var item = LifeAdminItem(title: "Car Insurance", amount: 700)
+     item.previousAmount = 800
+     let percent = RecurrenceEngine().priceChangePercent(for: item)
+     XCTAssertNotNil(percent)
+     XCTAssertTrue(percent! < 0)
+ }
+ func testPriceChangePercentIsNilWithNoPriorAmount() {
+     let item = LifeAdminItem(title: "Car Insurance", amount: 800)
+     XCTAssertNil(RecurrenceEngine().priceChangePercent(for: item))
+ }
+ // Scam/phishing-language heuristic: deliberately requires BOTH an urgency/threat phrase AND a
+ // phishing-style action phrase together, specifically so ordinary bills using normal urgency
+ // language ("final notice", "pay immediately") on their own are never flagged.
+ func testUrgencyLanguageAloneDoesNotTriggerScamFlag() {
+     let e = NaturalLanguageParser().parse("Final notice: electricity bill $150 due immediately or service will be cut off")
+     XCTAssertNotEqual(e.scamRiskDetected, true)
+ }
+ func testUrgencyPlusPhishingActionTriggersScamFlag() {
+     let e = NaturalLanguageParser().parse("Your account will be suspended — verify your account now to avoid suspension")
+     XCTAssertEqual(e.scamRiskDetected, true)
+ }
+ func testHebrewUrgencyPlusPhishingActionTriggersScamFlag() {
+     let e = NaturalLanguageParser().parse("החשבון שלך יושעה - אמת את החשבון שלך מיד")
+     XCTAssertEqual(e.scamRiskDetected, true)
+ }
+ func testOrdinaryReminderDoesNotTriggerScamFlag() {
+     let e = NaturalLanguageParser().parse("Car insurance renews August 15th, $240")
+     XCTAssertNotEqual(e.scamRiskDetected, true)
+ }
 }

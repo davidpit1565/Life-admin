@@ -18,6 +18,7 @@ final class PersistedItem {
     var recurrence: Recurrence
     var recurrenceRule: String?
     var recurrenceAnchorDay: Int?
+    var previousAmount: Decimal?
     var reminderOffsets: [Int]
     var notes: String?
     var tags: [String]
@@ -47,6 +48,7 @@ final class PersistedItem {
         recurrence = item.recurrence
         recurrenceRule = item.recurrenceRule
         recurrenceAnchorDay = item.recurrenceAnchorDay
+        previousAmount = item.previousAmount
         reminderOffsets = item.reminderOffsets
         notes = item.notes
         tags = item.tags
@@ -71,6 +73,7 @@ final class PersistedItem {
         recurrence = item.recurrence
         recurrenceRule = item.recurrenceRule
         recurrenceAnchorDay = item.recurrenceAnchorDay
+        previousAmount = item.previousAmount
         reminderOffsets = item.reminderOffsets
         notes = item.notes
         tags = item.tags
@@ -96,6 +99,7 @@ final class PersistedItem {
             recurrence: recurrence,
             recurrenceRule: recurrenceRule,
             recurrenceAnchorDay: recurrenceAnchorDay,
+            previousAmount: previousAmount,
             reminderOffsets: reminderOffsets,
             notes: notes,
             tags: tags,

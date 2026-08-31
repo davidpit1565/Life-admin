@@ -219,3 +219,6 @@
 "notification.checklistNudgeTitle" = "Recordatorios Sugeridos";
 "notification.checklistNudgeBody" = "Todavía tienes algunos recordatorios importantes que no has agregado.";
 "itemDetail.attachmentLocked" = "Archivo adjunto bloqueado. Toca para desbloquear con Face ID o Touch ID.";
+"itemDetail.priceIncreased" = "Subió %d%% desde la última vez";
+"itemDetail.priceDecreased" = "Bajó %d%% desde la última vez";
+"itemDetail.scamWarning" = "Esto parece que podría contener lenguaje de phishing/estafa — verifica antes de pagar.";

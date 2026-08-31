@@ -219,3 +219,6 @@
 "notification.checklistNudgeTitle" = "Rappels Suggérés";
 "notification.checklistNudgeBody" = "Il vous reste encore quelques rappels importants que vous n'avez pas ajoutés.";
 "itemDetail.attachmentLocked" = "Pièce jointe verrouillée. Appuyez pour déverrouiller avec Face ID ou Touch ID.";
+"itemDetail.priceIncreased" = "En hausse de %d%% par rapport à la dernière fois";
+"itemDetail.priceDecreased" = "En baisse de %d%% par rapport à la dernière fois";
+"itemDetail.scamWarning" = "Cela semble pouvoir contenir un langage d'hameçonnage/arnaque — vérifiez avant de payer.";

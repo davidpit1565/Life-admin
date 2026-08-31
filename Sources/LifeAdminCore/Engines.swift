@@ -23,6 +23,23 @@ public struct ReminderEngine {
         }
         return offsets.compactMap { calendar.date(byAdding: .day, value: -$0, to: due) }.filter { $0 > now }.sorted()
     }
+
+    /// A one-size-fits-all lead time doesn't fit what these categories actually involve: renewing
+    /// a passport or shopping around for a new insurance policy is a weeks-long process someone
+    /// needs real advance notice for, while cancelling a subscription or gym membership is a
+    /// same-day decision that a month's notice would just mean forgetting about again before it's
+    /// due. Callers building a brand-new item — nothing here changes an item someone already
+    /// created with different offsets — should use this instead of a single hardcoded default.
+    public static func defaultOffsets(for category: LifeCategory) -> [Int] {
+        switch category {
+        case .travel, .insurance, .documents, .warranties:
+            return [90, 30, 7, 1]
+        case .subscriptions, .memberships:
+            return [3, 1]
+        default:
+            return [30, 7]
+        }
+    }
 }
 public struct LifeEventDetector: Sendable {
     public init() {}
@@ -145,7 +162,20 @@ public struct RecurrenceEngine: Sendable {
         nextItem.attachments = []
         nextItem.createdAt = now
         nextItem.updatedAt = now
+        // The completed occurrence's own amount becomes what the new one is compared against —
+        // carried forward as `amount` too (the actual renewal price isn't known yet, so last
+        // time's is the only reasonable starting guess) so the two only diverge once someone
+        // types in what this renewal actually costs.
+        nextItem.previousAmount = item.amount
         return nextItem
+    }
+
+    /// The percentage change from `previousAmount` to `amount` — positive means it went up. `nil`
+    /// when there's nothing to compare (no prior amount recorded, or either side is missing or
+    /// zero, where a percentage isn't a meaningful number).
+    public func priceChangePercent(for item: LifeAdminItem) -> Double? {
+        guard let previous = item.previousAmount, let current = item.amount, previous != 0 else { return nil }
+        return Double(truncating: ((current - previous) / previous * 100) as NSDecimalNumber)
     }
 }
 public struct ImportExportEngine {

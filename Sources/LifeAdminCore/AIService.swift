@@ -74,8 +74,13 @@ public struct LifeAdminAIService: Sendable {
             return ExtractionDecision(item: local, usedAI: false, fallbackReason: .networkUnavailable)
         }
         do {
-            let ai = try await client.extract(from: text)
+            var ai = try await client.extract(from: text)
             try validateStructuredExtraction(ai)
+            // Gemini's own schema has no scam-language flag of its own — carrying over what the
+            // local heuristic already found (rather than letting it just get overwritten and
+            // lost) means a high-stakes item that triggered a Gemini round-trip through
+            // needsExtraScrutiny doesn't also lose the one safety signal already computed for it.
+            ai.scamRiskDetected = ai.scamRiskDetected ?? local.scamRiskDetected
             return ExtractionDecision(item: ai, usedAI: true, fallbackReason: nil)
         } catch let error as AIExtractionError {
             return ExtractionDecision(item: local, usedAI: false, fallbackReason: error)

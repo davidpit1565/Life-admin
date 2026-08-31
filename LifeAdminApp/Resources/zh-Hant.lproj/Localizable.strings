@@ -219,3 +219,6 @@
 "notification.checklistNudgeTitle" = "建議提醒";
 "notification.checklistNudgeBody" = "你還有一些重要的提醒事項尚未添加。";
 "itemDetail.attachmentLocked" = "已鎖定的附件。點按以使用Face ID或Touch ID解鎖。";
+"itemDetail.priceIncreased" = "比上次上漲%d%%";
+"itemDetail.priceDecreased" = "比上次下降%d%%";
+"itemDetail.scamWarning" = "這看起來可能包含釣魚/詐騙用語 - 付款前請再次確認。";

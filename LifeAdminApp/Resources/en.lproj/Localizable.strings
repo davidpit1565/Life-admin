@@ -219,3 +219,6 @@
 "notification.checklistNudgeTitle" = "Suggested Reminders";
 "notification.checklistNudgeBody" = "You still have a few important reminders you haven't added yet.";
 "itemDetail.attachmentLocked" = "Locked attachment. Tap to unlock with Face ID or Touch ID.";
+"itemDetail.priceIncreased" = "Up %d%% from last time";
+"itemDetail.priceDecreased" = "Down %d%% from last time";
+"itemDetail.scamWarning" = "This looks like it might contain phishing/scam language — double-check before paying.";

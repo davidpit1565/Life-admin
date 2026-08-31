@@ -219,3 +219,6 @@
 "notification.checklistNudgeTitle" = "Promemoria Suggeriti";
 "notification.checklistNudgeBody" = "Hai ancora alcuni promemoria importanti che non hai aggiunto.";
 "itemDetail.attachmentLocked" = "Allegato bloccato. Tocca per sbloccare con Face ID o Touch ID.";
+"itemDetail.priceIncreased" = "Aumentato del %d%% rispetto all'ultima volta";
+"itemDetail.priceDecreased" = "Diminuito del %d%% rispetto all'ultima volta";
+"itemDetail.scamWarning" = "Questo potrebbe contenere un linguaggio di phishing/truffa — verifica prima di pagare.";

@@ -219,3 +219,6 @@
 "notification.checklistNudgeTitle" = "תזכורות מומלצות";
 "notification.checklistNudgeBody" = "עדיין יש לך כמה תזכורות חשובות שלא הוספת.";
 "itemDetail.attachmentLocked" = "קובץ מצורף נעול. הקש כדי לפתוח עם Face ID או Touch ID.";
+"itemDetail.priceIncreased" = "עלה ב-%d%% מהפעם הקודמת";
+"itemDetail.priceDecreased" = "ירד ב-%d%% מהפעם הקודמת";
+"itemDetail.scamWarning" = "זה נראה כאילו עשוי להכיל שפה של הונאה/פישינג - בדוק שוב לפני שאתה משלם.";

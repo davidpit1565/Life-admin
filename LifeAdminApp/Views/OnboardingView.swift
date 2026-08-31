@@ -8,6 +8,7 @@ import SwiftUI
 struct OnboardingView: View {
     var onFinish: () -> Void
     @State private var page = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 24) {
@@ -34,7 +35,7 @@ struct OnboardingView: View {
                 if page == 2 {
                     onFinish()
                 } else {
-                    withAnimation { page += 1 }
+                    withAnimation(reduceMotion ? nil : .default) { page += 1 }
                 }
             }
             .buttonStyle(.borderedProminent)

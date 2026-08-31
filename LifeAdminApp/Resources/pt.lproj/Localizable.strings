@@ -219,3 +219,6 @@
 "notification.checklistNudgeTitle" = "Lembretes Sugeridos";
 "notification.checklistNudgeBody" = "Você ainda tem alguns lembretes importantes que não adicionou.";
 "itemDetail.attachmentLocked" = "Anexo bloqueado. Toque para desbloquear com Face ID ou Touch ID.";
+"itemDetail.priceIncreased" = "Subiu %d%% desde a última vez";
+"itemDetail.priceDecreased" = "Caiu %d%% desde a última vez";
+"itemDetail.scamWarning" = "Isso parece conter linguagem de phishing/golpe — verifique antes de pagar.";

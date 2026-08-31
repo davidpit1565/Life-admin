@@ -1,5 +1,5 @@
 import Foundation
-public struct ExtractedItem: Codable, Equatable, Sendable { public var title: String?; public var category: LifeCategory?; public var amount: Decimal?; public var currency: String?; public var date: Date?; public var recurring: Recurrence?; public var reminderOffsets: [Int]?; public var confidence: Double }
+public struct ExtractedItem: Codable, Equatable, Sendable { public var title: String?; public var category: LifeCategory?; public var amount: Decimal?; public var currency: String?; public var date: Date?; public var recurring: Recurrence?; public var reminderOffsets: [Int]?; public var confidence: Double; public var scamRiskDetected: Bool? = nil }
 public struct NaturalLanguageParser: Sendable {
     public init() {}
 
@@ -606,10 +606,39 @@ public struct NaturalLanguageParser: Sendable {
             currency: currency,
             date: date,
             recurring: recurrence,
-            reminderOffsets: category == .travel ? [90, 30, 7, 1] : [30],
-            confidence: confidence
+            reminderOffsets: ReminderEngine.defaultOffsets(for: category),
+            confidence: confidence,
+            scamRiskDetected: Self.detectsScamLanguage(in: lower)
         )
     }
+
+    /// A real bill legitimately says "final notice" or "pay immediately to avoid a late fee" all
+    /// the time — urgency language alone is much too common in ordinary correspondence to flag on
+    /// its own, and would just train people to ignore the warning. What phishing/scam messages
+    /// add on top of urgency is a request to act on a link or "verify"/"confirm" account or
+    /// payment details right now — this only flags when BOTH kinds of phrase appear together,
+    /// deliberately trading missed detections for not crying wolf on real bills. This is a
+    /// heuristic, not a guarantee: it can't and shouldn't be sold as "we'll catch every scam."
+    private static let urgencyOrThreatPhrases: [String] = [
+        "account will be suspended", "account will be closed", "account has been compromised",
+        "final notice", "legal action", "risk of arrest", "unusual activity detected",
+        "act now", "immediately or your", "failure to pay will result in",
+        "החשבון שלך יושעה", "החשבון ייסגר", "החשבון נפרץ", "הודעה אחרונה", "צעדים משפטיים",
+        "סכנת מעצר", "פעילות חשודה זוהתה", "פעל מיד", "אי תשלום יגרור"
+    ]
+    private static let phishingActionPhrases: [String] = [
+        "verify your account", "confirm your payment details", "confirm your password",
+        "click here to avoid", "click the link below", "update your billing information now",
+        "אמת את החשבון שלך", "אשר את פרטי התשלום", "אשר את הסיסמה שלך", "לחץ כאן כדי למנוע", "לחץ על הקישור"
+    ]
+    static func detectsScamLanguage(in lower: String) -> Bool {
+        urgencyOrThreatPhrases.contains { lower.contains($0) } && phishingActionPhrases.contains { lower.contains($0) }
+    }
+
+    /// Applied to `LifeAdminItem.tags` (the same "special tag with app-wide meaning" pattern
+    /// `LifeEventDetector.movingTag` already uses) rather than adding a dedicated model field —
+    /// `tags` already exists precisely for this kind of lightweight, App-target-visible signal.
+    public static let scamRiskTag = "possible-scam-language"
 }
 public struct AIJSONValidator { public init() {} ; public func decode(_ data: Data) throws -> ExtractedItem { let dec=JSONDecoder(); dec.dateDecodingStrategy = .iso8601; let item = try dec.decode(ExtractedItem.self, from: data); if item.confidence < 0 || item.confidence > 1 { throw LifeAdminError.invalidJSON }; return item } }
 public enum AIProcessingMode: String, Codable, CaseIterable { case askEveryTime, allowAutomatically, disabled }

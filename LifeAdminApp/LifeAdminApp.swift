@@ -170,12 +170,18 @@ final class ItemStore: ObservableObject {
             amount: extracted.amount,
             currency: extracted.currency,
             recurrence: extracted.recurring ?? .none,
-            reminderOffsets: extracted.reminderOffsets ?? [30]
+            reminderOffsets: extracted.reminderOffsets ?? ReminderEngine.defaultOffsets(for: extracted.category ?? .other)
         )
         item.priority = PriorityEngine().priority(for: item)
         item.attachments = attachments
         if FeatureFlags.moveDetectionEnabled {
             item.tags.append(contentsOf: LifeEventDetector().detectedTags(in: text))
+        }
+        // Not gated behind a feature flag, unlike moveDetectionEnabled above — this is a safety
+        // signal, not a nice-to-have, so it should always be active rather than held back for a
+        // later release.
+        if extracted.scamRiskDetected == true {
+            item.tags.append(NaturalLanguageParser.scamRiskTag)
         }
         if decision.usedAI {
             ActivityLog.shared.record(String(format: String(localized: "activityLog.aiHelped"), item.title))
@@ -241,7 +247,7 @@ final class ItemStore: ObservableObject {
             title: NSLocalizedString(suggestion.titleKey, comment: ""),
             category: suggestion.category,
             recurrence: suggestion.suggestedRecurrence,
-            reminderOffsets: suggestion.category == .travel ? [90, 30, 7, 1] : [30]
+            reminderOffsets: ReminderEngine.defaultOffsets(for: suggestion.category)
         )
         item.priority = PriorityEngine().priority(for: item)
         ActivityLog.shared.record(String(format: String(localized: "activityLog.addedFromChecklist"), item.title))
@@ -440,6 +446,7 @@ final class ItemStore: ObservableObject {
 
         await NotificationScheduler.shared.requestAuthorizationIfNeeded()
         await CalendarSyncService.shared.requestAuthorizationIfNeeded()
+        var processedItems: [LifeAdminItem] = []
         for var item in newItems {
             // A JSON export carries only the attachment's metadata, never the file bytes — an
             // item imported on a different install can never actually have that file (unlike an
@@ -449,12 +456,18 @@ final class ItemStore: ObservableObject {
             item.attachments = item.attachments.filter { AttachmentStore.shared.exists($0) }
             let persisted = PersistedItem(item: item)
             modelContext.insert(persisted)
-            items.insert(item, at: 0)
             await NotificationScheduler.shared.schedule(for: item)
             let sync = CalendarSyncService.shared.sync(item: item, existingEventID: nil, existingReminderID: nil)
             persisted.calendarEventIdentifier = sync.eventIdentifier
             persisted.reminderIdentifier = sync.reminderIdentifier
+            processedItems.append(item)
         }
+        // One bulk insert at the front rather than `items.insert(item, at: 0)` inside the loop
+        // above — repeating a front-insert once per item is O(existing items) every time, making
+        // a large backup restore against an already-large library quadratic for no real reason.
+        // Reversed so the result preserves the same "most-recently-imported first" order the old
+        // per-item insert produced.
+        items.insert(contentsOf: processedItems.reversed(), at: 0)
         try? modelContext.save()
         ActivityLog.shared.record(String(format: String(localized: "activityLog.imported"), newItems.count))
         await refreshDigest()
