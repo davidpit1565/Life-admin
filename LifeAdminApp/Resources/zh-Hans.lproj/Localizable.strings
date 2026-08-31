@@ -206,3 +206,13 @@
 "checklist.visa" = "签证";
 "checklist.homeWarranty" = "保修";
 "checklist.creditCardAnnualFee" = "信用卡";
+"checklist.title" = "建议提醒";
+"checklist.stillNeeded" = "仍需添加";
+"checklist.alreadyAdded" = "已添加";
+"checklist.allDone" = "全部完成";
+"checklist.allDoneDescription" = "你已经添加了建议列表中的所有内容。";
+"checklist.swipeToDismissHint" = "向左滑动可标记与你无关的项目。";
+"checklist.addSuggestion" = "添加%@";
+"checklist.notRelevant" = "不相关";
+"home.checklistTeaser" = "有%d条建议提醒你还没有添加";
+"activityLog.addedFromChecklist" = "从建议提醒中添加：%@";

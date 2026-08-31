@@ -206,3 +206,13 @@
 "checklist.visa" = "Виза";
 "checklist.homeWarranty" = "Гарантия";
 "checklist.creditCardAnnualFee" = "Кредитная карта";
+"checklist.title" = "Рекомендуемые напоминания";
+"checklist.stillNeeded" = "Ещё нужно";
+"checklist.alreadyAdded" = "Уже добавлено";
+"checklist.allDone" = "Всё готово";
+"checklist.allDoneDescription" = "Вы охватили всё из рекомендуемого списка.";
+"checklist.swipeToDismissHint" = "Проведите влево по всему, что к вам не относится.";
+"checklist.addSuggestion" = "Добавить %@";
+"checklist.notRelevant" = "Неактуально";
+"home.checklistTeaser" = "%d рекомендуемых напоминаний, которые вы ещё не добавили";
+"activityLog.addedFromChecklist" = "Добавлено из рекомендуемых напоминаний: %@";

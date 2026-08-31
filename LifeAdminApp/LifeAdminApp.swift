@@ -204,6 +204,14 @@ final class ItemStore: ObservableObject {
             ActivityLog.shared.record(String(format: String(localized: "activityLog.contactAutoFilled"), item.title))
         }
 
+        return AddOneEntryResult(item: await persistNewItem(item), wasMerged: false)
+    }
+
+    /// The second half of adding an item once its title/category/recurrence/etc. are already
+    /// decided — shared by `addOneEntry` (decided by AI/local NL parsing) and
+    /// `addFromChecklistSuggestion` (decided directly from a `ChecklistSuggestion`, no parsing
+    /// involved) so persistence, scheduling, and calendar sync only exist in one place.
+    private func persistNewItem(_ item: LifeAdminItem) async -> LifeAdminItem {
         let persisted = PersistedItem(item: item)
         modelContext.insert(persisted)
         try? modelContext.save()
@@ -220,7 +228,24 @@ final class ItemStore: ObservableObject {
         flagCalendarSyncIssueIfNeeded(dueDate: item.dueDate, eventIdentifier: sync.eventIdentifier)
 
         await refreshDigest()
-        return AddOneEntryResult(item: item, wasMerged: false)
+        return item
+    }
+
+    /// Adds an item straight from a tapped checklist suggestion — bypasses AI/local NL parsing
+    /// entirely, unlike `add(text:)`, since the category and recurrence are already known from the
+    /// suggestion itself. That's not just simpler: NaturalLanguageParser only deeply understands
+    /// recurrence phrasing in English/Hebrew/Spanish/French, so generating a sentence and parsing
+    /// it back would silently lose the intended recurrence in the app's other locales.
+    func addFromChecklistSuggestion(_ suggestion: ChecklistSuggestion) async -> LifeAdminItem {
+        var item = LifeAdminItem(
+            title: NSLocalizedString(suggestion.titleKey, comment: ""),
+            category: suggestion.category,
+            recurrence: suggestion.suggestedRecurrence,
+            reminderOffsets: suggestion.category == .travel ? [90, 30, 7, 1] : [30]
+        )
+        item.priority = PriorityEngine().priority(for: item)
+        ActivityLog.shared.record(String(format: String(localized: "activityLog.addedFromChecklist"), item.title))
+        return await persistNewItem(item)
     }
 
     private func refreshDigest() async {

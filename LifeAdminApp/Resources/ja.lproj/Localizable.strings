@@ -206,3 +206,13 @@
 "checklist.visa" = "ビザ";
 "checklist.homeWarranty" = "保証";
 "checklist.creditCardAnnualFee" = "クレジットカード";
+"checklist.title" = "おすすめのリマインダー";
+"checklist.stillNeeded" = "未追加";
+"checklist.alreadyAdded" = "追加済み";
+"checklist.allDone" = "すべて完了";
+"checklist.allDoneDescription" = "おすすめリストの項目をすべて追加しました。";
+"checklist.swipeToDismissHint" = "自分に関係ない項目は左にスワイプしてください。";
+"checklist.addSuggestion" = "%@を追加";
+"checklist.notRelevant" = "関係ない";
+"home.checklistTeaser" = "まだ追加していないおすすめのリマインダーが%d件あります";
+"activityLog.addedFromChecklist" = "おすすめのリマインダーから追加: %@";

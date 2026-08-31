@@ -159,6 +159,7 @@ private struct LockScreenView: View {
 }
 struct HomeView: View {
     @EnvironmentObject var store: ItemStore
+    @AppStorage("checklistDismissedIDs") private var dismissedIDsRaw = ""
     @State private var dismissedMovingBanner = false
 
     // Completed items (e.g. via "Mark Done" on a notification) stay in store.items rather than
@@ -172,9 +173,28 @@ struct HomeView: View {
         store.items.contains { $0.status == .active && $0.tags.contains(LifeEventDetector.movingTag) }
     }
 
+    // No per-session dismiss for this one, unlike the moving banner below — it's meant to keep
+    // being visible on Home until the user genuinely resolves it (adds the item or marks it not
+    // relevant in the checklist itself), which is what "surface this again from time to time"
+    // means for a screen someone actually opens often, instead of a one-off popup they close once
+    // and never see again.
+    private var outstandingChecklistCount: Int {
+        let dismissedIDs = Set(dismissedIDsRaw.split(separator: ",").map(String.init))
+        return ChecklistEngine().outstandingSuggestions(items: store.items, dismissedIDs: dismissedIDs).count
+    }
+
     var body: some View {
         NavigationStack {
             List {
+                if outstandingChecklistCount > 0 {
+                    Section {
+                        NavigationLink {
+                            ChecklistView()
+                        } label: {
+                            Label(String(format: String(localized: "home.checklistTeaser"), outstandingChecklistCount), systemImage: "checklist")
+                        }
+                    }
+                }
                 if hasMovingEvent && dismissedMovingBanner == false {
                     Section {
                         HStack {
@@ -703,6 +723,9 @@ struct SettingsView: View {
                     }
                     NavigationLink(String(localized: "settings.addressChange")) {
                         AddressChangeView()
+                    }
+                    NavigationLink(String(localized: "checklist.title")) {
+                        ChecklistView()
                     }
                 }
                 Section(String(localized: "settings.ai")) {

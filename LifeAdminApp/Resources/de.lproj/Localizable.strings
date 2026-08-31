@@ -206,3 +206,13 @@
 "checklist.visa" = "Visum";
 "checklist.homeWarranty" = "Garantie";
 "checklist.creditCardAnnualFee" = "Kreditkarte";
+"checklist.title" = "Vorgeschlagene Erinnerungen";
+"checklist.stillNeeded" = "Noch Erforderlich";
+"checklist.alreadyAdded" = "Bereits Hinzugefügt";
+"checklist.allDone" = "Alles Erledigt";
+"checklist.allDoneDescription" = "Du hast alles aus der vorgeschlagenen Liste abgedeckt.";
+"checklist.swipeToDismissHint" = "Wische nach links bei allem, was nicht auf dich zutrifft.";
+"checklist.addSuggestion" = "%@ Hinzufügen";
+"checklist.notRelevant" = "Nicht Relevant";
+"home.checklistTeaser" = "%d vorgeschlagene Erinnerungen, die du noch nicht hinzugefügt hast";
+"activityLog.addedFromChecklist" = "Aus vorgeschlagenen Erinnerungen hinzugefügt: %@";

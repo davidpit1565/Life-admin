@@ -206,3 +206,13 @@
 "checklist.visa" = "Visa";
 "checklist.homeWarranty" = "Garantie";
 "checklist.creditCardAnnualFee" = "Carte de Crédit";
+"checklist.title" = "Rappels Suggérés";
+"checklist.stillNeeded" = "Encore Manquant";
+"checklist.alreadyAdded" = "Déjà Ajouté";
+"checklist.allDone" = "Tout est Prêt";
+"checklist.allDoneDescription" = "Vous avez couvert tout ce qui figure dans la liste suggérée.";
+"checklist.swipeToDismissHint" = "Balayez vers la gauche sur ce qui ne vous concerne pas.";
+"checklist.addSuggestion" = "Ajouter %@";
+"checklist.notRelevant" = "Non Pertinent";
+"home.checklistTeaser" = "%d rappels suggérés que vous n'avez pas encore ajoutés";
+"activityLog.addedFromChecklist" = "Ajouté depuis les rappels suggérés : %@";

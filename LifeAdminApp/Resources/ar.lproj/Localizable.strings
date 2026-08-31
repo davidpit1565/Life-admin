@@ -206,3 +206,13 @@
 "checklist.visa" = "التأشيرة";
 "checklist.homeWarranty" = "الضمان";
 "checklist.creditCardAnnualFee" = "بطاقة الائتمان";
+"checklist.title" = "تذكيرات مقترحة";
+"checklist.stillNeeded" = "لا يزال مطلوبًا";
+"checklist.alreadyAdded" = "تمت إضافته بالفعل";
+"checklist.allDone" = "كل شيء جاهز";
+"checklist.allDoneDescription" = "لقد أضفت كل شيء في القائمة المقترحة.";
+"checklist.swipeToDismissHint" = "اسحب لليسار على أي شيء لا ينطبق عليك.";
+"checklist.addSuggestion" = "إضافة %@";
+"checklist.notRelevant" = "غير ذي صلة";
+"home.checklistTeaser" = "%d تذكيرات مقترحة لم تضفها بعد";
+"activityLog.addedFromChecklist" = "أُضيف من التذكيرات المقترحة: %@";

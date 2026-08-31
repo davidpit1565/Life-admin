@@ -206,3 +206,13 @@
 "checklist.visa" = "Visto";
 "checklist.homeWarranty" = "Garanzia";
 "checklist.creditCardAnnualFee" = "Carta di Credito";
+"checklist.title" = "Promemoria Suggeriti";
+"checklist.stillNeeded" = "Ancora Necessario";
+"checklist.alreadyAdded" = "Già Aggiunto";
+"checklist.allDone" = "Tutto a Posto";
+"checklist.allDoneDescription" = "Hai coperto tutto ciò che è nell'elenco suggerito.";
+"checklist.swipeToDismissHint" = "Scorri a sinistra su ciò che non ti riguarda.";
+"checklist.addSuggestion" = "Aggiungi %@";
+"checklist.notRelevant" = "Non Rilevante";
+"home.checklistTeaser" = "%d promemoria suggeriti che non hai ancora aggiunto";
+"activityLog.addedFromChecklist" = "Aggiunto dai promemoria suggeriti: %@";

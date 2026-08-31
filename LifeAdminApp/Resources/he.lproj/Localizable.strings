@@ -206,3 +206,13 @@
 "checklist.visa" = "ויזה";
 "checklist.homeWarranty" = "אחריות";
 "checklist.creditCardAnnualFee" = "כרטיס אשראי";
+"checklist.title" = "תזכורות מומלצות";
+"checklist.stillNeeded" = "עדיין חסר";
+"checklist.alreadyAdded" = "כבר נוסף";
+"checklist.allDone" = "הכול מסודר";
+"checklist.allDoneDescription" = "כיסית את כל מה שברשימה המומלצת.";
+"checklist.swipeToDismissHint" = "החלק שמאלה על כל דבר שלא רלוונטי לך.";
+"checklist.addSuggestion" = "הוסף %@";
+"checklist.notRelevant" = "לא רלוונטי";
+"home.checklistTeaser" = "%d תזכורות מומלצות שעדיין לא הוספת";
+"activityLog.addedFromChecklist" = "נוסף מהתזכורות המומלצות: %@";
