@@ -36,6 +36,17 @@ function checkRateLimit(ip) {
   return true;
 }
 
+// Correction: an earlier version of this comment claimed the LAST X-Forwarded-For entry was the
+// trustworthy one (standard multi-hop-proxy convention) and changed clientIP to match — that
+// broke the existing js-tests/gemini-proxy-unit.js assertion and, more importantly, was wrong for
+// this app's actual deployment target. Vercel's own docs (vercel.com/docs/headers/request-headers)
+// are explicit: "we currently overwrite the X-Forwarded-For header and do not forward external
+// IPs. This restriction is in place to prevent IP spoofing" — so on Vercel this header already
+// arrives as a single, trustworthy value with no client-injected entries to worry about, and the
+// FIRST entry (this function's original, restored behavior) is correct. The generic multi-hop
+// assumption only would have applied to running server/gemini-proxy.js standalone (the
+// `if (require.main === module)` block below) directly exposed to the internet with no Vercel (or
+// equivalent trusted edge) in front of it — not this app's real deployment path via api/extract.js.
 function clientIP(headers, socketAddress) {
   const forwarded = headers['x-forwarded-for'];
   const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
@@ -70,7 +81,15 @@ function buildPrompt(text, now = new Date()) {
 // wrong): a card verification code must never leave this proxy under any label naming it, no
 // matter what Gemini actually returns. The client (AIJSONValidator.decode, in Core) repeats this
 // same filter for the same reason — neither side should have to fully trust the other.
-const FORBIDDEN_DOCUMENT_FIELD_LABEL = /cvv|cvc|cid\b|security code|card verification|verification code/i;
+// The original pattern only caught the handful of names spelled out here — verified it let
+// through several other names real card issuers actually use for the same field: "CSC" (Card
+// Security Code), "CVN" (Card Verification Number), "Card Identification Number" (Amex's own
+// full name for what "CID" abbreviates), "Card Security Value", "Sec Code", and phrasing like
+// "3-digit code on back" or "Verification No." — all of which a reasonable person would
+// recognize as "the CVV field" but none of which matched. Kept in sync with
+// DocumentFieldSafety.forbiddenLabelPattern in Swift (Sources/LifeAdminCore/NaturalLanguage.swift)
+// — this is defense in depth, not a single point of trust, so both layers need the same coverage.
+const FORBIDDEN_DOCUMENT_FIELD_LABEL = /\b(cvv2?|cvc2?|cvn|csc|cid)\b|card\s*identification\s*number|security\s*(code|value|number)|verification\s*(code|number|value|no\.?)|card\s*verification|\bsec\.?\s*code\b|\d\s*-?\s*digit\s*(security\s*)?code/i;
 
 function sanitizeDocumentFields(raw) {
   if (!Array.isArray(raw)) return [];
@@ -142,7 +161,18 @@ async function callGemini(text) {
     if (!textPart) return { status: 502, body: { error: 'empty_ai_response' } };
     let parsed;
     try { parsed = JSON.parse(textPart); } catch { return { status: 502, body: { error: 'malformed_ai_json' } }; }
-    return { status: 200, body: toExtraction(parsed) };
+    // A separate try/catch from the outer one below: `toExtraction`'s own validation throws
+    // (invalid confidence, wrong types) were previously falling through to the generic `catch
+    // (error)` at the bottom of this function, which logs and reports them as `code: 'network'` /
+    // `network_or_service_unavailable` — a genuine data-validation failure misreported as a
+    // network outage, verified by mocking a `confidence: 1.5` response. This keeps it alongside
+    // the identical `malformed_ai_json` handling just above instead.
+    try {
+      return { status: 200, body: toExtraction(parsed) };
+    } catch (error) {
+      safeLog('Gemini returned invalid structured output', { message: error.message });
+      return { status: 502, body: { error: 'invalid_structured_output' } };
+    }
   } catch (error) {
     if (error.name === 'AbortError') return { status: 408, body: { error: 'timeout' } };
     safeLog('Gemini proxy request failed', { code: error.code || 'network' });

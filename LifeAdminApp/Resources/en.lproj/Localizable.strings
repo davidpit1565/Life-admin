@@ -65,6 +65,8 @@
 "insights.empty.description" = "Add a few items and this screen will fill in with stats about what's due and what's piling up.";
 "insights.byCategory" = "By Category";
 "insights.moreCategories" = "+%d more";
+"insights.possibleOverlaps" = "Possible Overlaps";
+"insights.possibleOverlaps.footer" = "You have more than one active recurring item in these categories — worth checking whether any overlap or one can be cancelled.";
 "editContact.chooseFromContacts" = "Choose from Contacts";
 "itemDetail.details" = "Details";
 "itemDetail.title" = "Title";

@@ -365,11 +365,18 @@ private enum DateRangeFilter: String, CaseIterable {
 
     /// `nil` bounds are deliberately open-ended: "overdue" has no lower bound (anything, no
     /// matter how old), and none of these need an upper bound below distantFuture.
+    ///
+    /// Every lower/upper bound here is `startOfDay(now)`, not raw `now` — using the current
+    /// instant as "this week"/"this month"'s lower bound left a gap with "overdue"'s upper bound
+    /// (also `startOfDay(now)`): an item due earlier today (say 9am, viewed at 3pm) failed
+    /// "overdue" (9am isn't `<= startOfDay`) AND failed "this week" (9am isn't `>= 3pm`),
+    /// disappearing from every filtered view even though it was due today.
     func bounds(now: Date, calendar: Calendar) -> (from: Date?, to: Date?) {
+        let today = calendar.startOfDay(for: now)
         switch self {
-        case .overdue: return (nil, calendar.startOfDay(for: now))
-        case .thisWeek: return (now, calendar.date(byAdding: .day, value: 7, to: now))
-        case .thisMonth: return (now, calendar.date(byAdding: .month, value: 1, to: now))
+        case .overdue: return (nil, today)
+        case .thisWeek: return (today, calendar.date(byAdding: .day, value: 7, to: today))
+        case .thisMonth: return (today, calendar.date(byAdding: .month, value: 1, to: today))
         }
     }
 }
@@ -641,7 +648,11 @@ struct ItemsView: View {
     }
 
     private func completeSelected() async {
-        for item in store.items where selection.contains(item.id) {
+        // Restricted to `filteredItems`, not all of `store.items` — `selection` isn't pruned
+        // when a filter/search/sort change makes a previously-selected row drop out of the list,
+        // so acting on the raw selection could silently complete or delete items the bulk
+        // toolbar's own "N selected" count no longer visibly includes.
+        for item in filteredItems where selection.contains(item.id) {
             await store.markCompleted(item)
         }
         selection = []
@@ -651,7 +662,7 @@ struct ItemsView: View {
         // A bulk delete confirms up front instead of offering Undo per item — with several
         // items at once, store.scheduleDelete's single-item Undo banner would only ever be able
         // to restore the last one, silently leaving the rest gone.
-        let toDelete = store.items.filter { selection.contains($0.id) }
+        let toDelete = filteredItems.filter { selection.contains($0.id) }
         selection = []
         Task {
             for item in toDelete {
@@ -769,6 +780,14 @@ struct InsightsView: View {
         Array(categoryCounts.prefix(Self.maxChartCategories))
     }
 
+    /// Not proof of actual waste — a "Subscriptions" category legitimately holds a streaming
+    /// service AND a gym membership at once — just a prompt to double-check. Achieves the same
+    /// kind of nudge competitor subscription trackers get from real bank transaction data, using
+    /// only what this app already has (no bank connection, matching its local-first design).
+    private var possibleOverlaps: [OverlapDetector.Overlap] {
+        OverlapDetector().possibleOverlaps(in: store.items)
+    }
+
     var body: some View {
         NavigationStack {
             // A screen that's nothing but a column of zeros (a brand-new install, before adding
@@ -814,6 +833,26 @@ struct InsightsView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
+                        }
+                    }
+                    // Unlike every other section here, only appears when there's actually
+                    // something to flag — a permanent-but-empty "no overlaps found" section would
+                    // just be reassuring noise on a screen that's otherwise not shy about showing
+                    // real zeros (see insights.dueThisMonth.none just below).
+                    if possibleOverlaps.isEmpty == false {
+                        Section {
+                            ForEach(possibleOverlaps, id: \.category) { overlap in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Label(overlap.category.displayName, systemImage: overlap.category.symbolName)
+                                    Text(overlap.items.map(\.title).joined(separator: ", "))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        } header: {
+                            Text(String(localized: "insights.possibleOverlaps"))
+                        } footer: {
+                            Text(String(localized: "insights.possibleOverlaps.footer"))
                         }
                     }
                     // Hiding this section entirely whenever nothing has both an amount and a due

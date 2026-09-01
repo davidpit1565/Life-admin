@@ -65,6 +65,8 @@
 "insights.empty.description" = "Aggiungi qualche elemento e questa schermata si riempirà di statistiche su cosa scade e cosa si accumula.";
 "insights.byCategory" = "Per categoria";
 "insights.moreCategories" = "+%d altre";
+"insights.possibleOverlaps" = "Possibili sovrapposizioni";
+"insights.possibleOverlaps.footer" = "Hai più di un elemento ricorrente attivo in queste categorie — vale la pena controllare se c'è una sovrapposizione o se uno può essere annullato.";
 "editContact.chooseFromContacts" = "Scegli dai Contatti";
 "itemDetail.details" = "Dettagli";
 "itemDetail.title" = "Titolo";

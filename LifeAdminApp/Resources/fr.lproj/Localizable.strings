@@ -65,6 +65,8 @@
 "insights.empty.description" = "Ajoutez quelques éléments et cet écran se remplira de statistiques sur ce qui est dû et ce qui s'accumule.";
 "insights.byCategory" = "Par catégorie";
 "insights.moreCategories" = "+%d de plus";
+"insights.possibleOverlaps" = "Chevauchements possibles";
+"insights.possibleOverlaps.footer" = "Vous avez plus d'un élément récurrent actif dans ces catégories — cela vaut la peine de vérifier s'il y a un chevauchement ou si l'un peut être annulé.";
 "editContact.chooseFromContacts" = "Choisir dans Contacts";
 "itemDetail.details" = "Détails";
 "itemDetail.title" = "Titre";

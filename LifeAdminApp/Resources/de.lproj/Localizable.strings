@@ -65,6 +65,8 @@
 "insights.empty.description" = "Füge ein paar Einträge hinzu, und dieser Bildschirm füllt sich mit Statistiken darüber, was fällig ist und was sich ansammelt.";
 "insights.byCategory" = "Nach Kategorie";
 "insights.moreCategories" = "+%d weitere";
+"insights.possibleOverlaps" = "Mögliche Überschneidungen";
+"insights.possibleOverlaps.footer" = "Du hast mehr als einen aktiven, wiederkehrenden Eintrag in diesen Kategorien — es lohnt sich zu prüfen, ob sich etwas überschneidet oder gekündigt werden kann.";
 "editContact.chooseFromContacts" = "Aus Kontakten wählen";
 "itemDetail.details" = "Details";
 "itemDetail.title" = "Titel";
