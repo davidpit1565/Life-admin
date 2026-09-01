@@ -1,13 +1,11 @@
 # Terms of Use — Life Admin
 
-**Status: draft.** Needs a legal pass before publishing — see `docs/APP_STORE_READINESS.md`.
-Replace `[developer/company name]`, `[effective date]`, `[jurisdiction]`, and `[contact email]`
-before this goes live.
+_This has not had a professional legal review — if you need one for your jurisdiction, get one
+before relying on this as your sole compliance document._
 
-_Last effective: [effective date]_
+_Last effective: September 1, 2026_
 
-By downloading or using Life Admin ("the app"), published by [developer/company name], you agree
-to these terms.
+By downloading or using Life Admin ("the app"), published by David Pit, you agree to these terms.
 
 ## What the app does
 
@@ -60,14 +58,13 @@ any of its features (including the AI proxy service) at any time.
 ## Disclaimer and liability
 
 The app is provided "as is," without warranties of any kind. To the maximum extent permitted by
-law, [developer/company name] is not liable for any damages arising from use of the app,
+law, David Pit is not liable for any damages arising from use of the app,
 including missed deadlines, incorrect AI-extracted data, or data loss.
 
 ## Governing law
 
-These terms are governed by the laws of [jurisdiction], without regard to conflict-of-law rules.
-[Confirm this is the right jurisdiction before publishing.]
+These terms are governed by the laws of Israel, without regard to conflict-of-law rules.
 
 ## Contact
 
-Questions about these terms: [contact email].
+Questions about these terms: dp@solfaygroup.com.
