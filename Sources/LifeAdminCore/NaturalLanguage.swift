@@ -17,7 +17,15 @@ public struct DocumentFieldSuggestion: Codable, Equatable, Sendable {
 /// which server or prompt version produced it — passes through before it can ever reach the UI or
 /// SwiftData: see `AIJSONValidator.decode`.
 public enum DocumentFieldSafety {
-    private static let forbiddenLabelPattern = try! NSRegularExpression(pattern: "cvv|cvc|cid\\b|security code|card verification|verification code", options: [.caseInsensitive])
+    // The original pattern only caught the handful of names spelled out here — verified it let
+    // through several other names real card issuers actually use for the same field: "CSC" (Card
+    // Security Code), "CVN" (Card Verification Number), "Card Identification Number" (Amex's own
+    // full name for what "CID" abbreviates), "Card Security Value", "Sec Code", and phrasing like
+    // "3-digit code on back" or "Verification No." — all of which a reasonable person would
+    // recognize as "the CVV field" but none of which matched. Kept in sync with
+    // FORBIDDEN_DOCUMENT_FIELD_LABEL in server/gemini-proxy.js — this is defense in depth, not a
+    // single point of trust, so both layers need the same coverage.
+    private static let forbiddenLabelPattern = try! NSRegularExpression(pattern: "\\b(cvv2?|cvc2?|cvn|csc|cid)\\b|card\\s*identification\\s*number|security\\s*(code|value|number)|verification\\s*(code|number|value|no\\.?)|card\\s*verification|\\bsec\\.?\\s*code\\b|\\d\\s*-?\\s*digit\\s*(security\\s*)?code", options: [.caseInsensitive])
     public static func isForbidden(label: String) -> Bool {
         let range = NSRange(label.startIndex..., in: label)
         return forbiddenLabelPattern.firstMatch(in: label, range: range) != nil
@@ -165,11 +173,18 @@ public struct NaturalLanguageParser: Sendable {
         if lower.contains("שבועיים") && !lower.contains("כל שבועיים") { return weeks(2) }
         if lower.contains("חודשיים") && !lower.contains("כל חודשיים") { return months(2) }
         if lower.contains("שנתיים") && !lower.contains("כל שנתיים") { return years(2) }
-        if lower.contains("in an hour") || lower.contains("בעוד שעה") || lower.contains("en una hora") || lower.contains("dans une heure") { return hours(1) }
-        if lower.contains("in a minute") || lower.contains("בעוד דקה") || lower.contains("en un minuto") || lower.contains("dans une minute") { return minutes(1) }
-        if lower.contains("next week") || lower.contains("in a week") || lower.contains("בעוד שבוע") || lower.contains("בשבוע הבא") || lower.contains("la semana que viene") || lower.contains("próxima semana") || lower.contains("en una semana") || lower.contains("la semaine prochaine") || lower.contains("dans une semaine") { return weeks(1) }
-        if lower.contains("next month") || lower.contains("in a month") || lower.contains("בעוד חודש") || lower.contains("בחודש הבא") || lower.contains("el mes que viene") || lower.contains("próximo mes") || lower.contains("en un mes") || lower.contains("le mois prochain") || lower.contains("dans un mois") { return months(1) }
-        if lower.contains("next year") || lower.contains("in a year") || lower.contains("בעוד שנה") || lower.contains("בשנה הבאה") || lower.contains("el año que viene") || lower.contains("próximo año") || lower.contains("en un año") || lower.contains("l'année prochaine") || lower.contains("l'an prochain") || lower.contains("l’année prochaine") || lower.contains("dans un an") { return years(1) }
+        // "in an hour"/"in a week"/etc. are plain substring checks, not word-bounded — "within a
+        // week" or "within 6 months" contain "in a week"/"in 6 months" as a literal substring
+        // right after "with", so without the `!lower.contains("within")` guard these matched (and
+        // fabricated a date from) some of the most common real bill/document phrasing there is
+        // ("renew within 6 months", "pay within 14 days"). The numbered patterns just below have
+        // the equivalent `\b` word-boundary fix instead, since a plain "doesn't contain within"
+        // check can't cover every possible number.
+        if (lower.contains("in an hour") && !lower.contains("within")) || lower.contains("בעוד שעה") || lower.contains("en una hora") || lower.contains("dans une heure") { return hours(1) }
+        if (lower.contains("in a minute") && !lower.contains("within")) || lower.contains("בעוד דקה") || lower.contains("en un minuto") || lower.contains("dans une minute") { return minutes(1) }
+        if lower.contains("next week") || (lower.contains("in a week") && !lower.contains("within")) || lower.contains("בעוד שבוע") || lower.contains("בשבוע הבא") || lower.contains("la semana que viene") || lower.contains("próxima semana") || lower.contains("en una semana") || lower.contains("la semaine prochaine") || lower.contains("dans une semaine") { return weeks(1) }
+        if lower.contains("next month") || (lower.contains("in a month") && !lower.contains("within")) || lower.contains("בעוד חודש") || lower.contains("בחודש הבא") || lower.contains("el mes que viene") || lower.contains("próximo mes") || lower.contains("en un mes") || lower.contains("le mois prochain") || lower.contains("dans un mois") { return months(1) }
+        if lower.contains("next year") || (lower.contains("in a year") && !lower.contains("within")) || lower.contains("בעוד שנה") || lower.contains("בשנה הבאה") || lower.contains("el año que viene") || lower.contains("próximo año") || lower.contains("en un año") || lower.contains("l'année prochaine") || lower.contains("l'an prochain") || lower.contains("l’année prochaine") || lower.contains("dans un an") { return years(1) }
 
         // "next Tuesday" / Hebrew "יום שלישי הבא" / Spanish "el lunes que viene" / French "lundi
         // prochain" — a weekday name is only a relative-date signal paired with an explicit
@@ -214,34 +229,40 @@ public struct NaturalLanguageParser: Sendable {
             return nil
         }
         let numberAlternation = (["\\d+"] + englishNumberWords.keys + hebrewNumberWords.keys + spanishNumberWords.keys + frenchNumberWords.keys).joined(separator: "|")
+        // Every pattern below starts with a leading `\b` — without it, "in"/"en" (2-letter words)
+        // matched as a plain substring anywhere, including inside "with**in** 6 months" or
+        // "chick**en** 3 days" — verified "Passport renewal due within 6 months" and "Pay within
+        // 14 days to avoid a late fee" both fabricated a confident, wrong date from the "in N
+        // months/days" pattern hiding inside "within", for phrasing that's extremely common in
+        // real bills and renewal notices.
         let numberedPatterns: [(String, (Int) -> Date?)] = [
-            ("in\\s+(\(numberAlternation))\\s+hours?", hours),
-            ("in\\s+(\(numberAlternation))\\s+minutes?", minutes),
-            ("בעוד\\s+(\(numberAlternation))\\s+שעות?", hours),
-            ("בעוד\\s+(\(numberAlternation))\\s+דקות?", minutes),
-            ("en\\s+(\(numberAlternation))\\s+horas?", hours),
-            ("en\\s+(\(numberAlternation))\\s+minutos?", minutes),
-            ("dans\\s+(\(numberAlternation))\\s+heures?", hours),
-            ("dans\\s+(\(numberAlternation))\\s+minutes?", minutes),
-            ("in\\s+(\(numberAlternation))\\s+days?", days),
-            ("in\\s+(\(numberAlternation))\\s+weeks?", weeks),
-            ("in\\s+(\(numberAlternation))\\s+months?", months),
-            ("in\\s+(\(numberAlternation))\\s+years?", years),
-            ("בעוד\\s+(\(numberAlternation))\\s+ימים?", days),
-            ("בעוד\\s+(\(numberAlternation))\\s+שבועות", weeks),
-            ("בעוד\\s+(\(numberAlternation))\\s+חודשים?", months),
-            ("בעוד\\s+(\(numberAlternation))\\s+שנים?", years),
-            ("en\\s+(\(numberAlternation))\\s+días?", days),
-            ("en\\s+(\(numberAlternation))\\s+semanas?", weeks),
-            ("en\\s+(\(numberAlternation))\\s+meses?", months),
-            ("en\\s+(\(numberAlternation))\\s+años?", years),
+            ("\\bin\\s+(\(numberAlternation))\\s+hours?", hours),
+            ("\\bin\\s+(\(numberAlternation))\\s+minutes?", minutes),
+            ("\\bבעוד\\s+(\(numberAlternation))\\s+שעות?", hours),
+            ("\\bבעוד\\s+(\(numberAlternation))\\s+דקות?", minutes),
+            ("\\ben\\s+(\(numberAlternation))\\s+horas?", hours),
+            ("\\ben\\s+(\(numberAlternation))\\s+minutos?", minutes),
+            ("\\bdans\\s+(\(numberAlternation))\\s+heures?", hours),
+            ("\\bdans\\s+(\(numberAlternation))\\s+minutes?", minutes),
+            ("\\bin\\s+(\(numberAlternation))\\s+days?", days),
+            ("\\bin\\s+(\(numberAlternation))\\s+weeks?", weeks),
+            ("\\bin\\s+(\(numberAlternation))\\s+months?", months),
+            ("\\bin\\s+(\(numberAlternation))\\s+years?", years),
+            ("\\bבעוד\\s+(\(numberAlternation))\\s+ימים?", days),
+            ("\\bבעוד\\s+(\(numberAlternation))\\s+שבועות", weeks),
+            ("\\bבעוד\\s+(\(numberAlternation))\\s+חודשים?", months),
+            ("\\bבעוד\\s+(\(numberAlternation))\\s+שנים?", years),
+            ("\\ben\\s+(\(numberAlternation))\\s+días?", days),
+            ("\\ben\\s+(\(numberAlternation))\\s+semanas?", weeks),
+            ("\\ben\\s+(\(numberAlternation))\\s+meses?", months),
+            ("\\ben\\s+(\(numberAlternation))\\s+años?", years),
             // French "mois" (month/months) never takes a plural "s" — a "mois?" pattern would also
             // match the unrelated word "moi" ("me"), so the literal word is used as-is here, unlike
             // every other unit above.
-            ("dans\\s+(\(numberAlternation))\\s+jours?", days),
-            ("dans\\s+(\(numberAlternation))\\s+semaines?", weeks),
-            ("dans\\s+(\(numberAlternation))\\s+mois\\b", months),
-            ("dans\\s+(\(numberAlternation))\\s+ans?", years)
+            ("\\bdans\\s+(\(numberAlternation))\\s+jours?", days),
+            ("\\bdans\\s+(\(numberAlternation))\\s+semaines?", weeks),
+            ("\\bdans\\s+(\(numberAlternation))\\s+mois\\b", months),
+            ("\\bdans\\s+(\(numberAlternation))\\s+ans?", years)
         ]
         for (pattern, apply) in numberedPatterns {
             guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { continue }

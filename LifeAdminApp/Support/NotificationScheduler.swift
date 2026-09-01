@@ -2,7 +2,17 @@ import Foundation
 import UserNotifications
 import LifeAdminCore
 
-struct NotificationScheduler {
+// An actor, not a plain struct: `schedule(for:)` does cancel-then-add-fresh, and `cancel(for:)`
+// itself does two separate awaited system calls in between — real suspension points. Two
+// overlapping calls for the same item (e.g. the notification-action handler's "Mark Done" racing
+// a Save from ItemDetailView, both routing through ItemStore.update → schedule) could interleave:
+// call B's cancel() running before call A finished adding its own requests would leave some of
+// A's requests never removed by B, even though B computed a different/shorter date list — stale
+// notifications that don't match the item's current state, firing at the wrong time later. An
+// actor serializes every call into and out of this type, closing that window; every existing call
+// site already used `await NotificationScheduler.shared.…`, which is exactly what a cross-actor
+// call already requires, so nothing downstream needed to change.
+actor NotificationScheduler {
     static let shared = NotificationScheduler()
 
     private let center = UNUserNotificationCenter.current()

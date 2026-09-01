@@ -101,6 +101,18 @@ final class LifeAdminCoreTests: XCTestCase {
      let fields = try AIJSONValidator().decode(json).documentFields
      XCTAssertEqual(fields?.map(\.label), ["Card Number"])
  }
+ // Real names card issuers use for the same field that a narrower pattern let through — found by
+ // adversarial testing of the original regex before this test existed.
+ func testDocumentFieldSafetyCatchesRealCVVSynonyms() {
+     let synonyms = ["CSC", "CVN", "Card Identification Number", "Card Security Value", "Sec Code", "3-digit code on back", "Verification No.", "CVV2", "CVC2"]
+     for label in synonyms {
+         XCTAssertTrue(DocumentFieldSafety.isForbidden(label: label), "\"\(label)\" should be recognized as a CVV-like field")
+     }
+     let safe = ["Card Number", "Bank Name", "Cardholder Name", "Expiry (MM/YY)", "Passport Number"]
+     for label in safe {
+         XCTAssertFalse(DocumentFieldSafety.isForbidden(label: label), "\"\(label)\" should NOT be treated as a CVV-like field")
+     }
+ }
  func testLocalizationCoverage() { XCTAssertEqual(SupportedLanguage.allCases.count, 14); XCTAssertTrue(SupportedLanguage.he.isRTL); XCTAssertTrue(SupportedLanguage.ar.isRTL) }
  func testStatusCompletion() { var i=LifeAdminItem(title:"Dentist"); i.status = .completed; XCTAssertEqual(i.status, .completed) }
  func testAttachmentValidation() { let a=Attachment(filename:"policy.pdf", mimeType:"application/pdf", sizeBytes:1, localPath:"/local/policy.pdf"); XCTAssertNoThrow(try ItemValidator().validate(LifeAdminItem(title:"Policy", attachments:[a]))) }
@@ -288,6 +300,19 @@ final class LifeAdminCoreTests: XCTestCase {
      let now = Date(timeIntervalSince1970: 1_700_000_000)
      let e = NaturalLanguageParser().parse("תזכיר לי בעוד שעה להתקשר", now: now)
      XCTAssertEqual(e.date, Calendar.current.date(byAdding: .hour, value: 1, to: now))
+ }
+ // "within" contains "in " as a literal substring ("with-IN 6 months") — without a word boundary
+ // on the "in N months/days" pattern, this extremely common real bill/document phrasing
+ // fabricated a confident, wrong date instead of correctly finding none.
+ func testWithinPhrasingIsNotMisreadAsInNDays() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     XCTAssertNil(NaturalLanguageParser().parse("Passport renewal due within 6 months", now: now).date)
+     XCTAssertNil(NaturalLanguageParser().parse("Pay within 14 days to avoid a late fee", now: now).date)
+     XCTAssertNil(NaturalLanguageParser().parse("Visa expires within 30 days", now: now).date)
+ }
+ func testWithinAWeekPhrasingIsNotMisreadAsInAWeek() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     XCTAssertNil(NaturalLanguageParser().parse("Please respond within a week", now: now).date)
  }
  func testNextWeekInHebrewIsRecognized() {
      let now = Date(timeIntervalSince1970: 1_700_000_000)

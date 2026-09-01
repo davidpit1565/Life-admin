@@ -365,11 +365,18 @@ private enum DateRangeFilter: String, CaseIterable {
 
     /// `nil` bounds are deliberately open-ended: "overdue" has no lower bound (anything, no
     /// matter how old), and none of these need an upper bound below distantFuture.
+    ///
+    /// Every lower/upper bound here is `startOfDay(now)`, not raw `now` — using the current
+    /// instant as "this week"/"this month"'s lower bound left a gap with "overdue"'s upper bound
+    /// (also `startOfDay(now)`): an item due earlier today (say 9am, viewed at 3pm) failed
+    /// "overdue" (9am isn't `<= startOfDay`) AND failed "this week" (9am isn't `>= 3pm`),
+    /// disappearing from every filtered view even though it was due today.
     func bounds(now: Date, calendar: Calendar) -> (from: Date?, to: Date?) {
+        let today = calendar.startOfDay(for: now)
         switch self {
-        case .overdue: return (nil, calendar.startOfDay(for: now))
-        case .thisWeek: return (now, calendar.date(byAdding: .day, value: 7, to: now))
-        case .thisMonth: return (now, calendar.date(byAdding: .month, value: 1, to: now))
+        case .overdue: return (nil, today)
+        case .thisWeek: return (today, calendar.date(byAdding: .day, value: 7, to: today))
+        case .thisMonth: return (today, calendar.date(byAdding: .month, value: 1, to: today))
         }
     }
 }
@@ -641,7 +648,11 @@ struct ItemsView: View {
     }
 
     private func completeSelected() async {
-        for item in store.items where selection.contains(item.id) {
+        // Restricted to `filteredItems`, not all of `store.items` — `selection` isn't pruned
+        // when a filter/search/sort change makes a previously-selected row drop out of the list,
+        // so acting on the raw selection could silently complete or delete items the bulk
+        // toolbar's own "N selected" count no longer visibly includes.
+        for item in filteredItems where selection.contains(item.id) {
             await store.markCompleted(item)
         }
         selection = []
@@ -651,7 +662,7 @@ struct ItemsView: View {
         // A bulk delete confirms up front instead of offering Undo per item — with several
         // items at once, store.scheduleDelete's single-item Undo banner would only ever be able
         // to restore the last one, silently leaving the rest gone.
-        let toDelete = store.items.filter { selection.contains($0.id) }
+        let toDelete = filteredItems.filter { selection.contains($0.id) }
         selection = []
         Task {
             for item in toDelete {

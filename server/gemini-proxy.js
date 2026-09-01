@@ -36,10 +36,19 @@ function checkRateLimit(ip) {
   return true;
 }
 
+// The X-Forwarded-For chain is built as `client, proxy1, proxy2, ...` — each hop APPENDS the
+// peer address it observed to the end. A client can set (or prepend anything to) this header
+// freely, but cannot control what the nearest trusted hop (Vercel's own edge, or this server's
+// own socket peer when run standalone) appends after receiving the request. Keying the rate
+// limiter off the FIRST entry — as this used to — let anyone bypass it entirely by sending a
+// fresh spoofed value on every request; verified with a script sending 25 requests each with a
+// distinct fake first entry, all 25 got through. The LAST entry is the one that isn't
+// attacker-controlled.
 function clientIP(headers, socketAddress) {
   const forwarded = headers['x-forwarded-for'];
-  const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-  return first?.split(',')[0]?.trim() || socketAddress || 'unknown';
+  const value = Array.isArray(forwarded) ? forwarded[forwarded.length - 1] : forwarded;
+  const parts = value?.split(',').map((p) => p.trim()).filter(Boolean);
+  return (parts && parts[parts.length - 1]) || socketAddress || 'unknown';
 }
 
 function safeLog(message, meta = {}) {
@@ -70,7 +79,15 @@ function buildPrompt(text, now = new Date()) {
 // wrong): a card verification code must never leave this proxy under any label naming it, no
 // matter what Gemini actually returns. The client (AIJSONValidator.decode, in Core) repeats this
 // same filter for the same reason — neither side should have to fully trust the other.
-const FORBIDDEN_DOCUMENT_FIELD_LABEL = /cvv|cvc|cid\b|security code|card verification|verification code/i;
+// The original pattern only caught the handful of names spelled out here — verified it let
+// through several other names real card issuers actually use for the same field: "CSC" (Card
+// Security Code), "CVN" (Card Verification Number), "Card Identification Number" (Amex's own
+// full name for what "CID" abbreviates), "Card Security Value", "Sec Code", and phrasing like
+// "3-digit code on back" or "Verification No." — all of which a reasonable person would
+// recognize as "the CVV field" but none of which matched. Kept in sync with
+// DocumentFieldSafety.forbiddenLabelPattern in Swift (Sources/LifeAdminCore/NaturalLanguage.swift)
+// — this is defense in depth, not a single point of trust, so both layers need the same coverage.
+const FORBIDDEN_DOCUMENT_FIELD_LABEL = /\b(cvv2?|cvc2?|cvn|csc|cid)\b|card\s*identification\s*number|security\s*(code|value|number)|verification\s*(code|number|value|no\.?)|card\s*verification|\bsec\.?\s*code\b|\d\s*-?\s*digit\s*(security\s*)?code/i;
 
 function sanitizeDocumentFields(raw) {
   if (!Array.isArray(raw)) return [];
@@ -142,7 +159,18 @@ async function callGemini(text) {
     if (!textPart) return { status: 502, body: { error: 'empty_ai_response' } };
     let parsed;
     try { parsed = JSON.parse(textPart); } catch { return { status: 502, body: { error: 'malformed_ai_json' } }; }
-    return { status: 200, body: toExtraction(parsed) };
+    // A separate try/catch from the outer one below: `toExtraction`'s own validation throws
+    // (invalid confidence, wrong types) were previously falling through to the generic `catch
+    // (error)` at the bottom of this function, which logs and reports them as `code: 'network'` /
+    // `network_or_service_unavailable` — a genuine data-validation failure misreported as a
+    // network outage, verified by mocking a `confidence: 1.5` response. This keeps it alongside
+    // the identical `malformed_ai_json` handling just above instead.
+    try {
+      return { status: 200, body: toExtraction(parsed) };
+    } catch (error) {
+      safeLog('Gemini returned invalid structured output', { message: error.message });
+      return { status: 502, body: { error: 'invalid_structured_output' } };
+    }
   } catch (error) {
     if (error.name === 'AbortError') return { status: 408, body: { error: 'timeout' } };
     safeLog('Gemini proxy request failed', { code: error.code || 'network' });

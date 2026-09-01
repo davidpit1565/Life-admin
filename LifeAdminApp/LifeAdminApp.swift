@@ -410,13 +410,29 @@ final class ItemStore: ObservableObject {
     /// gone for good.
     func markCompleted(_ item: LifeAdminItem) async {
         // A stale already-delivered notification tapped after the item was already completed
-        // elsewhere (or any other double "Mark Done") would otherwise create a second "next
-        // occurrence" below for a recurring item — a duplicate bill/reminder that isn't actually
-        // due yet.
-        guard item.status == .active else { return }
+        // elsewhere (or any other double "Mark Done" — two taps on the same row, a notification
+        // action racing the Save button) would otherwise create a second "next occurrence" below
+        // for a recurring item — a duplicate bill/reminder that isn't actually due yet. Checking
+        // `items` (the live, current store state) rather than `item.status` (the caller's own
+        // possibly-stale snapshot, always still `.active` at this point on the normal call path)
+        // is what actually makes that guard work: two overlapping calls each capture their own
+        // `item` before either one runs, so both would see `.active` and both proceed if this
+        // checked the parameter instead. Safe against the race precisely because everything here
+        // up to and including `update()`'s own synchronous prefix runs without yielding the main
+        // actor, so whichever call's Task body starts first fully applies its own completion
+        // before the second one's guard ever gets a chance to run.
+        guard items.first(where: { $0.id == item.id })?.status == .active else { return }
         var completed = item
         completed.status = .completed
         await update(completed)
+        // `update()` above still syncs a calendar event/reminder off the (now completed) item's
+        // own dueDate — the event/reminder already did its job of surfacing the due date, and a
+        // completed item has no business still sitting on the system Calendar (often iCloud-
+        // shared with family) or in Reminders. Previously only `archive()` did this; a paid bill
+        // or renewed passport marked done left its event there permanently, and for a recurring
+        // item this repeated every single cycle since RecurrenceEngine.nextOccurrence always
+        // allocates a fresh id that never touches the completed occurrence's own event again.
+        clearCalendarSync(for: completed)
 
         guard let next = RecurrenceEngine().nextOccurrence(of: completed) else { return }
         await createRecurringOccurrence(next)
@@ -429,13 +445,18 @@ final class ItemStore: ObservableObject {
         var archived = item
         archived.status = .archived
         await update(archived)
-        // `update()` above still syncs a calendar event/reminder off the (now archived) item's
-        // own dueDate — an archived item has no business still showing on the system Calendar or
-        // Reminders. Removing it here works on a transient local copy, not `archived` itself, so
-        // the item's own dueDate stays intact (in memory and persisted) for if it's ever
-        // unarchived later.
+        clearCalendarSync(for: archived)
+    }
+
+    /// Removes any calendar event/reminder synced for `item`'s own dueDate — shared by
+    /// `markCompleted` and `archive`, the two places an item stops needing to show up on the
+    /// system Calendar/Reminders while it's still allowed to exist (unlike `delete`, which
+    /// removes the item's own row entirely and already does its own cleanup there). Works on a
+    /// transient local copy with `dueDate` cleared, not `item` itself, so the item's own dueDate
+    /// stays intact (in memory and persisted) for if it's ever reopened/unarchived later.
+    private func clearCalendarSync(for item: LifeAdminItem) {
         guard let persisted = fetchPersisted(item.id) else { return }
-        var cleared = archived
+        var cleared = item
         cleared.dueDate = nil
         let sync = CalendarSyncService.shared.sync(item: cleared, existingEventID: persisted.calendarEventIdentifier, existingReminderID: persisted.reminderIdentifier)
         persisted.calendarEventIdentifier = sync.eventIdentifier
