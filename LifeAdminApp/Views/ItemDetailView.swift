@@ -19,6 +19,7 @@ struct ItemDetailView: View {
     @State private var hasDueDate: Bool
     @State private var dueDate: Date
     @State private var recurrence: Recurrence
+    @State private var reminderOffsets: Set<Int>
     @State private var amountText: String
     @State private var currency: String
     @State private var notes: String
@@ -57,6 +58,7 @@ struct ItemDetailView: View {
         _hasDueDate = State(initialValue: item.dueDate != nil)
         _dueDate = State(initialValue: item.dueDate ?? Date())
         _recurrence = State(initialValue: item.recurrence)
+        _reminderOffsets = State(initialValue: Set(item.reminderOffsets))
         _amountText = State(initialValue: item.amount.map { "\($0)" } ?? "")
         _currency = State(initialValue: item.currency ?? "")
         _notes = State(initialValue: item.notes ?? "")
@@ -116,6 +118,20 @@ struct ItemDetailView: View {
                                 .foregroundStyle(.secondary)
                             Text(upcomingOccurrences.map { $0.formatted(date: .abbreviated, time: .omitted) }.joined(separator: "  •  "))
                                 .font(.caption)
+                        }
+                    }
+                    // A due date with no reminder attached to it is exactly the silent-failure
+                    // mode this whole app exists to prevent — this was previously only ever set
+                    // once, automatically, when the item was first created (ReminderEngine's own
+                    // category defaults), with no way at all to see or change it afterward.
+                    DisclosureGroup(String(localized: "itemDetail.reminders")) {
+                        ForEach(Self.reminderOffsetOptions, id: \.self) { offset in
+                            Toggle(reminderOffsetLabel(offset), isOn: Binding(
+                                get: { reminderOffsets.contains(offset) },
+                                set: { isOn in
+                                    if isOn { reminderOffsets.insert(offset) } else { reminderOffsets.remove(offset) }
+                                }
+                            ))
                         }
                     }
                 }
@@ -320,6 +336,27 @@ struct ItemDetailView: View {
                 } label: {
                     Label(String(localized: "itemDetail.addField"), systemImage: "plus.circle")
                 }
+                // A passport and a payment card have almost nothing in common, so a single blank
+                // "Add Field" button alone left every item looking identical regardless of what
+                // kind of document it actually was. These are quick-start suggestions, not a rigid
+                // schema — they're still just DocumentField rows once added, freely renamable or
+                // deletable, and everything above (AI-suggested fields, manual "Add Field") keeps
+                // working exactly the same for categories with no suggestions of their own.
+                if suggestedFieldLabels.isEmpty == false {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            ForEach(suggestedFieldLabels, id: \.self) { label in
+                                Button(label) {
+                                    let newField = DocumentField(label: label, value: "")
+                                    documentFields.append(newField)
+                                    revealedDocumentFieldIDs.insert(newField.id)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                        }
+                    }
+                }
             }
 
             if item.status == .active {
@@ -474,6 +511,48 @@ struct ItemDetailView: View {
         SnoozeOption(days: 7, label: String(localized: "itemDetail.snooze.1week"))
     ]
 
+    // Matches ReminderEngine.defaultOffsets' own full range (0, 1, 3, 7, 30, 90 — the union of
+    // every category's defaults) rather than a free-form "N days" entry field: a fixed, familiar
+    // set of choices (the same idea as the Snooze menu above) can't produce a nonsensical value
+    // and needs no pluralization handling per language, at the cost of not covering some
+    // arbitrary custom lead time nothing in this app's own defaults ever actually uses.
+    private static let reminderOffsetOptions = [90, 30, 7, 3, 1, 0]
+
+    private func reminderOffsetLabel(_ offset: Int) -> String {
+        switch offset {
+        case 0: return String(localized: "itemDetail.reminder.onTheDay")
+        case 1: return String(localized: "itemDetail.reminder.1day")
+        case 3: return String(localized: "itemDetail.reminder.3days")
+        case 7: return String(localized: "itemDetail.reminder.1week")
+        case 30: return String(localized: "itemDetail.reminder.1month")
+        default: return String(localized: "itemDetail.reminder.3months")
+        }
+    }
+
+    /// Deliberately keyed by category rather than a separate "document type" concept the rest of
+    /// the app doesn't have — .documents/.travel cover passports, ID cards, and visas; .money/
+    /// .bills are where a payment card actually gets logged (its renewal, an annual fee, a
+    /// replacement). Every other category gets no suggestions at all, not a generic fallback —
+    /// a wrong guess here is more annoying than no suggestion.
+    private static let suggestedFieldLabelKeys: [LifeCategory: [String]] = [
+        .documents: ["itemDetail.suggestedField.documentNumber", "itemDetail.suggestedField.fullName", "itemDetail.suggestedField.nationality", "itemDetail.suggestedField.dateOfBirth", "itemDetail.suggestedField.expiryDate", "itemDetail.suggestedField.issuingAuthority"],
+        .travel: ["itemDetail.suggestedField.documentNumber", "itemDetail.suggestedField.fullName", "itemDetail.suggestedField.nationality", "itemDetail.suggestedField.dateOfBirth", "itemDetail.suggestedField.expiryDate", "itemDetail.suggestedField.issuingAuthority"],
+        .money: ["itemDetail.suggestedField.bankIssuer", "itemDetail.suggestedField.cardNumber", "itemDetail.suggestedField.cardExpiry", "itemDetail.suggestedField.cardholderName"],
+        .bills: ["itemDetail.suggestedField.bankIssuer", "itemDetail.suggestedField.cardNumber", "itemDetail.suggestedField.cardExpiry", "itemDetail.suggestedField.cardholderName"]
+    ]
+
+    /// Quick-add chips tailored to this item's own category — only labels not already present
+    /// (case-insensitively), so an item that already has "Card Number" filled in (by hand, or by
+    /// an earlier scan) doesn't keep re-suggesting it. `NSLocalizedString`, not `String(localized:)`,
+    /// matches how every other runtime-determined localization key in this app is already resolved
+    /// (see `ChecklistSuggestion.titleKey`) — the key itself is only known at runtime, not a
+    /// compile-time literal `String(localized:)` needs.
+    private var suggestedFieldLabels: [String] {
+        guard let keys = Self.suggestedFieldLabelKeys[category] else { return [] }
+        let existing = Set(documentFields.map { $0.label.lowercased() })
+        return keys.map { NSLocalizedString($0, comment: "") }.filter { existing.contains($0.lowercased()) == false }
+    }
+
     /// A renewal costing more than the cycle it replaced — RecurrenceEngine.nextOccurrence carries
     /// the prior amount forward specifically so this can be caught, rather than a price increase
     /// quietly blending into "just this year's number". Reads the live, still-being-edited
@@ -559,6 +638,10 @@ struct ItemDetailView: View {
         // to a different day of the month would silently keep recurring on the OLD day, since
         // RecurrenceEngine only re-derives this itself the first time it's nil.
         updated.recurrenceAnchorDay = hasDueDate ? Calendar.current.component(.day, from: dueDate) : nil
+        // Meaningless without a due date to count backward from, same reasoning as recurrence
+        // just above — sorted only for a stable, predictable order wherever this list is read
+        // back (e.g. NotificationScheduler), not because anything actually depends on the order.
+        updated.reminderOffsets = hasDueDate ? reminderOffsets.sorted(by: >) : []
         // .decimalPad shows the device's own locale-appropriate separator (e.g. "," in many
         // European locales) — parsing with Decimal(string:) alone only ever accepts ".", silently
         // dropping the amount entirely for anyone whose keyboard shows anything else.
@@ -575,8 +658,13 @@ struct ItemDetailView: View {
         // check already applied to whatever Gemini suggests — refuses to save a field manually
         // labeled as a CVV/security code even if someone types one in by hand.
         updated.documentFields = documentFields.filter {
-            $0.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-                && $0.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            // A field with only a label or only a value typed in so far is still worth keeping —
+            // someone filling this in by hand very often types the label first and comes back for
+            // the value later (or has a label-only note like "See attached photo"). Only a row
+            // that's still entirely untouched (an "Add Field" tap with nothing typed into either
+            // side) gets dropped here.
+            ($0.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                || $0.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
                 && DocumentFieldSafety.isForbidden(label: $0.label) == false
         }
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
