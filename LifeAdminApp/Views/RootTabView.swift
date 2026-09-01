@@ -20,6 +20,15 @@ private enum FABLayout {
     static let buttonDiameter: CGFloat = 60
     static let bottomPadding: CGFloat = 58
     static let listClearance: CGFloat = 80
+    // listClearance (80) reserves less than the FAB's own full footprint from the screen's
+    // bottom edge (bottomPadding 58 + buttonDiameter 60 = 118) — close enough on Home/Items/
+    // Insights, where the list fills most of the screen and a centered empty state sits well
+    // clear of the button regardless. CalendarView is different: CalendarGridView (the month
+    // grid above the list) can take up most of the screen on its own, leaving only a short list
+    // area below it — short enough that a centered "Nothing on this day" message can still land
+    // inside that uncovered 38pt gap — reported on-device. This clears the button's full
+    // footprint with real margin to spare.
+    static let calendarListClearance: CGFloat = 150
     static let undoBannerBottomPadding: CGFloat = 140
 }
 
@@ -688,10 +697,13 @@ struct CalendarView: View {
                         }
                     }
                 }
-                // See HomeView's identical modifier — without it, the floating "+" button (an
-                // .overlay on the shared TabView, unaware of this List's own content) rendered
-                // directly on top of "Nothing due on this day", confirmed on-device.
-                .safeAreaInset(edge: .bottom) { Color.clear.frame(height: FABLayout.listClearance) }
+                // Similar to HomeView's identical modifier, but with the larger
+                // calendarListClearance (see its own doc comment) — the plain listClearance used
+                // everywhere else still wasn't enough here: the floating "+" button (an .overlay
+                // on the shared TabView, unaware of this List's own content) still rendered
+                // directly on top of "Nothing due on this day" whenever the calendar grid above
+                // left only a short list area below it — reported on-device.
+                .safeAreaInset(edge: .bottom) { Color.clear.frame(height: FABLayout.calendarListClearance) }
             }
             .navigationTitle(String(localized: "tab.calendar"))
             .toolbar {

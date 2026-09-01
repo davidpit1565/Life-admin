@@ -56,6 +56,13 @@ struct CalendarSyncService {
             reminder.title = title
             reminder.dueDateComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: dueDate)
             reminder.isCompleted = item.status == .completed
+            // Without this, the reminder shows a due date in the Reminders app but never actually
+            // alerts at any of it — a due date alone doesn't schedule a notification the way an
+            // alarm does. Replaced wholesale on every sync (this runs on every edit, not just
+            // once), the same recompute-and-replace pattern NotificationScheduler.schedule(for:)
+            // already uses for this app's own local notifications, from the identical source of
+            // truth (ReminderEngine.notificationDates) so both stay in agreement.
+            reminder.alarms = ReminderEngine().notificationDates(for: item).map { EKAlarm(absoluteDate: $0) }
             if (try? store.save(reminder, commit: true)) != nil {
                 result.reminderIdentifier = reminder.calendarItemIdentifier
             }
