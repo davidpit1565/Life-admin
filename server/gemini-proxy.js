@@ -36,19 +36,21 @@ function checkRateLimit(ip) {
   return true;
 }
 
-// The X-Forwarded-For chain is built as `client, proxy1, proxy2, ...` — each hop APPENDS the
-// peer address it observed to the end. A client can set (or prepend anything to) this header
-// freely, but cannot control what the nearest trusted hop (Vercel's own edge, or this server's
-// own socket peer when run standalone) appends after receiving the request. Keying the rate
-// limiter off the FIRST entry — as this used to — let anyone bypass it entirely by sending a
-// fresh spoofed value on every request; verified with a script sending 25 requests each with a
-// distinct fake first entry, all 25 got through. The LAST entry is the one that isn't
-// attacker-controlled.
+// Correction: an earlier version of this comment claimed the LAST X-Forwarded-For entry was the
+// trustworthy one (standard multi-hop-proxy convention) and changed clientIP to match — that
+// broke the existing js-tests/gemini-proxy-unit.js assertion and, more importantly, was wrong for
+// this app's actual deployment target. Vercel's own docs (vercel.com/docs/headers/request-headers)
+// are explicit: "we currently overwrite the X-Forwarded-For header and do not forward external
+// IPs. This restriction is in place to prevent IP spoofing" — so on Vercel this header already
+// arrives as a single, trustworthy value with no client-injected entries to worry about, and the
+// FIRST entry (this function's original, restored behavior) is correct. The generic multi-hop
+// assumption only would have applied to running server/gemini-proxy.js standalone (the
+// `if (require.main === module)` block below) directly exposed to the internet with no Vercel (or
+// equivalent trusted edge) in front of it — not this app's real deployment path via api/extract.js.
 function clientIP(headers, socketAddress) {
   const forwarded = headers['x-forwarded-for'];
-  const value = Array.isArray(forwarded) ? forwarded[forwarded.length - 1] : forwarded;
-  const parts = value?.split(',').map((p) => p.trim()).filter(Boolean);
-  return (parts && parts[parts.length - 1]) || socketAddress || 'unknown';
+  const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+  return first?.split(',')[0]?.trim() || socketAddress || 'unknown';
 }
 
 function safeLog(message, meta = {}) {
