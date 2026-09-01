@@ -27,6 +27,7 @@ struct ItemDetailView: View {
     @State private var email: String
     @State private var phone: String
     @State private var attachments: [Attachment]
+    @State private var documentFields: [DocumentField]
     @State private var showingContactPicker = false
     @State private var showingDeleteConfirmation = false
     @State private var isSaving = false
@@ -44,6 +45,9 @@ struct ItemDetailView: View {
     // persisted anywhere — a photographed passport or insurance card should ask again next time
     // the item is opened, not stay revealed forever once unlocked once.
     @State private var revealedAttachmentIDs: Set<UUID> = []
+    // Same reasoning, same reset-on-reopen behavior as revealedAttachmentIDs above — a passport
+    // number or card number is at least as sensitive as the photo it was read off of.
+    @State private var revealedDocumentFieldIDs: Set<UUID> = []
 
     init(item: LifeAdminItem, isNewDraft: Bool = false) {
         self.item = item
@@ -61,6 +65,7 @@ struct ItemDetailView: View {
         _email = State(initialValue: item.contact?.email ?? "")
         _phone = State(initialValue: item.contact?.phone ?? "")
         _attachments = State(initialValue: item.attachments)
+        _documentFields = State(initialValue: item.documentFields)
     }
 
     var body: some View {
@@ -263,6 +268,57 @@ struct ItemDetailView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                }
+            }
+
+            // Whatever specifics this particular document actually has — a passport number, a
+            // card's expiry, a policy number — rather than a fixed set of fields every category
+            // would otherwise have to share. Filled in either by hand here or, for a photographed
+            // document, automatically via autoFillFromImageAttachment above.
+            Section(String(localized: "itemDetail.documentFields")) {
+                ForEach($documentFields) { $field in
+                    if appLockEnabled == false || revealedDocumentFieldIDs.contains(field.id) {
+                        HStack {
+                            TextField(String(localized: "itemDetail.fieldLabel"), text: $field.label)
+                                .frame(maxWidth: 120, alignment: .leading)
+                            TextField(String(localized: "itemDetail.fieldValue"), text: $field.value)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    } else {
+                        // Locked: neither TextField is shown at all (there's nothing yet to type
+                        // into safely) — just the field's own label plus a tap-to-reveal control,
+                        // exposed as one single accessibility element so VoiceOver announces
+                        // "<label>, locked, button" instead of two separate, empty-sounding fields.
+                        HStack {
+                            Text(field.label)
+                            Spacer()
+                            Image(systemName: "lock.fill").foregroundStyle(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            Task {
+                                if await AppLockService.shared.authenticate() == true {
+                                    revealedDocumentFieldIDs.insert(field.id)
+                                }
+                            }
+                        }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(Text(field.label))
+                        .accessibilityValue(Text(String(localized: "itemDetail.fieldLocked")))
+                        .accessibilityAddTraits(.isButton)
+                    }
+                }
+                .onDelete { documentFields.remove(atOffsets: $0) }
+                Button {
+                    // Revealed immediately, unlike a pre-existing locked field: the user is about
+                    // to type straight into this row, and forcing a Face ID prompt just to enter
+                    // the first character of a field they created themselves this second would be
+                    // pure friction, not real protection of anything already on screen.
+                    let newField = DocumentField(label: "", value: "")
+                    documentFields.append(newField)
+                    revealedDocumentFieldIDs.insert(newField.id)
+                } label: {
+                    Label(String(localized: "itemDetail.addField"), systemImage: "plus.circle")
                 }
             }
 
@@ -514,6 +570,15 @@ struct ItemDetailView: View {
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.notes = trimmedNotes.isEmpty ? nil : trimmedNotes
         updated.attachments = attachments
+        // Drops any row left blank (an "Add Field" tap the user never actually filled in) rather
+        // than persisting an empty label/value pair, and — belt-and-suspenders, alongside the same
+        // check already applied to whatever Gemini suggests — refuses to save a field manually
+        // labeled as a CVV/security code even if someone types one in by hand.
+        updated.documentFields = documentFields.filter {
+            $0.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                && $0.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                && DocumentFieldSafety.isForbidden(label: $0.label) == false
+        }
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedCompany = company.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -664,6 +729,17 @@ struct ItemDetailView: View {
         }
         if currency.isEmpty, let extractedCurrency = extracted.currency {
             currency = extractedCurrency
+        }
+        // Additive, like the merge case in ItemStore.buildCandidate, rather than "only if
+        // documentFields is currently empty": scanning a passport's photo page today and its visa
+        // stamp page tomorrow should both contribute, and re-scanning the same page again
+        // shouldn't duplicate rows already confirmed by an earlier scan.
+        if let suggestions = extracted.documentFields, suggestions.isEmpty == false {
+            let existingLabels = Set(documentFields.map { $0.label.lowercased() })
+            let newFields = suggestions
+                .filter { existingLabels.contains($0.label.lowercased()) == false }
+                .map { DocumentField(label: $0.label, value: $0.value) }
+            documentFields.append(contentsOf: newFields)
         }
     }
 

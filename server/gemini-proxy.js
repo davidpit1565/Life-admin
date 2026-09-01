@@ -63,7 +63,23 @@ function normalizeCategory(value) {
 
 function buildPrompt(text, now = new Date()) {
   const today = now.toISOString().slice(0, 10);
-  return `You extract structured Life Admin items. Return only JSON. Extract only facts present in the user text. Never invent prices, companies, or people. Today's date is ${today}. Always output complete dates as YYYY-MM-DD — never a partial date missing the year. When the user gives a recurring date without a year (for example "every March 18"), resolve it to the next future occurrence: use this year if that month/day has not yet passed relative to today, otherwise use next year. Use null when a date is missing entirely. Use null for other fields when missing. Preserve currency as ISO 4217. Mark ambiguous fields with lower confidence. Schema: {"title": string|null, "category": one of documents,insurance,money,bills,subscriptions,car,home,health,travel,work,education,shopping,warranties,memberships,appointments,personal,family,other|null, "amount": number|null, "currency": string|null, "date": string|null, "recurring": one of none,daily,weekly,biweekly,monthly,everyTwoMonths,quarterly,everySixMonths,yearly,custom|null, "reminderOffsets": number[]|null, "notes": string|null, "confidence": number}. User text: ${JSON.stringify(text)}`;
+  return `You extract structured Life Admin items. Return only JSON. Extract only facts present in the user text. Never invent prices, companies, or people. Today's date is ${today}. Always output complete dates as YYYY-MM-DD — never a partial date missing the year. When the user gives a recurring date without a year (for example "every March 18"), resolve it to the next future occurrence: use this year if that month/day has not yet passed relative to today, otherwise use next year. Use null when a date is missing entirely. Use null for other fields when missing. Preserve currency as ISO 4217. Mark ambiguous fields with lower confidence. If the text is (or looks like) OCR output from a scanned identity document, payment card, or similar official document (a passport, ID card, driver's license, insurance card, credit/debit card, vehicle registration, etc.), also populate documentFields with every other specific, labeled detail actually present that isn't already covered by the fields above — for example a passport number, full name, nationality, date of birth, issuing authority, or a card's bank/issuer name, cardholder name, card number, and expiry month/year. Each entry is {"label": a short human-readable field name, "value": the exact value as written}. CRITICAL SAFETY RULE: NEVER include a card verification code (CVV, CVC, CID, or any "security code") in documentFields, even if it appears in the text — omit it entirely, no exceptions. If nothing beyond the fields above applies, or the text isn't from such a document, return an empty array. Schema: {"title": string|null, "category": one of documents,insurance,money,bills,subscriptions,car,home,health,travel,work,education,shopping,warranties,memberships,appointments,personal,family,other|null, "amount": number|null, "currency": string|null, "date": string|null, "recurring": one of none,daily,weekly,biweekly,monthly,everyTwoMonths,quarterly,everySixMonths,yearly,custom|null, "reminderOffsets": number[]|null, "notes": string|null, "documentFields": [{"label": string, "value": string}], "confidence": number}. User text: ${JSON.stringify(text)}`;
+}
+
+// Defense in depth, independent of the prompt instruction above (which a model can still get
+// wrong): a card verification code must never leave this proxy under any label naming it, no
+// matter what Gemini actually returns. The client (AIJSONValidator.decode, in Core) repeats this
+// same filter for the same reason — neither side should have to fully trust the other.
+const FORBIDDEN_DOCUMENT_FIELD_LABEL = /cvv|cvc|cid\b|security code|card verification|verification code/i;
+
+function sanitizeDocumentFields(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((f) => f && typeof f.label === 'string' && typeof f.value === 'string')
+    .filter((f) => f.label.trim().length > 0 && f.value.trim().length > 0)
+    .filter((f) => !FORBIDDEN_DOCUMENT_FIELD_LABEL.test(f.label))
+    .slice(0, 20)
+    .map((f) => ({ label: f.label.slice(0, 60), value: f.value.slice(0, 200) }));
 }
 
 function normalizeDate(value) {
@@ -83,6 +99,7 @@ function toExtraction(raw) {
     recurring: typeof raw.recurring === 'string' ? raw.recurring : null,
     reminderOffsets: Array.isArray(raw.reminderOffsets) ? raw.reminderOffsets.filter((n) => Number.isInteger(n) && n >= 0 && n <= 3650).slice(0, 8) : null,
     notes: typeof raw.notes === 'string' ? raw.notes.slice(0, 1000) : null,
+    documentFields: sanitizeDocumentFields(raw.documentFields),
     confidence
   };
 }
@@ -157,4 +174,4 @@ if (require.main === module) {
   server.listen(port, () => safeLog('Life Admin Gemini proxy listening', { port, model, apiVersion, keyConfigured: Boolean(key) }));
 }
 
-module.exports = { buildPrompt, toExtraction, normalizeDate, callGemini, buildGeminiUrl, model, apiVersion, checkSharedSecret, checkRateLimit, clientIP };
+module.exports = { buildPrompt, toExtraction, normalizeDate, sanitizeDocumentFields, callGemini, buildGeminiUrl, model, apiVersion, checkSharedSecret, checkRateLimit, clientIP };

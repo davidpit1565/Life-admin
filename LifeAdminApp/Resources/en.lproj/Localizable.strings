@@ -234,6 +234,11 @@
 "notification.checklistNudgeTitle" = "Suggested Reminders";
 "notification.checklistNudgeBody" = "You still have a few important reminders you haven't added yet.";
 "itemDetail.attachmentLocked" = "Locked attachment. Tap to unlock with Face ID or Touch ID.";
+"itemDetail.documentFields" = "Document Details";
+"itemDetail.fieldLabel" = "Label";
+"itemDetail.fieldValue" = "Value";
+"itemDetail.fieldLocked" = "Locked field. Tap to unlock with Face ID or Touch ID.";
+"itemDetail.addField" = "Add Field";
 "itemDetail.priceIncreased" = "Up %d%% from last time";
 "itemDetail.priceDecreased" = "Down %d%% from last time";
 "itemDetail.priceChangeUpCompact" = "+%d%%";

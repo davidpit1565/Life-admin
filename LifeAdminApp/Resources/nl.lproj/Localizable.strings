@@ -234,6 +234,11 @@
 "notification.checklistNudgeTitle" = "Voorgestelde Herinneringen";
 "notification.checklistNudgeBody" = "Je hebt nog een paar belangrijke herinneringen die je niet hebt toegevoegd.";
 "itemDetail.attachmentLocked" = "Vergrendelde bijlage. Tik om te ontgrendelen met Face ID of Touch ID.";
+"itemDetail.documentFields" = "Documentgegevens";
+"itemDetail.fieldLabel" = "Label";
+"itemDetail.fieldValue" = "Waarde";
+"itemDetail.fieldLocked" = "Vergrendeld veld. Tik om te ontgrendelen met Face ID of Touch ID.";
+"itemDetail.addField" = "Veld toevoegen";
 "itemDetail.priceIncreased" = "%d%% hoger dan de vorige keer";
 "itemDetail.priceDecreased" = "%d%% lager dan de vorige keer";
 "itemDetail.priceChangeUpCompact" = "+%d%%";

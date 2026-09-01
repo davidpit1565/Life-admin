@@ -234,6 +234,11 @@
 "notification.checklistNudgeTitle" = "Lembretes Sugeridos";
 "notification.checklistNudgeBody" = "Você ainda tem alguns lembretes importantes que não adicionou.";
 "itemDetail.attachmentLocked" = "Anexo bloqueado. Toque para desbloquear com Face ID ou Touch ID.";
+"itemDetail.documentFields" = "Detalhes do documento";
+"itemDetail.fieldLabel" = "Rótulo";
+"itemDetail.fieldValue" = "Valor";
+"itemDetail.fieldLocked" = "Campo bloqueado. Toque para desbloquear com Face ID ou Touch ID.";
+"itemDetail.addField" = "Adicionar campo";
 "itemDetail.priceIncreased" = "Subiu %d%% desde a última vez";
 "itemDetail.priceDecreased" = "Caiu %d%% desde a última vez";
 "itemDetail.priceChangeUpCompact" = "+%d%%";

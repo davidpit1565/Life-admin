@@ -234,6 +234,11 @@
 "notification.checklistNudgeTitle" = "Vorgeschlagene Erinnerungen";
 "notification.checklistNudgeBody" = "Du hast noch ein paar wichtige Erinnerungen, die du nicht hinzugefügt hast.";
 "itemDetail.attachmentLocked" = "Gesperrter Anhang. Tippen, um mit Face ID oder Touch ID zu entsperren.";
+"itemDetail.documentFields" = "Dokumentdetails";
+"itemDetail.fieldLabel" = "Bezeichnung";
+"itemDetail.fieldValue" = "Wert";
+"itemDetail.fieldLocked" = "Gesperrtes Feld. Tippen, um mit Face ID oder Touch ID zu entsperren.";
+"itemDetail.addField" = "Feld hinzufügen";
 "itemDetail.priceIncreased" = "%d%% höher als beim letzten Mal";
 "itemDetail.priceDecreased" = "%d%% niedriger als beim letzten Mal";
 "itemDetail.priceChangeUpCompact" = "+%d%%";

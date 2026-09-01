@@ -237,7 +237,8 @@ final class ItemStore: ObservableObject {
             amount: extracted.amount,
             currency: extracted.currency,
             recurrence: extracted.recurring ?? .none,
-            reminderOffsets: extracted.reminderOffsets ?? ReminderEngine.defaultOffsets(for: extracted.category ?? .other)
+            reminderOffsets: extracted.reminderOffsets ?? ReminderEngine.defaultOffsets(for: extracted.category ?? .other),
+            documentFields: (extracted.documentFields ?? []).map { DocumentField(label: $0.label, value: $0.value) }
         )
         item.priority = PriorityEngine().priority(for: item)
         item.attachments = attachments
@@ -263,6 +264,13 @@ final class ItemStore: ObservableObject {
             merged.currency = item.currency ?? duplicate.currency
             merged.recurrence = item.recurrence != .none ? item.recurrence : duplicate.recurrence
             merged.attachments += item.attachments
+            // Additive rather than a straight overwrite, unlike the scalar fields above: a second
+            // scan of the same item (a renewed passport's new page, a card's back after its front)
+            // should add to what's already known, not force a choice between keeping the old
+            // details or losing them. Only genuinely new labels are added, so re-scanning the same
+            // document twice doesn't pile up duplicate rows.
+            let existingLabels = Set(merged.documentFields.map { $0.label.lowercased() })
+            merged.documentFields += item.documentFields.filter { existingLabels.contains($0.label.lowercased()) == false }
             merged.updatedAt = Date()
             merged.priority = PriorityEngine().priority(for: merged)
             return .merge(merged)

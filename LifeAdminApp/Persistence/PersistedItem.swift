@@ -25,6 +25,11 @@ final class PersistedItem {
     var attachments: [Attachment]
     var contact: ContactInfo?
     var location: String?
+    // A concrete default (rather than leaving this like every other non-optional array property
+    // above, none of which need one — they all predate any real user data) is what lets SwiftData
+    // open an existing store from before this property existed via lightweight migration, instead
+    // of failing to load on launch for anyone who already has items saved.
+    var documentFields: [DocumentField] = []
     var createdAt: Date
     var updatedAt: Date
     // EventKit identifiers, kept only here (not on LifeAdminItem) since they're a pure
@@ -55,6 +60,7 @@ final class PersistedItem {
         attachments = item.attachments
         contact = item.contact
         location = item.location
+        documentFields = item.documentFields
         createdAt = item.createdAt
         updatedAt = item.updatedAt
     }
@@ -80,6 +86,7 @@ final class PersistedItem {
         attachments = item.attachments
         contact = item.contact
         location = item.location
+        documentFields = item.documentFields
         updatedAt = item.updatedAt
     }
 
@@ -106,6 +113,7 @@ final class PersistedItem {
             attachments: attachments,
             contact: contact,
             location: location,
+            documentFields: documentFields,
             createdAt: createdAt,
             updatedAt: updatedAt
         )
