@@ -90,6 +90,86 @@ struct ItemDetailView: View {
                 }
             }
 
+            // Placed right after Title/Category, ahead of every generic field below (Due Date,
+            // Amount, Contact, Notes) — a passport or a payment card should read as its own kind
+            // of thing the moment this screen opens, not bury what actually makes it a passport
+            // under a stack of fields most other items also share. Nothing generic below is
+            // removed or hidden: a passport renewal still very often has a real due date and a
+            // real renewal fee, so hiding those outright would lose real functionality for the
+            // sake of looking tidier.
+            //
+            // Whatever specifics this particular document actually has — a passport number, a
+            // card's expiry, a policy number — rather than a fixed set of fields every category
+            // would otherwise have to share. Filled in either by hand here or, for a photographed
+            // document, automatically via autoFillFromImageAttachment below.
+            Section(String(localized: "itemDetail.documentFields")) {
+                ForEach($documentFields) { $field in
+                    if appLockEnabled == false || revealedDocumentFieldIDs.contains(field.id) {
+                        HStack {
+                            TextField(String(localized: "itemDetail.fieldLabel"), text: $field.label)
+                                .frame(maxWidth: 120, alignment: .leading)
+                            TextField(String(localized: "itemDetail.fieldValue"), text: $field.value)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    } else {
+                        // Locked: neither TextField is shown at all (there's nothing yet to type
+                        // into safely) — just the field's own label plus a tap-to-reveal control,
+                        // exposed as one single accessibility element so VoiceOver announces
+                        // "<label>, locked, button" instead of two separate, empty-sounding fields.
+                        HStack {
+                            Text(field.label)
+                            Spacer()
+                            Image(systemName: "lock.fill").foregroundStyle(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            Task {
+                                if await AppLockService.shared.authenticate() == true {
+                                    revealedDocumentFieldIDs.insert(field.id)
+                                }
+                            }
+                        }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(Text(field.label))
+                        .accessibilityValue(Text(String(localized: "itemDetail.fieldLocked")))
+                        .accessibilityAddTraits(.isButton)
+                    }
+                }
+                .onDelete { documentFields.remove(atOffsets: $0) }
+                Button {
+                    // Revealed immediately, unlike a pre-existing locked field: the user is about
+                    // to type straight into this row, and forcing a Face ID prompt just to enter
+                    // the first character of a field they created themselves this second would be
+                    // pure friction, not real protection of anything already on screen.
+                    let newField = DocumentField(label: "", value: "")
+                    documentFields.append(newField)
+                    revealedDocumentFieldIDs.insert(newField.id)
+                } label: {
+                    Label(String(localized: "itemDetail.addField"), systemImage: "plus.circle")
+                }
+                // A passport and a payment card have almost nothing in common, so a single blank
+                // "Add Field" button alone left every item looking identical regardless of what
+                // kind of document it actually was. These are quick-start suggestions, not a rigid
+                // schema — they're still just DocumentField rows once added, freely renamable or
+                // deletable, and everything above (AI-suggested fields, manual "Add Field") keeps
+                // working exactly the same for categories with no suggestions of their own.
+                if suggestedFieldLabels.isEmpty == false {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            ForEach(suggestedFieldLabels, id: \.self) { label in
+                                Button(label) {
+                                    let newField = DocumentField(label: label, value: "")
+                                    documentFields.append(newField)
+                                    revealedDocumentFieldIDs.insert(newField.id)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                        }
+                    }
+                }
+            }
+
             Section(String(localized: "itemDetail.dueDate")) {
                 Toggle(String(localized: "itemDetail.hasDueDate"), isOn: $hasDueDate.animation(reduceMotion ? nil : .default))
                 if hasDueDate {
@@ -283,78 +363,6 @@ struct ItemDetailView: View {
                         Text(String(localized: "itemDetail.addingAttachment"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    }
-                }
-            }
-
-            // Whatever specifics this particular document actually has — a passport number, a
-            // card's expiry, a policy number — rather than a fixed set of fields every category
-            // would otherwise have to share. Filled in either by hand here or, for a photographed
-            // document, automatically via autoFillFromImageAttachment above.
-            Section(String(localized: "itemDetail.documentFields")) {
-                ForEach($documentFields) { $field in
-                    if appLockEnabled == false || revealedDocumentFieldIDs.contains(field.id) {
-                        HStack {
-                            TextField(String(localized: "itemDetail.fieldLabel"), text: $field.label)
-                                .frame(maxWidth: 120, alignment: .leading)
-                            TextField(String(localized: "itemDetail.fieldValue"), text: $field.value)
-                                .multilineTextAlignment(.trailing)
-                        }
-                    } else {
-                        // Locked: neither TextField is shown at all (there's nothing yet to type
-                        // into safely) — just the field's own label plus a tap-to-reveal control,
-                        // exposed as one single accessibility element so VoiceOver announces
-                        // "<label>, locked, button" instead of two separate, empty-sounding fields.
-                        HStack {
-                            Text(field.label)
-                            Spacer()
-                            Image(systemName: "lock.fill").foregroundStyle(.secondary)
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            Task {
-                                if await AppLockService.shared.authenticate() == true {
-                                    revealedDocumentFieldIDs.insert(field.id)
-                                }
-                            }
-                        }
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(Text(field.label))
-                        .accessibilityValue(Text(String(localized: "itemDetail.fieldLocked")))
-                        .accessibilityAddTraits(.isButton)
-                    }
-                }
-                .onDelete { documentFields.remove(atOffsets: $0) }
-                Button {
-                    // Revealed immediately, unlike a pre-existing locked field: the user is about
-                    // to type straight into this row, and forcing a Face ID prompt just to enter
-                    // the first character of a field they created themselves this second would be
-                    // pure friction, not real protection of anything already on screen.
-                    let newField = DocumentField(label: "", value: "")
-                    documentFields.append(newField)
-                    revealedDocumentFieldIDs.insert(newField.id)
-                } label: {
-                    Label(String(localized: "itemDetail.addField"), systemImage: "plus.circle")
-                }
-                // A passport and a payment card have almost nothing in common, so a single blank
-                // "Add Field" button alone left every item looking identical regardless of what
-                // kind of document it actually was. These are quick-start suggestions, not a rigid
-                // schema — they're still just DocumentField rows once added, freely renamable or
-                // deletable, and everything above (AI-suggested fields, manual "Add Field") keeps
-                // working exactly the same for categories with no suggestions of their own.
-                if suggestedFieldLabels.isEmpty == false {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack {
-                            ForEach(suggestedFieldLabels, id: \.self) { label in
-                                Button(label) {
-                                    let newField = DocumentField(label: label, value: "")
-                                    documentFields.append(newField)
-                                    revealedDocumentFieldIDs.insert(newField.id)
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                            }
-                        }
                     }
                 }
             }
