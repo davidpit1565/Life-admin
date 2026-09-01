@@ -65,6 +65,8 @@
 "insights.empty.description" = "Добавьте несколько записей, и этот экран заполнится статистикой о том, что скоро понадобится оплатить и что накапливается.";
 "insights.byCategory" = "По категориям";
 "insights.moreCategories" = "+ещё %d";
+"insights.possibleOverlaps" = "Возможные дублирования";
+"insights.possibleOverlaps.footer" = "У вас есть более одного активного повторяющегося пункта в этих категориях — стоит проверить, нет ли дублирования или можно ли что-то отменить.";
 "editContact.chooseFromContacts" = "Выбрать из контактов";
 "itemDetail.details" = "Детали";
 "itemDetail.title" = "Название";

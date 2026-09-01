@@ -65,6 +65,8 @@
 "insights.empty.description" = "הוסף כמה פריטים והמסך הזה יתמלא בנתונים על מה שצריך לשלם ומה מצטבר.";
 "insights.byCategory" = "לפי קטגוריה";
 "insights.moreCategories" = "עוד %d";
+"insights.possibleOverlaps" = "חפיפות אפשריות";
+"insights.possibleOverlaps.footer" = "יש לך יותר מפריט מחזורי פעיל אחד בקטגוריות האלה — כדאי לבדוק אם יש חפיפה או שאפשר לבטל אחד מהם.";
 "editContact.chooseFromContacts" = "בחר מאנשי הקשר";
 "itemDetail.details" = "פרטים";
 "itemDetail.title" = "כותרת";

@@ -65,6 +65,8 @@
 "insights.empty.description" = "項目をいくつか追加すると、期限が近いものや増えているものの統計がこの画面に表示されます。";
 "insights.byCategory" = "カテゴリ別";
 "insights.moreCategories" = "他%d件";
+"insights.possibleOverlaps" = "重複の可能性";
+"insights.possibleOverlaps.footer" = "これらのカテゴリに複数のアクティブな定期項目があります。重複していないか、どちらかを解約できないか確認する価値があります。";
 "editContact.chooseFromContacts" = "連絡先から選択";
 "itemDetail.details" = "詳細";
 "itemDetail.title" = "タイトル";

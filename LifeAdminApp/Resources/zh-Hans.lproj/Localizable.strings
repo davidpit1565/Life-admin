@@ -65,6 +65,8 @@
 "insights.empty.description" = "添加几个事项后，此页面将显示即将到期和累积事项的统计信息。";
 "insights.byCategory" = "按类别";
 "insights.moreCategories" = "还有%d个";
+"insights.possibleOverlaps" = "可能的重叠";
+"insights.possibleOverlaps.footer" = "您在这些类别中有多个活跃的定期项目 — 值得检查是否有重叠，或是否可以取消其中一个。";
 "editContact.chooseFromContacts" = "从通讯录选择";
 "itemDetail.details" = "详情";
 "itemDetail.title" = "标题";

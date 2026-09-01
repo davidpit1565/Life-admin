@@ -65,6 +65,8 @@
 "insights.empty.description" = "Voeg een paar items toe en dit scherm vult zich met statistieken over wat vervalt en wat zich opstapelt.";
 "insights.byCategory" = "Per categorie";
 "insights.moreCategories" = "+%d meer";
+"insights.possibleOverlaps" = "Mogelijke overlap";
+"insights.possibleOverlaps.footer" = "Je hebt meer dan één actief terugkerend item in deze categorieën — het is de moeite waard om te controleren of er overlap is of dat er een kan worden opgezegd.";
 "editContact.chooseFromContacts" = "Kiezen uit Contacten";
 "itemDetail.details" = "Details";
 "itemDetail.title" = "Titel";

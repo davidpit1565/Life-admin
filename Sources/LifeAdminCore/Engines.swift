@@ -61,6 +61,31 @@ public struct SearchEngine { public init() {} ; public func search(_ items: [Lif
 // `amount` also requires matching currency — otherwise a 100 EUR item and an unrelated 100 ILS
 // item would compare equal on the raw `Decimal` alone and get flagged as the same bill.
 public struct DuplicateDetector { public init() {} ; public func isLikelyDuplicate(_ a: LifeAdminItem, _ b: LifeAdminItem) -> Bool { let title = a.title.lowercased() == b.title.lowercased(); let company = a.contact?.company?.lowercased() == b.contact?.company?.lowercased() && a.contact?.company != nil; let amount = a.amount == b.amount && a.amount != nil && a.currency == b.currency; let closeDate = abs((a.dueDate ?? .distantPast).timeIntervalSince(b.dueDate ?? .distantFuture)) < 86400*3; return (title && (closeDate || amount)) || (company && closeDate) } }
+
+/// Competitor subscription trackers (Rocket Money and similar) flag overlapping/redundant
+/// services by mining bank transaction history — this app has no bank connection and never will
+/// (that's a deliberate, different trade-off: local-first, no financial account access). The same
+/// kind of nudge is still achievable from data already on hand: two or more ACTIVE, RECURRING
+/// items sharing a category is worth a second look, even without knowing exactly what either one
+/// is for. Not proof of actual waste — a "Subscriptions" category legitimately holds a streaming
+/// service AND a gym membership at once — just a prompt to check.
+public struct OverlapDetector: Sendable {
+    public init() {}
+
+    public struct Overlap: Equatable, Sendable {
+        public let category: LifeCategory
+        public let items: [LifeAdminItem]
+    }
+
+    public func possibleOverlaps(in items: [LifeAdminItem]) -> [Overlap] {
+        let active = items.filter { $0.status == .active && $0.recurrence != .none }
+        let grouped = Dictionary(grouping: active, by: \.category)
+        return grouped
+            .filter { $0.value.count >= 2 }
+            .map { Overlap(category: $0.key, items: $0.value) }
+            .sorted { $0.items.count > $1.items.count }
+    }
+}
 public struct DigestEngine: Sendable {
     public init() {}
 

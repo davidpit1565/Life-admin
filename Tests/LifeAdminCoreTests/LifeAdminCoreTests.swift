@@ -117,6 +117,26 @@ final class LifeAdminCoreTests: XCTestCase {
  func testStatusCompletion() { var i=LifeAdminItem(title:"Dentist"); i.status = .completed; XCTAssertEqual(i.status, .completed) }
  func testAttachmentValidation() { let a=Attachment(filename:"policy.pdf", mimeType:"application/pdf", sizeBytes:1, localPath:"/local/policy.pdf"); XCTAssertNoThrow(try ItemValidator().validate(LifeAdminItem(title:"Policy", attachments:[a]))) }
  func testDigestFlagsOverdueItem() { let overdue=LifeAdminItem(title:"Rent", dueDate:Date().addingTimeInterval(-86400*2)); let s=DigestEngine().summary(for:[overdue]); XCTAssertEqual(s.overdueCount, 1); XCTAssertTrue(DigestEngine().shouldNotify(s)) }
+ func testOverlapDetectorFlagsTwoActiveRecurringItemsInSameCategory() {
+     let netflix = LifeAdminItem(title: "Netflix", category: .subscriptions, recurrence: .monthly)
+     let disneyPlus = LifeAdminItem(title: "Disney+", category: .subscriptions, recurrence: .monthly)
+     let overlaps = OverlapDetector().possibleOverlaps(in: [netflix, disneyPlus])
+     XCTAssertEqual(overlaps.count, 1)
+     XCTAssertEqual(overlaps.first?.category, .subscriptions)
+     XCTAssertEqual(Set(overlaps.first?.items.map(\.title) ?? []), ["Netflix", "Disney+"])
+ }
+ func testOverlapDetectorIgnoresSingleItemPerCategory() {
+     let netflix = LifeAdminItem(title: "Netflix", category: .subscriptions, recurrence: .monthly)
+     let rent = LifeAdminItem(title: "Rent", category: .home, recurrence: .monthly)
+     XCTAssertTrue(OverlapDetector().possibleOverlaps(in: [netflix, rent]).isEmpty)
+ }
+ func testOverlapDetectorIgnoresNonRecurringAndCompletedItems() {
+     let oneTime = LifeAdminItem(title: "One-time purchase", category: .subscriptions, recurrence: .none)
+     var completed = LifeAdminItem(title: "Old gym plan", category: .subscriptions, recurrence: .monthly)
+     completed.status = .completed
+     let active = LifeAdminItem(title: "Current gym plan", category: .subscriptions, recurrence: .monthly)
+     XCTAssertTrue(OverlapDetector().possibleOverlaps(in: [oneTime, completed, active]).isEmpty)
+ }
  func testDigestFlagsDueToday() {
      // A fixed `now` well before midnight — "1 hour from now" relative to the real wall clock
      // rolls into tomorrow whenever this happens to run late at night, making the test flaky for

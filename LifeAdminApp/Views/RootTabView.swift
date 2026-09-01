@@ -780,6 +780,14 @@ struct InsightsView: View {
         Array(categoryCounts.prefix(Self.maxChartCategories))
     }
 
+    /// Not proof of actual waste — a "Subscriptions" category legitimately holds a streaming
+    /// service AND a gym membership at once — just a prompt to double-check. Achieves the same
+    /// kind of nudge competitor subscription trackers get from real bank transaction data, using
+    /// only what this app already has (no bank connection, matching its local-first design).
+    private var possibleOverlaps: [OverlapDetector.Overlap] {
+        OverlapDetector().possibleOverlaps(in: store.items)
+    }
+
     var body: some View {
         NavigationStack {
             // A screen that's nothing but a column of zeros (a brand-new install, before adding
@@ -825,6 +833,26 @@ struct InsightsView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
+                        }
+                    }
+                    // Unlike every other section here, only appears when there's actually
+                    // something to flag — a permanent-but-empty "no overlaps found" section would
+                    // just be reassuring noise on a screen that's otherwise not shy about showing
+                    // real zeros (see insights.dueThisMonth.none just below).
+                    if possibleOverlaps.isEmpty == false {
+                        Section {
+                            ForEach(possibleOverlaps, id: \.category) { overlap in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Label(overlap.category.displayName, systemImage: overlap.category.symbolName)
+                                    Text(overlap.items.map(\.title).joined(separator: ", "))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        } header: {
+                            Text(String(localized: "insights.possibleOverlaps"))
+                        } footer: {
+                            Text(String(localized: "insights.possibleOverlaps.footer"))
                         }
                     }
                     // Hiding this section entirely whenever nothing has both an amount and a due

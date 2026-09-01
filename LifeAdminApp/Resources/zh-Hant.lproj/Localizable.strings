@@ -65,6 +65,8 @@
 "insights.empty.description" = "新增幾個事項後，這個畫面就會顯示即將到期與累積事項的統計資料。";
 "insights.byCategory" = "依類別";
 "insights.moreCategories" = "還有%d個";
+"insights.possibleOverlaps" = "可能的重疊";
+"insights.possibleOverlaps.footer" = "您在這些類別中有多個作用中的定期項目 — 值得檢查是否有重疊，或是否可以取消其中一個。";
 "editContact.chooseFromContacts" = "從聯絡人選擇";
 "itemDetail.details" = "詳細資料";
 "itemDetail.title" = "標題";
