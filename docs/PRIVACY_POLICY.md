@@ -1,11 +1,10 @@
 # Privacy Policy — Life Admin
 
-**Status: draft.** Written directly from the app's actual code so every claim below is checkable
-against a specific file. Needs a legal/App-Store-consultant pass before it goes live — see
-`docs/APP_STORE_READINESS.md`. Replace `[effective date]` and `[contact email]` before publishing,
-and host the final version at a public URL (required for both the app and App Store Connect).
+_Written directly from the app's actual code so every claim below is checkable against a specific
+file. This has not had a professional legal review — if you need one for your jurisdiction, get
+one before relying on this as your sole compliance document._
 
-_Last effective: [effective date]_
+_Last effective: September 1, 2026_
 
 ## The short version
 
@@ -48,8 +47,11 @@ status and a truncated error body, with any key/token fields stripped (see `safe
   consulted when the local parser is unsure, or for higher-stakes categories (insurance, bills,
   money) above a size threshold.
 
-We do not control Google's own retention policy for API requests it receives; see Google's
-privacy policy for that. [Confirm current Gemini API data-retention terms before publishing.]
+Our Gemini API key is on Google's paid tier, which means Google does not use these prompts or
+responses to train its models. Google retains request logs for up to 55 days solely to detect
+abuse, then deletes them automatically. See
+[Google's Gemini API data logging policy](https://ai.google.dev/gemini-api/docs/logs-policy) for
+details, which may change — this section reflects that policy as of the date above.
 
 ## What we don't do
 
@@ -81,4 +83,4 @@ above will be updated.
 
 ## Contact
 
-Questions about this policy: [contact email].
+Questions about this policy: dp@solfaygroup.com.
