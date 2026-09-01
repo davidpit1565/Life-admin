@@ -28,6 +28,11 @@ struct LifeAdminApp: App {
     /// fresh on-disk store (wiping the corrupted one) and, if even that fails, to an in-memory
     /// store so the app can still open rather than crash-loop forever.
     private static func makeModelContainer() -> ModelContainer {
+        if UITestSupport.isCapturingScreenshots {
+            let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+            return try! ModelContainer(for: PersistedItem.self, configurations: configuration)
+        }
+
         if let container = try? ModelContainer(for: PersistedItem.self) {
             protectDefaultStore()
             return container
@@ -107,8 +112,38 @@ final class ItemStore: ObservableObject {
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
         self.aiService = LifeAdminAIService(client: ProxyAIClient(endpoint: AppConfig.geminiProxyEndpoint, sharedSecret: AppConfig.geminiProxySharedSecret), reachability: NetworkPathReachability())
+        if UITestSupport.isCapturingScreenshots {
+            seedDemoDataForScreenshots()
+        }
         load()
         observeNotificationActions()
+    }
+
+    /// Populates the in-memory store (see `makeModelContainer`) with a fixed, varied set of items
+    /// so the screenshot UI test always has something worth photographing — an overdue bill, an
+    /// upcoming insurance renewal, two same-category subscriptions (so Insights' overlap card has
+    /// something to show), a passport with document fields, and an item due today for Calendar.
+    /// Dates are relative to `Date()` so screenshots never show a stale "3 days ago" months later.
+    private func seedDemoDataForScreenshots() {
+        let calendar = Calendar.current
+        func daysFromNow(_ days: Int) -> Date {
+            calendar.date(byAdding: .day, value: days, to: Date()) ?? Date()
+        }
+
+        let demoItems = [
+            LifeAdminItem(title: "Electric Bill", category: .bills, priority: .high, dueDate: daysFromNow(-3), amount: 145, currency: "USD", recurrence: .monthly),
+            LifeAdminItem(title: "Car Insurance Renewal", category: .insurance, priority: .high, dueDate: daysFromNow(12), amount: 1200, currency: "USD", recurrence: .yearly),
+            LifeAdminItem(title: "Netflix", category: .subscriptions, priority: .low, dueDate: daysFromNow(5), amount: 17.99, currency: "USD", recurrence: .monthly),
+            LifeAdminItem(title: "Spotify", category: .subscriptions, priority: .low, dueDate: daysFromNow(20), amount: 10.99, currency: "USD", recurrence: .monthly),
+            LifeAdminItem(title: "Passport Renewal", category: .documents, priority: .medium, dueDate: daysFromNow(200), recurrence: .none, documentFields: [DocumentField(label: "Passport Number", value: "X1234567"), DocumentField(label: "Expiry Date", value: "2027-03-15")]),
+            LifeAdminItem(title: "Credit Card Renewal", category: .money, priority: .medium, dueDate: daysFromNow(45), recurrence: .yearly, documentFields: [DocumentField(label: "Card Number", value: "•••• 4242"), DocumentField(label: "Expiry", value: "09/29")]),
+            LifeAdminItem(title: "Car Service", category: .car, priority: .medium, dueDate: daysFromNow(0), amount: 220, currency: "USD", recurrence: .none)
+        ]
+
+        for item in demoItems {
+            modelContext.insert(PersistedItem(item: item))
+        }
+        try? modelContext.save()
     }
 
     private func observeNotificationActions() {
@@ -158,6 +193,7 @@ final class ItemStore: ObservableObject {
     /// which needs no `CNContactStore` authorization at all — asking for it here would be an
     /// upfront request the app has no use for.
     func requestAllPermissionsUpfront() async {
+        guard !UITestSupport.isCapturingScreenshots else { return }
         await NotificationScheduler.shared.requestAuthorizationIfNeeded()
         await CalendarSyncService.shared.requestAuthorizationIfNeeded()
         await refreshDigest()

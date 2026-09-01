@@ -42,6 +42,18 @@ targets:
         INFOPLIST_KEY_NSRemindersUsageDescription: "Life Admin can create reminders for items with due dates."
         INFOPLIST_KEY_NSRemindersFullAccessUsageDescription: "Life Admin can create reminders for items with due dates."
 
+  LifeAdminUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: LifeAdminUITests
+    settings:
+      base:
+        SWIFT_VERSION: "5.10"
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: LifeAdminApp
+
 schemes:
   LifeAdminApp:
     build:
@@ -49,3 +61,7 @@ schemes:
         LifeAdminApp: all
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - LifeAdminUITests
