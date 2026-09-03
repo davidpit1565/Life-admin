@@ -102,7 +102,7 @@ struct ItemDetailView: View {
             // card's expiry, a policy number — rather than a fixed set of fields every category
             // would otherwise have to share. Filled in either by hand here or, for a photographed
             // document, automatically via autoFillFromImageAttachment below.
-            Section(String(localized: "itemDetail.documentFields")) {
+            Section {
                 ForEach($documentFields) { $field in
                     if appLockEnabled == false || revealedDocumentFieldIDs.contains(field.id) {
                         HStack {
@@ -136,23 +136,13 @@ struct ItemDetailView: View {
                     }
                 }
                 .onDelete { documentFields.remove(atOffsets: $0) }
-                Button {
-                    // Revealed immediately, unlike a pre-existing locked field: the user is about
-                    // to type straight into this row, and forcing a Face ID prompt just to enter
-                    // the first character of a field they created themselves this second would be
-                    // pure friction, not real protection of anything already on screen.
-                    let newField = DocumentField(label: "", value: "")
-                    documentFields.append(newField)
-                    revealedDocumentFieldIDs.insert(newField.id)
-                } label: {
-                    Label(String(localized: "itemDetail.addField"), systemImage: "plus.circle")
-                }
                 // A passport and a payment card have almost nothing in common, so a single blank
                 // "Add Field" button alone left every item looking identical regardless of what
                 // kind of document it actually was. These are quick-start suggestions, not a rigid
                 // schema — they're still just DocumentField rows once added, freely renamable or
-                // deletable, and everything above (AI-suggested fields, manual "Add Field") keeps
-                // working exactly the same for categories with no suggestions of their own.
+                // deletable, and everything above (AI-suggested fields, manual "Add Field" in the
+                // header) keeps working exactly the same for categories with no suggestions of
+                // their own.
                 if suggestedFieldLabels.isEmpty == false {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack {
@@ -167,6 +157,30 @@ struct ItemDetailView: View {
                             }
                         }
                     }
+                }
+            } header: {
+                // A fixed control next to the section title, rather than a full-width row mixed
+                // in among the field rows below it — reported as feeling buried/inconsistent once
+                // a passport already had several fields listed (the button kept moving down the
+                // screen as rows were added instead of staying in one predictable place).
+                HStack {
+                    Text(String(localized: "itemDetail.documentFields"))
+                    Spacer()
+                    Button {
+                        // Revealed immediately, unlike a pre-existing locked field: the user is
+                        // about to type straight into this row, and forcing a Face ID prompt just
+                        // to enter the first character of a field they created themselves this
+                        // second would be pure friction, not real protection of anything already
+                        // on screen.
+                        let newField = DocumentField(label: "", value: "")
+                        documentFields.append(newField)
+                        revealedDocumentFieldIDs.insert(newField.id)
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.body)
+                    .accessibilityLabel(String(localized: "itemDetail.addField"))
                 }
             }
 
@@ -820,11 +834,17 @@ struct ItemDetailView: View {
             hasDueDate = true
             dueDate = date
         }
-        if amountText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let amount = extracted.amount {
-            amountText = "\(amount)"
-        }
-        if currency.isEmpty, let extractedCurrency = extracted.currency {
-            currency = extractedCurrency
+        // Skipped for .documents (passport, ID, and similar): a passport's bio page has no
+        // inherent monetary amount, so any "amount" the parser reports here is almost always a
+        // misread of a document number, an MRZ digit run, or a two-digit year — not real data.
+        // Reported on-device: scanning a passport photo produced "Amount: 82" out of nowhere.
+        if category != .documents {
+            if amountText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let amount = extracted.amount {
+                amountText = "\(amount)"
+            }
+            if currency.isEmpty, let extractedCurrency = extracted.currency {
+                currency = extractedCurrency
+            }
         }
         // Additive, like the merge case in ItemStore.buildCandidate, rather than "only if
         // documentFields is currently empty": scanning a passport's photo page today and its visa
