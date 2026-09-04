@@ -32,6 +32,17 @@ final class LifeAdminCoreTests: XCTestCase {
      let totals = SpendEngine().totalsByCurrency(for: [completed, tooLate, noAmount], from: from, to: to)
      XCTAssertTrue(totals.isEmpty)
  }
+ // `from` used to be trusted as-is — a caller passing the raw current moment (as InsightsView's
+ // "due this month" total does) excluded an item due earlier the same day purely because its
+ // time-of-day had already passed, understating a real total the user is looking at right now.
+ func testSpendTotalsIncludeAnItemDueEarlierTodayEvenWhenFromIsLaterInTheDay() {
+     let from = Calendar.current.date(bySettingHour: 15, minute: 0, second: 0, of: Date())!
+     let dueEarlierToday = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: from)!
+     let to = Calendar.current.date(byAdding: .month, value: 1, to: from)!
+     let item = LifeAdminItem(title: "Electric Bill", dueDate: dueEarlierToday, amount: 145, currency: "USD")
+     let totals = SpendEngine().totalsByCurrency(for: [item], from: from, to: to)
+     XCTAssertEqual(totals["USD"], 145)
+ }
  func testReminderOffsetsThatHaveAlreadyElapsedAreNotScheduled() {
      // A travel item's default offsets are [90, 30, 7, 1] days — due in only 10 days, the 90-
      // and 30-day-before offsets already landed in the past. A past-dated local notification
@@ -113,6 +124,25 @@ final class LifeAdminCoreTests: XCTestCase {
          XCTAssertFalse(DocumentFieldSafety.isForbidden(label: label), "\"\(label)\" should NOT be treated as a CVV-like field")
      }
  }
+ // This app is Hebrew-first and also supports Spanish/French, but the CVV filter was English-only
+ // — an OCR'd Israeli card labeled "קוד אבטחה" (security code) passed straight through. Found
+ // independently by two separate audits of this pattern and the identical one in
+ // server/gemini-proxy.js.
+ func testDocumentFieldSafetyCatchesNonEnglishCVVLabels() {
+     let synonyms = ["קוד אבטחה", "קוד אימות", "3 ספרות בגב הכרטיס", "código de seguridad", "código de verificación", "code de sécurité", "code de vérification", "CVD"]
+     for label in synonyms {
+         XCTAssertTrue(DocumentFieldSafety.isForbidden(label: label), "\"\(label)\" should be recognized as a CVV-like field")
+     }
+ }
+ // Zero-width characters and Cyrillic homoglyphs are invisible or near-invisible ways to spell
+ // "CVV" that read identically to a person but wouldn't match a plain regex; dotted/spaced-out
+ // abbreviations are a much more mundane way the same thing happens.
+ func testDocumentFieldSafetyCatchesObfuscatedCVVSpellings() {
+     let synonyms = ["C.V.V.", "C V V", "CVV-2", "С VV"] // the last one starts with Cyrillic С (U+0421), not Latin C
+     for label in synonyms {
+         XCTAssertTrue(DocumentFieldSafety.isForbidden(label: label), "\"\(label)\" should be recognized as a CVV-like field")
+     }
+ }
  func testLocalizationCoverage() { XCTAssertEqual(SupportedLanguage.allCases.count, 14); XCTAssertTrue(SupportedLanguage.he.isRTL); XCTAssertTrue(SupportedLanguage.ar.isRTL) }
  func testStatusCompletion() { var i=LifeAdminItem(title:"Dentist"); i.status = .completed; XCTAssertEqual(i.status, .completed) }
  func testAttachmentValidation() { let a=Attachment(filename:"policy.pdf", mimeType:"application/pdf", sizeBytes:1, localPath:"/local/policy.pdf"); XCTAssertNoThrow(try ItemValidator().validate(LifeAdminItem(title:"Policy", attachments:[a]))) }
@@ -129,6 +159,17 @@ final class LifeAdminCoreTests: XCTestCase {
      let netflix = LifeAdminItem(title: "Netflix", category: .subscriptions, recurrence: .monthly)
      let rent = LifeAdminItem(title: "Rent", category: .home, recurrence: .monthly)
      XCTAssertTrue(OverlapDetector().possibleOverlaps(in: [netflix, rent]).isEmpty)
+ }
+ // `Dictionary(grouping:)`'s iteration order is randomized per process launch — without a
+ // tie-break, two categories with the same overlap count could swap positions between one app
+ // launch and the next with nothing in the data having changed.
+ func testOverlapDetectorOrdersTiedCategoriesDeterministically() {
+     let netflix = LifeAdminItem(title: "Netflix", category: .subscriptions, recurrence: .monthly)
+     let disneyPlus = LifeAdminItem(title: "Disney+", category: .subscriptions, recurrence: .monthly)
+     let carInsurance = LifeAdminItem(title: "Car Insurance", category: .insurance, recurrence: .yearly)
+     let homeInsurance = LifeAdminItem(title: "Home Insurance", category: .insurance, recurrence: .yearly)
+     let overlaps = OverlapDetector().possibleOverlaps(in: [netflix, disneyPlus, carInsurance, homeInsurance])
+     XCTAssertEqual(overlaps.map(\.category), [.insurance, .subscriptions], "tied 2-vs-2 counts should still sort in a fixed, repeatable order")
  }
  func testOverlapDetectorIgnoresNonRecurringAndCompletedItems() {
      let oneTime = LifeAdminItem(title: "One-time purchase", category: .subscriptions, recurrence: .none)
@@ -148,6 +189,17 @@ final class LifeAdminCoreTests: XCTestCase {
      XCTAssertTrue(DigestEngine().shouldNotify(s))
  }
  func testDigestStaysQuietWithNothingUrgent() { let future=LifeAdminItem(title:"Renewal", dueDate:Date().addingTimeInterval(86400*20)); let s=DigestEngine().summary(for:[future]); XCTAssertEqual(s.overdueCount, 0); XCTAssertEqual(s.dueTodayCount, 0); XCTAssertFalse(DigestEngine().shouldNotify(s)) }
+ // "due this week" used the raw current moment as its lower bound instead of the start of today
+ // — an item due earlier today (say 9am) stopped counting as "due this week" the moment it was
+ // checked later that same day (say 3pm), the same day-boundary bug already fixed once in
+ // `DateRangeFilter` but missed here.
+ func testDueThisWeekIncludesAnItemDueEarlierTodayEvenLaterInTheDay() {
+     let now = Calendar.current.date(bySettingHour: 15, minute: 0, second: 0, of: Date())!
+     let dueEarlierToday = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: now)!
+     let item = LifeAdminItem(title: "Electric Bill", dueDate: dueEarlierToday)
+     let s = DigestEngine().summary(for: [item], now: now)
+     XCTAssertEqual(s.dueThisWeekCount, 1)
+ }
  func testDigestIgnoresCompletedItems() { var done=LifeAdminItem(title:"Paid", dueDate:Date().addingTimeInterval(-86400)); done.status = .completed; let s=DigestEngine().summary(for:[done]); XCTAssertEqual(s.overdueCount, 0) }
  func testCriticalItemsGetAnEscalatedSameDayReminder() { var i=LifeAdminItem(title:"Rent", dueDate:Date().addingTimeInterval(86400*5), reminderOffsets:[30]); i.priority = .critical; XCTAssertTrue(ReminderEngine().notificationDates(for:i).contains { Calendar.current.isDate($0, inSameDayAs: i.dueDate!) }) }
  func testNonCriticalItemsDoNotGetTheEscalatedReminder() { let i=LifeAdminItem(title:"Gym", category:.other, dueDate:Date().addingTimeInterval(86400*5), reminderOffsets:[30]); XCTAssertEqual(i.priority, .low); XCTAssertFalse(ReminderEngine().notificationDates(for:i).contains { Calendar.current.isDate($0, inSameDayAs: i.dueDate!) }) }
@@ -197,6 +249,32 @@ final class LifeAdminCoreTests: XCTestCase {
  func testAmountStillFoundWhenItGenuinelyMatchesTheDayNumber() { let e = NaturalLanguageParser().parse("Rent due on the 5th, $5"); XCTAssertEqual(e.amount, 5) }
  func testAmountWithCurrencyWordAfterTheNumber() { let e = NaturalLanguageParser().parse("Electric bill 300 NIS due next week"); XCTAssertEqual(e.amount, 300) }
  func testClockTimeIsNotMisreadAsAnAmount() { let e = NaturalLanguageParser().parse("Driving test 4 september 11:00 am deurne examen centrum"); XCTAssertNil(e.amount) }
+ // Spanish/French use a comma as the decimal point and a period as the thousands separator —
+ // the reverse of English/Hebrew. Confirmed bugs: "240,50 euros" was read as 24050 (every comma
+ // treated as a thousands separator, 100x too large) and "1.200 euros" was read as 1.2 (every
+ // period kept as a decimal point, 1000x too small) before `parseLocaleAmbiguousNumber` decided
+ // per-token which convention applies instead of a single blanket rule for the whole text.
+ // Decimal amounts below are compared against `Decimal(string:)`, not a Swift float literal —
+ // `17.99` as a float literal goes through `ExpressibleByFloatLiteral`'s binary-Double
+ // conversion first and comes out as 17.989999999999995904, which would make this test fail
+ // against the parser's own precise, string-parsed result for a reason that has nothing to do
+ // with what it's actually checking.
+ func testSpanishDecimalCommaAmountIsNotInflated100x() { let e = NaturalLanguageParser().parse("El seguro de auto cuesta 240,50 euros"); XCTAssertEqual(e.amount, Decimal(string: "240.50")) }
+ func testFrenchDecimalCommaAmountIsNotInflated100x() { let e = NaturalLanguageParser().parse("L'assurance auto coûte 240,50 euros"); XCTAssertEqual(e.amount, Decimal(string: "240.50")) }
+ func testSpanishThousandsPeriodAmountIsNotShrunk1000x() { let e = NaturalLanguageParser().parse("La hipoteca es de 1.200 euros"); XCTAssertEqual(e.amount, 1200) }
+ func testSpanishThousandsAndDecimalAmountBothParseCorrectly() { let e = NaturalLanguageParser().parse("La hipoteca es de 1.200,50 euros"); XCTAssertEqual(e.amount, Decimal(string: "1200.50")) }
+ // English/Hebrew go the other way (comma = thousands, period = decimal) — must still work
+ // exactly as before after the same function started handling both conventions.
+ func testEnglishThousandsCommaAmountStillParsesCorrectly() { let e = NaturalLanguageParser().parse("Mortgage payment $1,200 due monthly"); XCTAssertEqual(e.amount, 1200) }
+ func testEnglishDecimalAmountStillParsesCorrectly() { let e = NaturalLanguageParser().parse("Netflix $17.99 due monthly"); XCTAssertEqual(e.amount, Decimal(string: "17.99")) }
+ // A word ending in a comma right before a currency-relevant number ("agosto, 240 euros") must
+ // not itself be misread as a bare "0" amount — confirmed regression while fixing the two bugs
+ // above: filtering a token down to just its punctuation ("," with no digit at all) and handing
+ // that to Decimal(string:) silently parses as 0 instead of failing.
+ func testWordEndingInACommaDoesNotProduceAZeroAmount() {
+     let e = NaturalLanguageParser().parse("El seguro de auto se renueva el 15 de agosto, 240 euros")
+     XCTAssertEqual(e.amount, 240)
+ }
  func testClockTimeIsAppliedToTheDueDate() {
      let e = NaturalLanguageParser().parse("Driving test 4 september 11:00 am deurne examen centrum")
      XCTAssertNotNil(e.date)
@@ -333,6 +411,23 @@ final class LifeAdminCoreTests: XCTestCase {
  func testWithinAWeekPhrasingIsNotMisreadAsInAWeek() {
      let now = Date(timeIntervalSince1970: 1_700_000_000)
      XCTAssertNil(NaturalLanguageParser().parse("Please respond within a week", now: now).date)
+ }
+ // "check-in"/"log-in" still contain "in" right after a hyphen — a plain `\b` word boundary
+ // matches there too (a hyphen isn't a "word" character), so these fabricated a due date from
+ // phrasing that stated no real deadline at all, the same failure mode as the "within" bug above
+ // but via a different boundary gap.
+ func testHyphenatedCheckInPhraseIsNotMisreadAsARelativeDate() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     XCTAssertNil(NaturalLanguageParser().parse("Flight check-in 3 hours before departure", now: now).date)
+     XCTAssertNil(NaturalLanguageParser().parse("Hotel check-in 6 months from now", now: now).date)
+     XCTAssertNil(NaturalLanguageParser().parse("Please log-in 3 days before the trip to confirm", now: now).date)
+ }
+ // The five plain-substring idioms ("in a week"/"in a month"/etc.) had no word boundary at all —
+ // "jo**in a week**ly newsletter" contains the literal substring "in a week" even though "in"
+ // isn't its own word there, so it also fabricated a date from completely unrelated text.
+ func testInAWeekIdiomInsideAnUnrelatedWordIsNotMisreadAsARelativeDate() {
+     let now = Date(timeIntervalSince1970: 1_700_000_000)
+     XCTAssertNil(NaturalLanguageParser().parse("join a weekly newsletter", now: now).date)
  }
  func testNextWeekInHebrewIsRecognized() {
      let now = Date(timeIntervalSince1970: 1_700_000_000)
@@ -853,3 +948,4 @@ final class LifeAdminCoreTests: XCTestCase {
      XCTAssertEqual(e.scamRiskDetected, true)
  }
 }
+

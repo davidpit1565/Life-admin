@@ -170,11 +170,23 @@ final class ItemStore: ObservableObject {
             ActivityLog.shared.record(String(format: String(localized: "activityLog.markedDoneFromNotification"), item.title))
             await markCompleted(item)
         case NotificationActionHandler.snoozeIdentifier:
+            // Same live-status guard as `markCompleted`: a stale already-delivered notification
+            // tapped after the item was already completed/archived elsewhere would otherwise
+            // silently change that item's due date and priority behind the user's back — checking
+            // `items` (the live, current store state) rather than the `item` snapshot captured
+            // above is what actually catches that, the same reasoning documented on
+            // `markCompleted` itself.
+            guard items.first(where: { $0.id == itemID })?.status == .active else { return }
             // An item already well overdue (say, 10 days) snoozed from its own stale due date
             // would land 9 days in the past — still overdue, and ReminderEngine won't schedule a
             // notification for a past date, so the button would appear to work but silently do
             // nothing. Snoozing from "now" instead always produces a real future reminder.
             item.dueDate = Calendar.current.date(byAdding: .day, value: 1, to: max(item.dueDate ?? Date(), Date()))
+            // Every other path that changes an item's due date (ItemDetailView.save(),
+            // markDone(), reopen()) recomputes priority before saving — this was the one path
+            // that didn't, leaving a critical/overdue badge stuck on an item that's no longer
+            // either after being pushed a day out, or vice versa.
+            item.priority = PriorityEngine().priority(for: item)
             ActivityLog.shared.record(String(format: String(localized: "activityLog.snoozedFromNotification"), item.title))
             await update(item)
         default:
@@ -351,7 +363,7 @@ final class ItemStore: ObservableObject {
         persisted.calendarEventIdentifier = sync.eventIdentifier
         persisted.reminderIdentifier = sync.reminderIdentifier
         try? modelContext.save()
-        flagCalendarSyncIssueIfNeeded(dueDate: item.dueDate, eventIdentifier: sync.eventIdentifier)
+        flagCalendarSyncIssueIfNeeded(sync.eventNeedsAccess)
 
         await refreshDigest()
         return item
@@ -413,7 +425,7 @@ final class ItemStore: ObservableObject {
         persisted.calendarEventIdentifier = sync.eventIdentifier
         persisted.reminderIdentifier = sync.reminderIdentifier
         try? modelContext.save()
-        flagCalendarSyncIssueIfNeeded(dueDate: item.dueDate, eventIdentifier: sync.eventIdentifier)
+        flagCalendarSyncIssueIfNeeded(sync.eventNeedsAccess)
 
         await NotificationScheduler.shared.schedule(for: item)
         await refreshDigest()
@@ -423,9 +435,12 @@ final class ItemStore: ObservableObject {
     /// to fail in total silence: a sync just ran for an item with a due date, produced no calendar
     /// event, and Calendar access genuinely isn't fully granted. Never fires for an item with no
     /// due date, or once access is fully granted, so it can't nag someone who never wanted this
-    /// feature synced in the first place.
-    private func flagCalendarSyncIssueIfNeeded(dueDate: Date?, eventIdentifier: String?) {
-        guard dueDate != nil, eventIdentifier == nil, CalendarSyncService.hasFullCalendarAccess() == false else { return }
+    /// feature synced in the first place. Takes `CalendarSyncService.SyncResult.eventNeedsAccess`
+    /// directly rather than inferring "no access" from `eventIdentifier == nil` — that identifier
+    /// used to default to the previous sync's value and was never reset on a revoked-access
+    /// attempt, so the old inference could never actually catch that case.
+    private func flagCalendarSyncIssueIfNeeded(_ eventNeedsAccess: Bool) {
+        guard eventNeedsAccess else { return }
         calendarSyncWarningTask?.cancel()
         calendarSyncWarningVisible = true
         calendarSyncWarningTask = Task { [weak self] in

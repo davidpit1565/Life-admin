@@ -8,6 +8,15 @@ struct CalendarSyncService {
     struct SyncResult {
         var eventIdentifier: String?
         var reminderIdentifier: String?
+        /// True exactly when this item needed a calendar event (active/snoozed, with a due date)
+        /// but Calendar access wasn't fully granted on this attempt — distinct from
+        /// `eventIdentifier` merely being nil, which also happens with nothing wrong before
+        /// access was ever granted the first time. Confirmed bug this closes: `eventIdentifier`
+        /// used to default to the *previous* identifier and was never reset once access was
+        /// revoked mid-use, so the caller's own "warn if eventIdentifier == nil" check could
+        /// never fire — an item's calendar event silently went stale (stuck on its old due date)
+        /// with no warning shown, ever, after the user revoked Calendar access in iOS Settings.
+        var eventNeedsAccess = false
     }
 
     private let store = EKEventStore()
@@ -23,9 +32,18 @@ struct CalendarSyncService {
 
     /// Creates or updates a calendar event and a reminder for `item`'s due date, reusing
     /// `existingEventID`/`existingReminderID` when present instead of creating duplicates.
-    /// Removes both and returns nil identifiers if the item no longer has a due date.
+    /// Removes both and returns nil identifiers if the item no longer has a due date, or if the
+    /// item isn't active/snoozed.
+    ///
+    /// The status check matters on its own, separately from any due date: `ItemStore.update(_:)`
+    /// runs on every edit, including editing a completed or archived item's notes/title long
+    /// after `markCompleted`/`archive` already cleared its calendar entry — without this guard,
+    /// that edit passed the item's still-intact `dueDate` straight through and silently recreated
+    /// the very event/reminder that completing or archiving the item was supposed to remove for
+    /// good, making it reappear on every subsequent edit.
     func sync(item: LifeAdminItem, existingEventID: String?, existingReminderID: String?) -> SyncResult {
-        guard let dueDate = item.dueDate else {
+        let isActiveOrSnoozed = item.status == .active || item.status == .snoozed
+        guard isActiveOrSnoozed, let dueDate = item.dueDate else {
             removeEvent(identifier: existingEventID)
             removeReminder(identifier: existingReminderID)
             return SyncResult(eventIdentifier: nil, reminderIdentifier: nil)
@@ -47,6 +65,8 @@ struct CalendarSyncService {
             if (try? store.save(event, span: .thisEvent, commit: true)) != nil {
                 result.eventIdentifier = event.eventIdentifier
             }
+        } else {
+            result.eventNeedsAccess = true
         }
 
         if EKEventStore.authorizationStatus(for: .reminder) == .fullAccess {
@@ -69,13 +89,6 @@ struct CalendarSyncService {
         }
 
         return result
-    }
-
-    /// Whether Calendar access is fully granted — lets a caller tell a genuine "sync produced no
-    /// event because permission isn't there" apart from an item simply having no due date.
-    /// Static since it only reads a system-wide authorization status, no store instance needed.
-    static func hasFullCalendarAccess() -> Bool {
-        EKEventStore.authorizationStatus(for: .event) == .fullAccess
     }
 
     private func removeEvent(identifier: String?) {

@@ -25,10 +25,63 @@ public enum DocumentFieldSafety {
     // recognize as "the CVV field" but none of which matched. Kept in sync with
     // FORBIDDEN_DOCUMENT_FIELD_LABEL in server/gemini-proxy.js — this is defense in depth, not a
     // single point of trust, so both layers need the same coverage.
-    private static let forbiddenLabelPattern = try! NSRegularExpression(pattern: "\\b(cvv2?|cvc2?|cvn|csc|cid)\\b|card\\s*identification\\s*number|security\\s*(code|value|number)|verification\\s*(code|number|value|no\\.?)|card\\s*verification|\\bsec\\.?\\s*code\\b|\\d\\s*-?\\s*digit\\s*(security\\s*)?code", options: [.caseInsensitive])
+    //
+    // Confirmed gap: this whole pattern was English-only, even though this app is Hebrew-first
+    // and also supports Spanish/French — an OCR'd Israeli card labeled "קוד אבטחה" (security
+    // code) or "3 ספרות בגב הכרטיס" (3 digits on back of card) passed through both this filter
+    // and the identical one in server/gemini-proxy.js completely unblocked. Added Hebrew,
+    // Spanish, and French phrasings for the same handful of concepts (security/verification
+    // code, N-digit code), plus a spelled-out digit count ("Four-digit code") alongside the
+    // numeral form, and "cvd" (Card Verification Data, used by some processors).
+    private static let forbiddenLabelPattern = try! NSRegularExpression(
+        pattern: "\\b(cvv2?|cvc2?|cvn|csc|cid|cvd)\\b"
+            + "|card\\s*identification\\s*number"
+            + "|security\\s*(code|value|number)"
+            + "|verification\\s*(code|number|value|no\\.?)"
+            + "|card\\s*verification"
+            + "|\\bsec\\.?\\s*code\\b"
+            + "|(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten)\\s*-?\\s*digit\\s*(?:security\\s*)?code"
+            // Hebrew: קוד אבטחה/אימות/בטיחות (security/verification/safety code), N ספרות
+            // (N digits — a label this specific, on its own, is unambiguous enough to block).
+            + "|קוד\\s*(אבטחה|אימות|בטיחות)"
+            + "|\\d+\\s*ספרות"
+            // Spanish: código de seguridad/verificación (accent optional — OCR often drops it).
+            + "|c[oó]digo\\s*de\\s*(seguridad|verificaci[oó]n)"
+            // French: code de sécurité/vérification (same accent-optional handling).
+            + "|code\\s*de\\s*(s[eé]curit[eé]|v[eé]rification)",
+        options: [.caseInsensitive]
+    )
+    // A label reduced to just its letters/digits ("C.V.V.", "C V V", "CVV-2") still has to match
+    // one of the bare abbreviations exactly — this is deliberately separate from, and stricter
+    // than, the pattern above: stripping every separator out of a full phrase like "security
+    // code" first would risk matching unrelated compound words it was never meant to catch.
+    private static let compactAbbreviationPattern = try! NSRegularExpression(pattern: "^(cvv2?|cvc2?|cvn|csc|cid|cvd)$", options: [.caseInsensitive])
+
     public static func isForbidden(label: String) -> Bool {
-        let range = NSRange(label.startIndex..., in: label)
-        return forbiddenLabelPattern.firstMatch(in: label, range: range) != nil
+        let normalized = Self.normalized(label)
+        let range = NSRange(normalized.startIndex..., in: normalized)
+        if forbiddenLabelPattern.firstMatch(in: normalized, range: range) != nil { return true }
+        let compact = Self.compacted(normalized)
+        let compactRange = NSRange(compact.startIndex..., in: compact)
+        return compactAbbreviationPattern.firstMatch(in: compact, range: compactRange) != nil
+    }
+
+    /// Strips zero-width characters (a zero-width space slipped between two letters would
+    /// otherwise defeat every regex above without changing how the label visibly reads) and maps
+    /// the handful of Cyrillic letters that are visually identical to Latin ones — "С" (U+0421)
+    /// reads exactly like Latin "C" — back to their Latin form, so "СVV" (Cyrillic С + Latin "VV")
+    /// still reads as "CVV" to the filter.
+    private static func normalized(_ label: String) -> String {
+        let zeroWidth: Set<Character> = ["\u{200B}", "\u{200C}", "\u{200D}", "\u{FEFF}"]
+        let homoglyphs: [Character: Character] = ["С": "C", "с": "c", "Е": "E", "е": "e", "А": "A", "а": "a", "О": "O", "о": "o"]
+        return String(label.compactMap { char -> Character? in
+            if zeroWidth.contains(char) { return nil }
+            return homoglyphs[char] ?? char
+        })
+    }
+
+    private static func compacted(_ label: String) -> String {
+        String(label.filter { $0.isLetter || $0.isNumber })
     }
 }
 
@@ -141,6 +194,21 @@ public struct NaturalLanguageParser: Sendable {
     private static let spanishNumberWords: [String: Int] = ["un": 1, "uno": 1, "una": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6, "siete": 7, "ocho": 8, "nueve": 9, "diez": 10, "once": 11, "doce": 12]
     private static let frenchNumberWords: [String: Int] = ["un": 1, "une": 1, "deux": 2, "trois": 3, "quatre": 4, "cinq": 5, "six": 6, "sept": 7, "huit": 8, "neuf": 9, "dix": 10, "onze": 11, "douze": 12]
 
+    /// Matches a relative-date idiom ("in a week", "in an hour") only when "in" genuinely starts
+    /// its own word — a plain `\b` word-boundary check still passes right after a hyphen, since a
+    /// hyphen isn't a "word" character to the regex engine either. Confirmed false positives this
+    /// closes: "Flight **check-in** 3 hours before departure" and "Hotel **log-in** 3 days before
+    /// the trip" both fabricated a due date from phrasing that stated no real deadline at all,
+    /// because `\bin\b` still matched the "in" tacked onto "check-"/"log-". Requires the character
+    /// immediately before the phrase to be neither a letter/digit nor a hyphen (or the very start
+    /// of the string), and the phrase to end at a real word boundary.
+    private static func containsRelativeDatePhrase(_ phrase: String, in text: String) -> Bool {
+        let pattern = "(?<![\\p{L}\\p{N}-])" + NSRegularExpression.escapedPattern(for: phrase) + "\\b"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return false }
+        let range = NSRange(text.startIndex..., in: text)
+        return regex.firstMatch(in: text, range: range) != nil
+    }
+
     static func relativeDate(in lower: String, now: Date) -> Date? {
         let calendar = Calendar.current
         // Unlike every other unit here, an hour/minute-scale reminder ("remind me in 1 hour",
@@ -173,18 +241,18 @@ public struct NaturalLanguageParser: Sendable {
         if lower.contains("שבועיים") && !lower.contains("כל שבועיים") { return weeks(2) }
         if lower.contains("חודשיים") && !lower.contains("כל חודשיים") { return months(2) }
         if lower.contains("שנתיים") && !lower.contains("כל שנתיים") { return years(2) }
-        // "in an hour"/"in a week"/etc. are plain substring checks, not word-bounded — "within a
-        // week" or "within 6 months" contain "in a week"/"in 6 months" as a literal substring
-        // right after "with", so without the `!lower.contains("within")` guard these matched (and
-        // fabricated a date from) some of the most common real bill/document phrasing there is
-        // ("renew within 6 months", "pay within 14 days"). The numbered patterns just below have
-        // the equivalent `\b` word-boundary fix instead, since a plain "doesn't contain within"
-        // check can't cover every possible number.
-        if (lower.contains("in an hour") && !lower.contains("within")) || lower.contains("בעוד שעה") || lower.contains("en una hora") || lower.contains("dans une heure") { return hours(1) }
-        if (lower.contains("in a minute") && !lower.contains("within")) || lower.contains("בעוד דקה") || lower.contains("en un minuto") || lower.contains("dans une minute") { return minutes(1) }
-        if lower.contains("next week") || (lower.contains("in a week") && !lower.contains("within")) || lower.contains("בעוד שבוע") || lower.contains("בשבוע הבא") || lower.contains("la semana que viene") || lower.contains("próxima semana") || lower.contains("en una semana") || lower.contains("la semaine prochaine") || lower.contains("dans une semaine") { return weeks(1) }
-        if lower.contains("next month") || (lower.contains("in a month") && !lower.contains("within")) || lower.contains("בעוד חודש") || lower.contains("בחודש הבא") || lower.contains("el mes que viene") || lower.contains("próximo mes") || lower.contains("en un mes") || lower.contains("le mois prochain") || lower.contains("dans un mois") { return months(1) }
-        if lower.contains("next year") || (lower.contains("in a year") && !lower.contains("within")) || lower.contains("בעוד שנה") || lower.contains("בשנה הבאה") || lower.contains("el año que viene") || lower.contains("próximo año") || lower.contains("en un año") || lower.contains("l'année prochaine") || lower.contains("l'an prochain") || lower.contains("l’année prochaine") || lower.contains("dans un an") { return years(1) }
+        // "in an hour"/"in a week"/etc. used to be plain substring checks, not word-bounded —
+        // two independent, confirmed false-positive shapes: "within a week"/"within 6 months"
+        // contain "in a week"/"in 6 months" as a literal substring right after "with" (fixed here
+        // via `containsRelativeDatePhrase`'s leading-boundary check, which a bare `!contains
+        // ("within")` guard couldn't fully cover either); and an ordinary word that merely *ends*
+        // in "in" followed by "a week/month/year" — "**in** a **week**ly newsletter" — also
+        // matched with a plain substring check despite "in" not being its own word there at all.
+        if (containsRelativeDatePhrase("in an hour", in: lower) && !lower.contains("within")) || lower.contains("בעוד שעה") || lower.contains("en una hora") || lower.contains("dans une heure") { return hours(1) }
+        if (containsRelativeDatePhrase("in a minute", in: lower) && !lower.contains("within")) || lower.contains("בעוד דקה") || lower.contains("en un minuto") || lower.contains("dans une minute") { return minutes(1) }
+        if lower.contains("next week") || (containsRelativeDatePhrase("in a week", in: lower) && !lower.contains("within")) || lower.contains("בעוד שבוע") || lower.contains("בשבוע הבא") || lower.contains("la semana que viene") || lower.contains("próxima semana") || lower.contains("en una semana") || lower.contains("la semaine prochaine") || lower.contains("dans une semaine") { return weeks(1) }
+        if lower.contains("next month") || (containsRelativeDatePhrase("in a month", in: lower) && !lower.contains("within")) || lower.contains("בעוד חודש") || lower.contains("בחודש הבא") || lower.contains("el mes que viene") || lower.contains("próximo mes") || lower.contains("en un mes") || lower.contains("le mois prochain") || lower.contains("dans un mois") { return months(1) }
+        if lower.contains("next year") || (containsRelativeDatePhrase("in a year", in: lower) && !lower.contains("within")) || lower.contains("בעוד שנה") || lower.contains("בשנה הבאה") || lower.contains("el año que viene") || lower.contains("próximo año") || lower.contains("en un año") || lower.contains("l'année prochaine") || lower.contains("l'an prochain") || lower.contains("l’année prochaine") || lower.contains("dans un an") { return years(1) }
 
         // "next Tuesday" / Hebrew "יום שלישי הבא" / Spanish "el lunes que viene" / French "lundi
         // prochain" — a weekday name is only a relative-date signal paired with an explicit
@@ -229,40 +297,42 @@ public struct NaturalLanguageParser: Sendable {
             return nil
         }
         let numberAlternation = (["\\d+"] + englishNumberWords.keys + hebrewNumberWords.keys + spanishNumberWords.keys + frenchNumberWords.keys).joined(separator: "|")
-        // Every pattern below starts with a leading `\b` — without it, "in"/"en" (2-letter words)
-        // matched as a plain substring anywhere, including inside "with**in** 6 months" or
-        // "chick**en** 3 days" — verified "Passport renewal due within 6 months" and "Pay within
-        // 14 days to avoid a late fee" both fabricated a confident, wrong date from the "in N
-        // months/days" pattern hiding inside "within", for phrasing that's extremely common in
-        // real bills and renewal notices.
+        // The English/Spanish/French patterns below start with a negative lookbehind rather than
+        // a plain `\b` — without it, "in"/"en" (2-letter words) matched as a substring anywhere,
+        // including inside "with**in** 6 months"/"chick**en** 3 days" (verified: "Passport renewal
+        // due within 6 months" and "Pay within 14 days" both fabricated a wrong date this way) —
+        // and `\b` alone still wasn't enough, since it also matches right after a hyphen (not a
+        // "word" character): "Flight **check-in** 3 hours before departure" fabricated a date the
+        // same way despite the `\b`. The lookbehind requires the character before "in"/"en" to be
+        // neither a letter/digit nor a hyphen, closing both false-positive shapes at once.
         let numberedPatterns: [(String, (Int) -> Date?)] = [
-            ("\\bin\\s+(\(numberAlternation))\\s+hours?", hours),
-            ("\\bin\\s+(\(numberAlternation))\\s+minutes?", minutes),
+            ("(?<![\\p{L}\\p{N}-])in\\s+(\(numberAlternation))\\s+hours?", hours),
+            ("(?<![\\p{L}\\p{N}-])in\\s+(\(numberAlternation))\\s+minutes?", minutes),
             ("\\bבעוד\\s+(\(numberAlternation))\\s+שעות?", hours),
             ("\\bבעוד\\s+(\(numberAlternation))\\s+דקות?", minutes),
-            ("\\ben\\s+(\(numberAlternation))\\s+horas?", hours),
-            ("\\ben\\s+(\(numberAlternation))\\s+minutos?", minutes),
-            ("\\bdans\\s+(\(numberAlternation))\\s+heures?", hours),
-            ("\\bdans\\s+(\(numberAlternation))\\s+minutes?", minutes),
-            ("\\bin\\s+(\(numberAlternation))\\s+days?", days),
-            ("\\bin\\s+(\(numberAlternation))\\s+weeks?", weeks),
-            ("\\bin\\s+(\(numberAlternation))\\s+months?", months),
-            ("\\bin\\s+(\(numberAlternation))\\s+years?", years),
+            ("(?<![\\p{L}\\p{N}-])en\\s+(\(numberAlternation))\\s+horas?", hours),
+            ("(?<![\\p{L}\\p{N}-])en\\s+(\(numberAlternation))\\s+minutos?", minutes),
+            ("(?<![\\p{L}\\p{N}-])dans\\s+(\(numberAlternation))\\s+heures?", hours),
+            ("(?<![\\p{L}\\p{N}-])dans\\s+(\(numberAlternation))\\s+minutes?", minutes),
+            ("(?<![\\p{L}\\p{N}-])in\\s+(\(numberAlternation))\\s+days?", days),
+            ("(?<![\\p{L}\\p{N}-])in\\s+(\(numberAlternation))\\s+weeks?", weeks),
+            ("(?<![\\p{L}\\p{N}-])in\\s+(\(numberAlternation))\\s+months?", months),
+            ("(?<![\\p{L}\\p{N}-])in\\s+(\(numberAlternation))\\s+years?", years),
             ("\\bבעוד\\s+(\(numberAlternation))\\s+ימים?", days),
             ("\\bבעוד\\s+(\(numberAlternation))\\s+שבועות", weeks),
             ("\\bבעוד\\s+(\(numberAlternation))\\s+חודשים?", months),
             ("\\bבעוד\\s+(\(numberAlternation))\\s+שנים?", years),
-            ("\\ben\\s+(\(numberAlternation))\\s+días?", days),
-            ("\\ben\\s+(\(numberAlternation))\\s+semanas?", weeks),
-            ("\\ben\\s+(\(numberAlternation))\\s+meses?", months),
-            ("\\ben\\s+(\(numberAlternation))\\s+años?", years),
+            ("(?<![\\p{L}\\p{N}-])en\\s+(\(numberAlternation))\\s+días?", days),
+            ("(?<![\\p{L}\\p{N}-])en\\s+(\(numberAlternation))\\s+semanas?", weeks),
+            ("(?<![\\p{L}\\p{N}-])en\\s+(\(numberAlternation))\\s+meses?", months),
+            ("(?<![\\p{L}\\p{N}-])en\\s+(\(numberAlternation))\\s+años?", years),
             // French "mois" (month/months) never takes a plural "s" — a "mois?" pattern would also
             // match the unrelated word "moi" ("me"), so the literal word is used as-is here, unlike
             // every other unit above.
-            ("\\bdans\\s+(\(numberAlternation))\\s+jours?", days),
-            ("\\bdans\\s+(\(numberAlternation))\\s+semaines?", weeks),
-            ("\\bdans\\s+(\(numberAlternation))\\s+mois\\b", months),
-            ("\\bdans\\s+(\(numberAlternation))\\s+ans?", years)
+            ("(?<![\\p{L}\\p{N}-])dans\\s+(\(numberAlternation))\\s+jours?", days),
+            ("(?<![\\p{L}\\p{N}-])dans\\s+(\(numberAlternation))\\s+semaines?", weeks),
+            ("(?<![\\p{L}\\p{N}-])dans\\s+(\(numberAlternation))\\s+mois\\b", months),
+            ("(?<![\\p{L}\\p{N}-])dans\\s+(\(numberAlternation))\\s+ans?", years)
         ]
         for (pattern, apply) in numberedPatterns {
             guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { continue }
@@ -492,7 +562,17 @@ public struct NaturalLanguageParser: Sendable {
     private static let currencyMarks: Set<Character> = ["$", "€", "₪"]
     private static let currencyWords: Set<String> = ["שקל", "שקלים", "ש\"ח", "ש״ח", "nis", "ils", "usd", "eur", "shekel", "shekels"]
     private static func mentionsCurrency(_ token: String) -> Bool {
-        token.contains { currencyMarks.contains($0) } || currencyWords.contains(token.lowercased())
+        token.contains { currencyMarks.contains($0) } || currencyWords.contains(Self.wordOnly(token).lowercased())
+    }
+    /// Strips leading/trailing punctuation from a whitespace-split token before it's compared
+    /// against a fixed word set. Confirmed bug: "due dans 3 jours, 512 dollars" tokenizes to
+    /// "..., 3, jours,, 512, dollars" — without this, "jours," (comma still attached, since
+    /// amount extraction stopped blanket-stripping every comma out of the source text, to fix a
+    /// worse bug where a real decimal comma like "240,50" was destroyed the same way) no longer
+    /// exact-matched the `durationWords` set, so "3" stopped being recognized as a duration and
+    /// was wrongly returned as the amount instead of "512".
+    private static func wordOnly(_ token: String) -> String {
+        token.trimmingCharacters(in: .punctuationCharacters)
     }
 
     /// A bare first-numeric-token scan finds "15" in "August 15th, $240" before it ever reaches
@@ -503,14 +583,18 @@ public struct NaturalLanguageParser: Sendable {
     /// number `simpleDate` already recognized elsewhere in the same text ("24" in "on the 24
     /// august", which the earlier date parser already consumed as the day-of-month).
     static func extractAmount(from text: String, dayOfMonth: Int? = nil) -> Decimal? {
-        let tokens = text.replacingOccurrences(of: ",", with: "").split(separator: " ").map(String.init)
+        let tokens = text.split(separator: " ").map(String.init)
         func decimalValue(_ token: String) -> Decimal? {
             // A clock time like "11:00" strips down to "1100" if the colon is treated as noise —
             // that's not a smaller version of the same number, it's a completely different one,
             // so a token that ever had a colon is never a valid amount candidate at all.
             guard token.contains(":") == false else { return nil }
-            let digits = token.filter { "0123456789.".contains($0) }
-            return digits.isEmpty ? nil : Decimal(string: digits)
+            let digits = token.filter { "0123456789.,".contains($0) }
+            // A token like "agosto," filters down to a bare "," here (a separator with no actual
+            // digit) — `Decimal(string: ".")` parses that as 0 rather than failing, so a token
+            // that's pure punctuation attached to a word must never reach that call at all.
+            guard digits.contains(where: \.isNumber) else { return nil }
+            return Self.parseLocaleAmbiguousNumber(digits)
         }
         for (index, token) in tokens.enumerated() {
             guard let value = decimalValue(token) else { continue }
@@ -549,12 +633,46 @@ public struct NaturalLanguageParser: Sendable {
             if ordinalDatePattern.firstMatch(in: token, range: range) != nil { continue }
             if timeTokenPattern.firstMatch(in: token, range: range) != nil { continue }
             if let dayOfMonth, Int(token) == dayOfMonth { continue }
-            if index + 1 < tokens.count, durationWords.contains(tokens[index + 1].lowercased()) { continue }
-            if index + 1 < tokens.count, timeMarkers.contains(tokens[index + 1].lowercased()) { continue }
-            if index > 0, index + 1 < tokens.count, dayOfMonthArticles.contains(tokens[index - 1].lowercased()), tokens[index + 1].lowercased() == "de" { continue }
+            if index + 1 < tokens.count, durationWords.contains(Self.wordOnly(tokens[index + 1]).lowercased()) { continue }
+            if index + 1 < tokens.count, timeMarkers.contains(Self.wordOnly(tokens[index + 1]).lowercased()) { continue }
+            if index > 0, index + 1 < tokens.count, dayOfMonthArticles.contains(Self.wordOnly(tokens[index - 1]).lowercased()), Self.wordOnly(tokens[index + 1]).lowercased() == "de" { continue }
             if let value = decimalValue(token) { return value }
         }
         return nil
+    }
+
+    /// Interprets a digit string that mixes commas and periods, without knowing in advance which
+    /// language's convention it follows — this parser reads English/Hebrew (comma = thousands
+    /// separator, period = decimal point) and Spanish/French (period = thousands, comma =
+    /// decimal) over the very same input text, so the token itself has to settle it rather than a
+    /// fixed `Locale`. Confirmed bug: "240,50 euros" (Spanish/French) was previously read as
+    /// 24050 (100x too large) because every comma was stripped as if it were a thousands
+    /// separator; "1.200 euros" was read as 1.2 (1000x too small) because every period was kept
+    /// as a decimal point.
+    ///
+    /// Rule: when both separators appear, whichever comes *last* in the string is the decimal
+    /// point (true of every real-world numeral format: "1.234,56" and "1,234.56" both put the
+    /// decimal separator closest to the end). When only one appears, a real thousands group is
+    /// always exactly three digits long ("1,200", "1.200") — so exactly three digits after it
+    /// means "discard as a grouping separator," and any other count (one or two digits, as in
+    /// "240,50" or "12,5") means "this is the decimal point."
+    static func parseLocaleAmbiguousNumber(_ raw: String) -> Decimal? {
+        guard raw.isEmpty == false else { return nil }
+        let normalized: String
+        if let lastComma = raw.lastIndex(of: ","), let lastPeriod = raw.lastIndex(of: ".") {
+            let decimalSeparator: Character = lastComma > lastPeriod ? "," : "."
+            let groupingSeparator: Character = decimalSeparator == "," ? "." : ","
+            normalized = String(raw.filter { $0 != groupingSeparator }.map { $0 == decimalSeparator ? "." : $0 })
+        } else if let separatorIndex = raw.lastIndex(of: ",") ?? raw.lastIndex(of: ".") {
+            let separator = raw[separatorIndex]
+            let digitsAfter = raw.distance(from: raw.index(after: separatorIndex), to: raw.endIndex)
+            normalized = digitsAfter == 3
+                ? String(raw.filter { $0 != separator })
+                : String(raw.map { $0 == separator ? "." : $0 })
+        } else {
+            normalized = raw
+        }
+        return Decimal(string: normalized)
     }
 
     /// Splits a multi-line paste into one entry per line — "Rent $1200\nGym $40\nNetflix $17" is

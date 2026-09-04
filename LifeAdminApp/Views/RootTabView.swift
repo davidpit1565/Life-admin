@@ -612,7 +612,12 @@ struct ItemsView: View {
                 }
             }
             .confirmationDialog(
-                String(format: String(localized: "items.deleteSelectedConfirm"), selection.count),
+                // `filteredItems.filter { selection.contains(...) }.count`, not `selection.count`
+                // — `selection` isn't pruned when a filter/search change drops a previously
+                // selected row out of the list (same reasoning as `completeSelected`/
+                // `deleteSelected` below), so the raw Set count could promise to delete more rows
+                // than `deleteSelected()` — which only ever acts on `filteredItems` — actually will.
+                String(format: String(localized: "items.deleteSelectedConfirm"), filteredItems.filter { selection.contains($0.id) }.count),
                 isPresented: $showingBulkDeleteConfirmation,
                 titleVisibility: .visible
             ) {
@@ -768,7 +773,13 @@ struct InsightsView: View {
     private var categoryCounts: [(category: LifeCategory, count: Int)] {
         let active = store.items.filter { $0.status == .active }
         let grouped = Dictionary(grouping: active, by: \.category)
-        return grouped.map { (category: $0.key, count: $0.value.count) }.sorted { $0.count > $1.count }
+        // `Dictionary`'s iteration order is randomized per process launch, so two categories tied
+        // on count alone could swap places on the chart between one app launch and the next with
+        // nothing in the data having changed — the category's own stable raw name breaks the tie
+        // deterministically, same fix as `OverlapDetector.possibleOverlaps`.
+        return grouped
+            .map { (category: $0.key, count: $0.value.count) }
+            .sorted { $0.count != $1.count ? $0.count > $1.count : $0.category.rawValue < $1.category.rawValue }
     }
 
     /// Capped so someone whose items span most of `LifeCategory`'s 18 cases doesn't get a chart
@@ -1157,6 +1168,12 @@ struct AddItemView: View {
     @State private var confirmedItemWasMerged = false
     @State private var confirmedCount: Int?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    // Set once a save outcome that keeps these attachments actually happens (`.added`/
+    // `.addedMultiple`, both of which commit `pendingAttachments` into a real persisted item) —
+    // lets `.onDisappear` below tell that apart from every other way this sheet closes (swiped
+    // away, or the "ask every time" review screen taking over — see `itemPendingReview` in the
+    // same check), the same distinction `ItemDetailView.didFinish` draws for its own attachments.
+    @State private var didFinish = false
 
     /// A handful of ready-made examples spanning different categories — tapping one fills the
     /// text box with exactly what to type, so a first-time (or simply overwhelmed) user can see
@@ -1261,6 +1278,7 @@ struct AddItemView: View {
                                     // visible "here's what we understood" moment, tapping Save
                                     // just closes the screen with no sign anything happened at
                                     // all, which reads as broken rather than automatic.
+                                    didFinish = true
                                     withAnimation(reduceMotion ? nil : .default) {
                                         confirmedItem = item
                                         confirmedItemWasMerged = merged
@@ -1268,6 +1286,7 @@ struct AddItemView: View {
                                     try? await Task.sleep(for: .seconds(1.2))
                                     dismiss()
                                 case .addedMultiple(let addedItems):
+                                    didFinish = true
                                     withAnimation(reduceMotion ? nil : .default) { confirmedCount = addedItems.count }
                                     try? await Task.sleep(for: .seconds(1.2))
                                     dismiss()
@@ -1318,6 +1337,19 @@ struct AddItemView: View {
                     )
                     .ignoresSafeArea()
                 }
+            }
+        }
+        // Cleans up on-disk files for scanned pages left in `pendingAttachments` when this sheet
+        // closes some other way than a completed Save (swiped away, or the system dismissing it) —
+        // `ItemDetailView` already has this exact protection (`discardAbandonedAttachments`) for
+        // its own attachments; this screen didn't, so a scanned document abandoned before Save
+        // stayed on disk forever with nothing left pointing at it. Skipped once `itemPendingReview`
+        // is set: ownership of these files has passed to that `ItemDetailView`, which is now the
+        // one responsible for them (including cleaning them up if IT gets dismissed unsaved).
+        .onDisappear {
+            guard didFinish == false, itemPendingReview == nil else { return }
+            for attachment in pendingAttachments {
+                AttachmentStore.shared.delete(attachment)
             }
         }
     }
