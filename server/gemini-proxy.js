@@ -89,14 +89,44 @@ function buildPrompt(text, now = new Date()) {
 // recognize as "the CVV field" but none of which matched. Kept in sync with
 // DocumentFieldSafety.forbiddenLabelPattern in Swift (Sources/LifeAdminCore/NaturalLanguage.swift)
 // — this is defense in depth, not a single point of trust, so both layers need the same coverage.
-const FORBIDDEN_DOCUMENT_FIELD_LABEL = /\b(cvv2?|cvc2?|cvn|csc|cid)\b|card\s*identification\s*number|security\s*(code|value|number)|verification\s*(code|number|value|no\.?)|card\s*verification|\bsec\.?\s*code\b|\d\s*-?\s*digit\s*(security\s*)?code/i;
+//
+// Confirmed gap (found independently in both this file and the Swift copy): the whole pattern
+// was English-only, even though this app is Hebrew-first and also supports Spanish/French — an
+// OCR'd Israeli card labeled "קוד אבטחה" (security code) or "3 ספרות בגב הכרטיס" (3 digits on
+// back of card) passed through both layers completely unblocked. Added Hebrew, Spanish, and
+// French phrasings for the same handful of concepts, a spelled-out digit count ("Four-digit
+// code") alongside the numeral form, and "cvd" (Card Verification Data, used by some processors).
+const FORBIDDEN_DOCUMENT_FIELD_LABEL =
+  /\b(cvv2?|cvc2?|cvn|csc|cid|cvd)\b|card\s*identification\s*number|security\s*(code|value|number)|verification\s*(code|number|value|no\.?)|card\s*verification|\bsec\.?\s*code\b|(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*-?\s*digit\s*(?:security\s*)?code|קוד\s*(אבטחה|אימות|בטיחות)|\d+\s*ספרות|c[oó]digo\s*de\s*(seguridad|verificaci[oó]n)|code\s*de\s*(s[eé]curit[eé]|v[eé]rification)/i;
+// A label reduced to just its letters/digits ("C.V.V.", "C V V", "CVV-2") still has to match one
+// of the bare abbreviations exactly — deliberately separate from, and stricter than, the pattern
+// above: stripping every separator out of a full phrase like "security code" first would risk
+// matching unrelated compound words it was never meant to catch.
+const COMPACT_ABBREVIATION_LABEL = /^(cvv2?|cvc2?|cvn|csc|cid|cvd)$/i;
+const ZERO_WIDTH_CHARACTERS = /[\u200B\u200C\u200D\uFEFF]/g;
+// The handful of Cyrillic letters that are visually identical to Latin ones — "С" (U+0421) reads
+// exactly like Latin "C" — so "СVV" (Cyrillic С + Latin "VV") still reads as "CVV" to the filter.
+const CYRILLIC_HOMOGLYPHS = { 'С': 'C', 'с': 'c', 'Е': 'E', 'е': 'e', 'А': 'A', 'а': 'a', 'О': 'O', 'о': 'o' };
+
+function normalizeDocumentFieldLabel(label) {
+  return label
+    .replace(ZERO_WIDTH_CHARACTERS, '')
+    .replace(/[СсЕеАаОо]/g, (ch) => CYRILLIC_HOMOGLYPHS[ch] || ch);
+}
+
+function isForbiddenDocumentFieldLabel(label) {
+  const normalized = normalizeDocumentFieldLabel(label);
+  if (FORBIDDEN_DOCUMENT_FIELD_LABEL.test(normalized)) return true;
+  const compact = normalized.replace(/[^\p{L}\p{N}]/gu, '');
+  return COMPACT_ABBREVIATION_LABEL.test(compact);
+}
 
 function sanitizeDocumentFields(raw) {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((f) => f && typeof f.label === 'string' && typeof f.value === 'string')
     .filter((f) => f.label.trim().length > 0 && f.value.trim().length > 0)
-    .filter((f) => !FORBIDDEN_DOCUMENT_FIELD_LABEL.test(f.label))
+    .filter((f) => !isForbiddenDocumentFieldLabel(f.label))
     .slice(0, 20)
     .map((f) => ({ label: f.label.slice(0, 60), value: f.value.slice(0, 200) }));
 }
@@ -186,10 +216,30 @@ const server = http.createServer(async (req, res) => {
   if (req.method !== 'POST' || req.url !== '/v1/extract') return send(res, 404, { error: 'not_found' });
   if (!checkSharedSecret(req.headers['x-app-secret'])) return send(res, 401, { error: 'authentication_failed' });
   if (!checkRateLimit(clientIP(req.headers, req.socket?.remoteAddress))) return send(res, 429, { error: 'rate_limited' });
-  let body = '';
-  req.on('data', (chunk) => { body += chunk; if (body.length > 12000) req.destroy(); });
+  // Concatenating raw `Buffer` chunks and decoding once at the end, rather than `body +=
+  // chunk` (each chunk decoded to a string independently as it arrives) — a multi-byte UTF-8
+  // character (every Hebrew character is one) that happens to split across two TCP chunks
+  // otherwise decodes to a corrupted replacement character on each half, silently mangling the
+  // request text before it ever reaches Gemini. Confirmed: "שלום עולם..." split mid-character
+  // across two `data` events decoded to "�לום עולם...", and `JSON.parse` still succeeded since
+  // the corruption stays inside the string value.
+  const chunks = [];
+  let size = 0;
+  let tooLarge = false;
+  req.on('data', (chunk) => {
+    if (tooLarge) return;
+    size += chunk.length;
+    if (size > 12000) {
+      tooLarge = true;
+      send(res, 413, { error: 'payload_too_large' });
+      return;
+    }
+    chunks.push(chunk);
+  });
   req.on('end', async () => {
+    if (tooLarge) return;
     try {
+      const body = Buffer.concat(chunks).toString('utf8');
       const parsed = JSON.parse(body || '{}');
       if (typeof parsed.text !== 'string' || parsed.text.trim().length === 0) return send(res, 400, { error: 'invalid_request' });
       const result = await callGemini(parsed.text);
