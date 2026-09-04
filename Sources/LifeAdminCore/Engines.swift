@@ -80,10 +80,15 @@ public struct OverlapDetector: Sendable {
     public func possibleOverlaps(in items: [LifeAdminItem]) -> [Overlap] {
         let active = items.filter { $0.status == .active && $0.recurrence != .none }
         let grouped = Dictionary(grouping: active, by: \.category)
+        // `Dictionary`'s iteration order is randomized per process launch (a deliberate
+        // anti-hash-flooding measure), so two categories tied on count alone could swap places
+        // between one app launch and the next with nothing in the data having changed — sorting
+        // by count first, then by the category's own stable raw name, keeps the display order
+        // deterministic.
         return grouped
             .filter { $0.value.count >= 2 }
             .map { Overlap(category: $0.key, items: $0.value) }
-            .sorted { $0.items.count > $1.items.count }
+            .sorted { $0.items.count != $1.items.count ? $0.items.count > $1.items.count : $0.category.rawValue < $1.category.rawValue }
     }
 }
 public struct DigestEngine: Sendable {
@@ -104,7 +109,11 @@ public struct DigestEngine: Sendable {
 
         let overdue = active.filter { ($0.dueDate ?? .distantFuture) < startOfToday }
         let dueToday = active.filter { guard let due = $0.dueDate else { return false }; return due >= startOfToday && due < startOfTomorrow }
-        let dueThisWeek = active.filter { guard let due = $0.dueDate else { return false }; return due >= now && due <= weekEnd }
+        // `startOfToday`, not `now` — an item due earlier today (say 9am) needs to count as "due
+        // this week" at 3pm just as much as one due at 8pm today does; using the raw current time
+        // as the lower bound excluded anything whose time-of-day had already passed today, the
+        // same day-boundary bug already fixed once in `DateRangeFilter` but missed here.
+        let dueThisWeek = active.filter { guard let due = $0.dueDate else { return false }; return due >= startOfToday && due <= weekEnd }
         let top = (overdue + dueToday).sorted { $0.priority > $1.priority }.first
 
         return Summary(overdueCount: overdue.count, dueTodayCount: dueToday.count, dueThisWeekCount: dueThisWeek.count, topItem: top)
@@ -120,11 +129,19 @@ public struct SpendEngine: Sendable {
     /// Total amount per currency for active items due within `[from, to]` — kept as separate
     /// per-currency totals rather than one summed number, since adding a USD amount to an ILS
     /// amount would just be a wrong number dressed up as a real one.
-    public func totalsByCurrency(for items: [LifeAdminItem], from: Date, to: Date) -> [String: Decimal] {
+    ///
+    /// `from` is normalized to the start of its day internally, rather than trusting the caller
+    /// to have done that — a caller passing the raw current moment (e.g. "this month" starting
+    /// at `Date()`) would otherwise exclude an item due earlier today purely because its time-of-
+    /// day already passed, the same day-boundary bug already fixed once in `DateRangeFilter` and
+    /// in `DigestEngine.summary` above, caught here too via a confirmed real-world case: a bill
+    /// due at 9am wrongly vanished from "due this month" as soon as it was checked at 3pm.
+    public func totalsByCurrency(for items: [LifeAdminItem], from: Date, to: Date, calendar: Calendar = .current) -> [String: Decimal] {
+        let normalizedFrom = calendar.startOfDay(for: from)
         var totals: [String: Decimal] = [:]
         for item in items {
             guard item.status == .active, let amount = item.amount, let due = item.dueDate else { continue }
-            guard due >= from, due <= to else { continue }
+            guard due >= normalizedFrom, due <= to else { continue }
             let currency = item.currency ?? ""
             totals[currency, default: 0] += amount
         }
