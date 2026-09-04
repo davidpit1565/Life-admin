@@ -34,6 +34,12 @@ struct ItemDetailView: View {
     @State private var isSaving = false
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var showingFileImporter = false
+    // Every Save/Mark Done/Snooze/Reopen/Delete button below is also disabled while this is
+    // true, not just `isSaving` — without that, tapping Save the instant a scanned photo's OCR/AI
+    // auto-fill kicked off (still running, a background `Task` unrelated to this view's own
+    // lifecycle) let the item save with just the attachment and none of the fields that
+    // auto-fill was about to produce, silently discarding it once it finished writing into a
+    // `@State` that had already been dismissed.
     @State private var isImportingAttachment = false
     // Set right before any of save()/markDone()/reopen()/the Delete confirmation actually
     // commits — lets `.onDisappear` below tell "the user finished with this screen" apart from
@@ -59,7 +65,7 @@ struct ItemDetailView: View {
         _dueDate = State(initialValue: item.dueDate ?? Date())
         _recurrence = State(initialValue: item.recurrence)
         _reminderOffsets = State(initialValue: Set(item.reminderOffsets))
-        _amountText = State(initialValue: item.amount.map { "\($0)" } ?? "")
+        _amountText = State(initialValue: item.amount.map { Self.localizedAmountText(for: $0) } ?? "")
         _currency = State(initialValue: item.currency ?? "")
         _notes = State(initialValue: item.notes ?? "")
         _name = State(initialValue: item.contact?.name ?? "")
@@ -392,7 +398,7 @@ struct ItemDetailView: View {
                     } label: {
                         Label(String(localized: "itemDetail.markDone"), systemImage: "checkmark.circle.fill")
                     }
-                    .disabled(isSaving)
+                    .disabled(isSaving || isImportingAttachment)
                     // Only meaningful with a due date to push forward — the notification banner's
                     // own "Snooze" button always adds a fixed 1 day; this gives the same idea a
                     // few real durations from inside the item itself.
@@ -416,7 +422,7 @@ struct ItemDetailView: View {
                         } label: {
                             Label(String(localized: "itemDetail.snooze"), systemImage: "clock.arrow.circlepath")
                         }
-                        .disabled(isSaving)
+                        .disabled(isSaving || isImportingAttachment)
                     }
                 }
             } else if item.status == .completed {
@@ -435,7 +441,7 @@ struct ItemDetailView: View {
                     } label: {
                         Label(String(localized: "itemDetail.reopen"), systemImage: "arrow.uturn.backward.circle.fill")
                     }
-                    .disabled(isSaving)
+                    .disabled(isSaving || isImportingAttachment)
                 }
             }
 
@@ -460,11 +466,11 @@ struct ItemDetailView: View {
                         Text(String(localized: "common.save"))
                     }
                 }
-                .disabled(isSaving)
+                .disabled(isSaving || isImportingAttachment)
                 Button(String(localized: "itemDetail.delete"), role: .destructive) {
                     showingDeleteConfirmation = true
                 }
-                .disabled(isSaving)
+                .disabled(isSaving || isImportingAttachment)
             }
         }
         .navigationTitle(title.isEmpty ? item.title : title)
@@ -524,6 +530,23 @@ struct ItemDetailView: View {
     }
 
     private static let commonCurrencyCodes = ["USD", "EUR", "ILS", "GBP"]
+
+    /// Renders a `Decimal` amount into the text field using the same locale-aware decimal
+    /// separator `fieldsApplied` expects back (`Decimal(string:locale: Locale.current)`) —
+    /// plain string interpolation (`"\(amount)"`) always uses "." regardless of locale, so a
+    /// user whose `.decimalPad` shows "," (many European locales) would see "17.99" displayed
+    /// but have it silently truncated to "17" (or fail to parse at all) the moment they saved
+    /// without ever touching the field themselves, since the parser was never given the "."
+    /// it was actually looking at.
+    private static func localizedAmountText(for amount: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = .current
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = false
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 15
+        return formatter.string(from: amount as NSDecimalNumber) ?? "\(amount)"
+    }
 
     private struct SnoozeOption: Identifiable { let days: Int; let label: String; var id: Int { days } }
 
@@ -840,7 +863,7 @@ struct ItemDetailView: View {
         // Reported on-device: scanning a passport photo produced "Amount: 82" out of nowhere.
         if category != .documents {
             if amountText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let amount = extracted.amount {
-                amountText = "\(amount)"
+                amountText = Self.localizedAmountText(for: amount)
             }
             if currency.isEmpty, let extractedCurrency = extracted.currency {
                 currency = extractedCurrency
