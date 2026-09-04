@@ -363,7 +363,7 @@ final class ItemStore: ObservableObject {
         persisted.calendarEventIdentifier = sync.eventIdentifier
         persisted.reminderIdentifier = sync.reminderIdentifier
         try? modelContext.save()
-        flagCalendarSyncIssueIfNeeded(dueDate: item.dueDate, eventIdentifier: sync.eventIdentifier)
+        flagCalendarSyncIssueIfNeeded(sync.eventNeedsAccess)
 
         await refreshDigest()
         return item
